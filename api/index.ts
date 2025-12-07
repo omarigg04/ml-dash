@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { mlAuth } from '../backend/src/auth/oauth';
 import ordersRouter from '../backend/src/routes/orders';
 import shipmentsRouter from '../backend/src/routes/shipments';
+import itemsRouter from '../backend/src/routes/items';
 
 // Load environment variables
 dotenv.config();
@@ -130,6 +131,7 @@ app.get('/api/callback', async (req, res) => {
 // API Routes
 app.use('/api/orders', ordersRouter);
 app.use('/api/shipments', shipmentsRouter);
+app.use('/api/items', itemsRouter);
 
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {

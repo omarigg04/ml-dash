@@ -18,6 +18,7 @@ import { MatMomentDateModule } from '@angular/material-moment-adapter'; // Impor
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { PublishProductComponent } from './publish-product/publish-product.component';
 
 @NgModule({
   declarations: [
@@ -26,6 +27,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
     NavBarComponent,
     BarChartComponent,
     VentasBarsComponent,
+    PublishProductComponent,
   ],
   imports: [
     BrowserModule,

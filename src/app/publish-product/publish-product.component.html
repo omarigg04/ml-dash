@@ -1,0 +1,113 @@
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h3 class="mb-0">📦 Publicar Producto en MercadoLi
+
+                        bre</h3>
+                </div>
+                <div class="card-body">
+
+                    <!-- Success Message -->
+                    <div *ngIf="successMessage" class="alert alert-success" role="alert">
+                        <strong>✅ {{ successMessage }}</strong>
+                    </div>
+
+                    <!-- Error Message -->
+                    <div *ngIf="errorMessage" class="alert alert-danger" role="alert">
+                        <strong>❌ {{ errorMessage }}</strong>
+                    </div>
+
+                    <form (ngSubmit)="onSubmit()" #productForm="ngForm">
+
+                        <!-- Title -->
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Título del Producto *</label>
+                            <input type="text" class="form-control" id="title" name="title" [(ngModel)]="product.title"
+                                required maxlength="60" placeholder="Ej: Laptop HP Core i5 8GB RAM">
+                            <small class="form-text text-muted">Máximo 60 caracteres</small>
+                        </div>
+
+                        <!-- Category -->
+                        <div class="mb-3">
+                            <label for="category" class="form-label">Categoría *</label>
+                            <select class="form-select" id="category" name="category_id"
+                                [(ngModel)]="product.category_id" required>
+                                <option *ngFor="let cat of categories" [value]="cat.id">
+                                    {{ cat.name }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Price -->
+                        <div class="mb-3">
+                            <label for="price" class="form-label">Precio (MXN) *</label>
+                            <input type="number" class="form-control" id="price" name="price"
+                                [(ngModel)]="product.price" required min="0" step="0.01" placeholder="199.00">
+                        </div>
+
+                        <!-- Stock -->
+                        <div class="mb-3">
+                            <label for="stock" class="form-label">Cantidad Disponible *</label>
+                            <input type="number" class="form-control" id="stock" name="available_quantity"
+                                [(ngModel)]="product.available_quantity" required min="1" placeholder="10">
+                        </div>
+
+                        <!-- Condition -->
+                        <div class="mb-3">
+                            <label class="form-label">Condición *</label>
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="condition" id="conditionNew"
+                                        value="new" [(ngModel)]="product.condition">
+                                    <label class="form-check-label" for="conditionNew">
+                                        Nuevo
+                                    </label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="condition" id="conditionUsed"
+                                        value="used" [(ngModel)]="product.condition">
+                                    <label class="form-check-label" for="conditionUsed">
+                                        Usado
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pictures URLs -->
+                        <div class="mb-3">
+                            <label for="pictures" class="form-label">URLs de Imágenes (opcional)</label>
+                            <textarea class="form-control" id="pictures" name="pictures" [(ngModel)]="product.pictures"
+                                rows="3"
+                                placeholder="https://ejemplo.com/imagen1.jpg&#10;https://ejemplo.com/imagen2.jpg&#10;Una URL por línea"></textarea>
+                            <small class="form-text text-muted">Una URL por línea. Máximo 12 imágenes.</small>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Descripción (opcional)</label>
+                            <textarea class="form-control" id="description" name="description"
+                                [(ngModel)]="product.description" rows="4"
+                                placeholder="Describe las características y beneficios de tu producto..."></textarea>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-secondary" (click)="resetForm()" [disabled]="loading">
+                                Limpiar
+                            </button>
+                            <button type="submit" class="btn btn-warning" [disabled]="!productForm.valid || loading"
+                                style="background-color: #FFE600; border-color: #FFE600; color: #333; font-weight: bold;">
+                                <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+                                {{ loading ? 'Publicando...' : 'Publicar Producto' }}
+                            </button>
+                        </div>
+
+                    </form>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
