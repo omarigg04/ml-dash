@@ -20,9 +20,10 @@ export class MercadoLibreAuth {
 
     /**
      * Generate authorization URL for OAuth 2.0 flow
+     * Includes 'write' scope for creating/editing products
      */
     getAuthorizationUrl(): string {
-        return `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${this.appId}&redirect_uri=${this.redirectUri}`;
+        return `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${this.appId}&redirect_uri=${this.redirectUri}&scope=write`;
     }
 
     /**
