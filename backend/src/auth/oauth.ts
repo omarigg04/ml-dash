@@ -57,10 +57,11 @@ export class MercadoLibreAuth {
 
     /**
      * Generate authorization URL for OAuth 2.0 flow
-     * Includes 'offline_access' and 'write' scopes for creating/editing products
+     * Includes 'offline_access', 'read' and 'write' scopes
      */
     getAuthorizationUrl(): string {
-        return `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${this.appId}&redirect_uri=${this.redirectUri}&scope=offline_access write`;
+        const scopes = ['offline_access', 'read', 'write'].join(' ');
+        return `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${this.appId}&redirect_uri=${this.redirectUri}&scope=${scopes}`;
     }
 
     /**
