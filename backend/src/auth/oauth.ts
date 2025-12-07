@@ -4,7 +4,7 @@ import * as path from 'path';
 import { TokenData } from '../types';
 
 const TOKEN_FILE = path.join(__dirname, '../../tokens.json');
-const TOKEN_KV_KEY = 'meli_oauth_token';
+const TOKEN_KV_KEY = 'meli_oauth_token_v2';
 
 // Helper to interact with Vercel KV via REST API using fetch
 // This avoids dependency issues with @vercel/kv package

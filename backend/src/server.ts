@@ -38,63 +38,9 @@ app.get('/auth', (req: Request, res: Response) => {
 
 // OAuth callback endpoint
 app.get('/callback', async (req: Request, res: Response) => {
-  const { code } = req.query;
-
-  if (!code || typeof code !== 'string') {
-    return res.status(400).send('Authorization code not found');
-  }
-
-  try {
-    await mlAuth.getAccessToken(code);
-    res.send(`
-      <html>
-        <head>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              height: 100vh;
-              margin: 0;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            }
-            .container {
-              background: white;
-              padding: 40px;
-              border-radius: 10px;
-              box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-              text-align: center;
-            }
-            h1 { color: #333; margin-bottom: 10px; }
-            p { color: #666; margin-bottom: 20px; }
-            .success { color: #4CAF50; font-size: 48px; margin-bottom: 20px; }
-            button {
-              background: #667eea;
-              color: white;
-              border: none;
-              padding: 12px 24px;
-              border-radius: 6px;
-              cursor: pointer;
-              font-size: 16px;
-            }
-            button:hover { background: #5568d3; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="success">✅</div>
-            <h1>Autorización exitosa!</h1>
-            <p>Tu app ha sido autorizada correctamente.</p>
-            <p>Puedes cerrar esta ventana y regresar a tu aplicación.</p>
-            <button onclick="window.close()">Cerrar</button>
-          </div>
-        </body>
-      </html>
-    `);
-  } catch (error) {
-    console.error('Error in callback:', error);
-    res.status(500).send(`
+} catch (error) {
+  console.error('Error in callback:', error);
+  res.status(500).send(`
       <html>
         <head>
           <style>
@@ -128,7 +74,7 @@ app.get('/callback', async (req: Request, res: Response) => {
         </body>
       </html>
     `);
-  }
+}
 });
 
 // API Routes
