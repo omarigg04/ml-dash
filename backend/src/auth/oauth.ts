@@ -12,9 +12,9 @@ export class MercadoLibreAuth {
     private tokenData: TokenData | null = null;
 
     constructor() {
-        this.appId = process.env.APP_ID || '';
-        this.appSecret = process.env.APP_SECRET || '';
-        this.redirectUri = process.env.REDIRECT_URI || 'http://localhost:3000/callback';
+        this.appId = process.env['APP_ID'] || '';
+        this.appSecret = process.env['APP_SECRET'] || '';
+        this.redirectUri = process.env['REDIRECT_URI'] || 'http://localhost:3000/callback';
         this.loadTokens();
     }
 
@@ -119,9 +119,21 @@ export class MercadoLibreAuth {
     }
 
     /**
-     * Load tokens from file
+     * Check if running in Vercel serverless environment
+     */
+    private isServerless(): boolean {
+        return !!process.env['VERCEL'] || !!process.env['AWS_LAMBDA_FUNCTION_NAME'];
+    }
+
+    /**
+     * Load tokens from file (only in local environment)
      */
     private loadTokens(): void {
+        if (this.isServerless()) {
+            console.log('📦 Running in serverless environment - tokens will be stored in memory only');
+            return;
+        }
+
         try {
             if (fs.existsSync(TOKEN_FILE)) {
                 const data = fs.readFileSync(TOKEN_FILE, 'utf-8');
@@ -134,9 +146,14 @@ export class MercadoLibreAuth {
     }
 
     /**
-     * Save tokens to file
+     * Save tokens to file (only in local environment)
      */
     private saveTokens(): void {
+        if (this.isServerless()) {
+            console.log('📦 Serverless environment - tokens stored in memory (not persisted)');
+            return;
+        }
+
         try {
             fs.writeFileSync(TOKEN_FILE, JSON.stringify(this.tokenData, null, 2));
             console.log('✅ Tokens saved to file');

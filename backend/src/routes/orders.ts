@@ -65,10 +65,11 @@ router.get('/', async (req: Request, res: Response) => {
         console.error('Error fetching orders:', error.response?.data || error.message);
 
         if (error.message?.includes('No token available')) {
-            return res.status(401).json({
+            res.status(401).json({
                 error: 'Not authorized',
                 message: 'Please authorize the app first by visiting /auth',
             });
+            return;
         }
 
         res.status(500).json({

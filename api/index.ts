@@ -12,38 +12,39 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin: '*', // Allow all origins in production
-    credentials: true,
+  origin: '*', // Allow all origins in production
+  credentials: true,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
 app.get('/api', (req, res) => {
-    res.json({
-        status: 'running',
-        message: 'MercadoLibre Dashboard API',
-        hasToken: mlAuth.hasValidToken(),
-    });
+  res.json({
+    status: 'running',
+    message: 'MercadoLibre Dashboard API',
+    hasToken: mlAuth.hasValidToken(),
+  });
 });
 
 // OAuth authorization endpoint
 app.get('/api/auth', (req, res) => {
-    const authUrl = mlAuth.getAuthorizationUrl();
-    res.redirect(authUrl);
+  const authUrl = mlAuth.getAuthorizationUrl();
+  res.redirect(authUrl);
 });
 
 // OAuth callback endpoint
 app.get('/api/callback', async (req, res) => {
-    const { code } = req.query;
+  const { code } = req.query;
 
-    if (!code || typeof code !== 'string') {
-        return res.status(400).send('Authorization code not found');
-    }
+  if (!code || typeof code !== 'string') {
+    res.status(400).send('Authorization code not found');
+    return;
+  }
 
-    try {
-        await mlAuth.getAccessToken(code);
-        res.send(`
+  try {
+    await mlAuth.getAccessToken(code);
+    res.send(`
       <html>
         <head>
           <style>
@@ -87,9 +88,9 @@ app.get('/api/callback', async (req, res) => {
         </body>
       </html>
     `);
-    } catch (error) {
-        console.error('Error in callback:', error);
-        res.status(500).send(`
+  } catch (error) {
+    console.error('Error in callback:', error);
+    res.status(500).send(`
       <html>
         <head>
           <style>
@@ -123,7 +124,7 @@ app.get('/api/callback', async (req, res) => {
         </body>
       </html>
     `);
-    }
+  }
 });
 
 // API Routes
@@ -132,11 +133,11 @@ app.use('/api/shipments', shipmentsRouter);
 
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {
-    console.error('Unhandled error:', err);
-    res.status(500).json({
-        error: 'Internal server error',
-        message: err.message,
-    });
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: err.message,
+  });
 });
 
 // Export for Vercel serverless

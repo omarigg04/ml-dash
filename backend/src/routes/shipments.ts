@@ -14,7 +14,8 @@ router.get('/:id', async (req: Request, res: Response) => {
         const { id } = req.params;
 
         if (!id) {
-            return res.status(400).json({ error: 'Shipment ID is required' });
+            res.status(400).json({ error: 'Shipment ID is required' });
+            return;
         }
 
         // Get valid access token
@@ -41,20 +42,22 @@ router.get('/:id', async (req: Request, res: Response) => {
             status: shipment.status,
         });
     } catch (error: any) {
-        console.error(`Error fetching shipment ${req.params.id}:`, error.response?.data || error.message);
+        console.error(`Error fetching shipment ${req.params['id']}:`, error.response?.data || error.message);
 
         if (error.message?.includes('No token available')) {
-            return res.status(401).json({
+            res.status(401).json({
                 error: 'Not authorized',
                 message: 'Please authorize the app first by visiting /auth',
             });
+            return;
         }
 
         if (error.response?.status === 404) {
-            return res.status(404).json({
+            res.status(404).json({
                 error: 'Shipment not found',
-                message: `Shipment with ID ${req.params.id} not found`,
+                message: `Shipment with ID ${req.params['id']} not found`,
             });
+            return;
         }
 
         res.status(500).json({
