@@ -17,7 +17,10 @@ export class PublishProductComponent {
     available_quantity: 1,
     condition: 'new',
     pictures: '',
-    description: ''
+    description: '',
+    listing_type_id: 'free', // free, bronze, silver, gold_special, gold_premium
+    warranty_type: '',
+    warranty_time: ''
   };
 
   categories = [
@@ -31,6 +34,27 @@ export class PublishProductComponent {
     { id: 'MLM1574', name: 'Hogar y Muebles' },
     { id: 'MLM1499', name: 'Industrias y Oficinas' },
     { id: 'MLM1276', name: 'Deportes y Fitness' },
+  ];
+
+  listingTypes = [
+    { id: 'free', name: 'Gratuita', description: 'Publicación gratuita básica' },
+    { id: 'bronze', name: 'Bronce', description: 'Mayor visibilidad' },
+    { id: 'silver', name: 'Plata', description: 'Buena exposición' },
+    { id: 'gold_special', name: 'Oro Especial', description: 'Alta exposición' },
+    { id: 'gold_premium', name: 'Oro Premium', description: 'Máxima exposición' }
+  ];
+
+  warrantyTypes = [
+    'Sin garantía',
+    'Garantía del vendedor',
+    'Garantía de fábrica'
+  ];
+
+  warrantyTimes = [
+    '90 días',
+    '6 meses',
+    '1 año',
+    '2 años'
   ];
 
   loading = false;
@@ -86,7 +110,10 @@ export class PublishProductComponent {
       available_quantity: 1,
       condition: 'new',
       pictures: '',
-      description: ''
+      description: '',
+      listing_type_id: 'free',
+      warranty_type: '',
+      warranty_time: ''
     };
     this.successMessage = '';
     this.errorMessage = '';

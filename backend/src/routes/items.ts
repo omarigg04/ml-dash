@@ -17,7 +17,11 @@ router.post('/', async (req: Request, res: Response) => {
             available_quantity,
             condition,
             pictures,
-            description
+            description,
+            listing_type_id = 'free', // Default to free listing to avoid permission issues
+            warranty_type,
+            warranty_time,
+            attributes
         } = req.body;
 
         // Validate required fields
@@ -33,7 +37,7 @@ router.post('/', async (req: Request, res: Response) => {
         const token = await mlAuth.getToken();
         console.log('🔑 Using token to create item (length):', token.length);
 
-        // Prepare item data for MercadoLibre API
+        // Prepare item data for MercadoLibre API (WITHOUT description initially)
         const itemData: any = {
             title: title.substring(0, 60), // ML limit is 60 chars
             category_id,
@@ -42,22 +46,36 @@ router.post('/', async (req: Request, res: Response) => {
             available_quantity: parseInt(available_quantity),
             buying_mode: 'buy_it_now',
             condition,
-            listing_type_id: 'gold_special',
+            listing_type_id, // free, bronze, silver, gold_special, gold_premium
         };
 
-        // Add pictures if provided
+        // Add pictures if provided (max 6)
         if (pictures && Array.isArray(pictures) && pictures.length > 0) {
-            itemData.pictures = pictures.map((url: string) => ({ source: url }));
+            itemData.pictures = pictures.slice(0, 6).map((url: string) => ({ source: url }));
         }
 
-        // Add description if provided
-        if (description) {
-            itemData.description = {
-                plain_text: description
-            };
+        // Add warranty information if provided
+        if (warranty_type && warranty_time) {
+            itemData.sale_terms = [
+                {
+                    id: 'WARRANTY_TYPE',
+                    value_name: warranty_type // 'Garantía del vendedor' or 'Sin garantía'
+                },
+                {
+                    id: 'WARRANTY_TIME',
+                    value_name: warranty_time // '90 días', '6 meses', '1 año', etc.
+                }
+            ];
         }
 
-        // Create item on MercadoLibre
+        // Add attributes if provided (brand, model, etc.)
+        if (attributes && Array.isArray(attributes) && attributes.length > 0) {
+            itemData.attributes = attributes;
+        }
+
+        console.log('📦 Creating item with data:', JSON.stringify(itemData, null, 2));
+
+        // Step 1: Create item on MercadoLibre (WITHOUT description)
         const response = await axios.post(
             'https://api.mercadolibre.com/items',
             itemData,
@@ -68,6 +86,31 @@ router.post('/', async (req: Request, res: Response) => {
                 },
             }
         );
+
+        const itemId = response.data.id;
+        console.log('✅ Item created successfully with ID:', itemId);
+
+        // Step 2: Add description AFTER item creation (if provided)
+        if (description && description.trim()) {
+            try {
+                await axios.post(
+                    `https://api.mercadolibre.com/items/${itemId}/description`,
+                    {
+                        plain_text: description
+                    },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                );
+                console.log('✅ Description added successfully');
+            } catch (descError: any) {
+                console.error('⚠️  Error adding description:', descError.response?.data);
+                // Don't fail the whole request if description fails
+            }
+        }
 
         res.status(201).json({
             success: true,

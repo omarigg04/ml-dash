@@ -72,7 +72,50 @@
                                         Usado
                                     </label>
                                 </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="condition" id="conditionRefurbished"
+                                        value="refurbished" [(ngModel)]="product.condition">
+                                    <label class="form-check-label" for="conditionRefurbished">
+                                        Reacondicionado
+                                    </label>
+                                </div>
                             </div>
+                        </div>
+
+                        <!-- Listing Type -->
+                        <div class="mb-3">
+                            <label for="listingType" class="form-label">Tipo de Publicación</label>
+                            <select class="form-select" id="listingType" name="listing_type_id"
+                                [(ngModel)]="product.listing_type_id">
+                                <option *ngFor="let type of listingTypes" [value]="type.id">
+                                    {{ type.name }} - {{ type.description }}
+                                </option>
+                            </select>
+                            <small class="form-text text-muted">Las publicaciones Premium pueden tener costo adicional</small>
+                        </div>
+
+                        <!-- Warranty Type -->
+                        <div class="mb-3">
+                            <label for="warrantyType" class="form-label">Tipo de Garantía (opcional)</label>
+                            <select class="form-select" id="warrantyType" name="warranty_type"
+                                [(ngModel)]="product.warranty_type">
+                                <option value="">Sin especificar</option>
+                                <option *ngFor="let type of warrantyTypes" [value]="type">
+                                    {{ type }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Warranty Time -->
+                        <div class="mb-3" *ngIf="product.warranty_type && product.warranty_type !== 'Sin garantía'">
+                            <label for="warrantyTime" class="form-label">Tiempo de Garantía</label>
+                            <select class="form-select" id="warrantyTime" name="warranty_time"
+                                [(ngModel)]="product.warranty_time">
+                                <option value="">Seleccionar...</option>
+                                <option *ngFor="let time of warrantyTimes" [value]="time">
+                                    {{ time }}
+                                </option>
+                            </select>
                         </div>
 
                         <!-- Pictures URLs -->
@@ -81,7 +124,7 @@
                             <textarea class="form-control" id="pictures" name="pictures" [(ngModel)]="product.pictures"
                                 rows="3"
                                 placeholder="https://ejemplo.com/imagen1.jpg&#10;https://ejemplo.com/imagen2.jpg&#10;Una URL por línea"></textarea>
-                            <small class="form-text text-muted">Una URL por línea. Máximo 12 imágenes.</small>
+                            <small class="form-text text-muted">Una URL por línea. Máximo 6 imágenes.</small>
                         </div>
 
                         <!-- Description -->
