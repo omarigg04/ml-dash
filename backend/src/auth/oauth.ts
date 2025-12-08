@@ -43,16 +43,26 @@ const kvRestApi = async (method: string, params: any[] = []) => {
 };
 
 export class MercadoLibreAuth {
-    private appId: string;
-    private appSecret: string;
-    private redirectUri: string;
+    // Removed cached properties to force dynamic lookup
+    // private appId: string;
+    // private appSecret: string;
+    // private redirectUri: string;
     private tokenData: TokenData | null = null;
 
     constructor() {
-        this.appId = process.env['APP_ID'] || '';
-        this.appSecret = process.env['APP_SECRET'] || '';
-        this.redirectUri = process.env['REDIRECT_URI'] || 'http://localhost:3000/callback';
         // We do not load tokens in constructor anymore, they are lazy loaded
+    }
+
+    private get appId(): string {
+        return process.env['APP_ID'] || '';
+    }
+
+    private get appSecret(): string {
+        return process.env['APP_SECRET'] || '';
+    }
+
+    private get redirectUri(): string {
+        return process.env['REDIRECT_URI'] || 'http://localhost:3000/callback';
     }
 
     /**
@@ -69,6 +79,7 @@ export class MercadoLibreAuth {
      */
     async getAccessToken(code: string): Promise<TokenData> {
         try {
+            console.log('[DEBUG] getting access token with ID:', this.appId ? 'FOUND' : 'MISSING');
             const response = await axios.post('https://api.mercadolibre.com/oauth/token', {
                 grant_type: 'authorization_code',
                 client_id: this.appId,

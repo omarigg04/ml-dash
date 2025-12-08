@@ -1,14 +1,13 @@
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import cron from 'node-cron';
 import { mlAuth } from './auth/oauth';
 import ordersRouter from './routes/orders';
 import shipmentsRouter from './routes/shipments';
 import itemsRouter from './routes/items';
 
-// Load environment variables
-dotenv.config();
+// Environment variables are now loaded by the first import
 
 const app = express();
 const PORT = process.env.PORT || 3000;
