@@ -11,15 +11,17 @@ import { Router } from '@angular/router';
 export class PublishProductComponent {
 
   product = {
-    "title": "Producto de Prueba",
-    "category_id": "MLM1051",
-    "price": 100,
-    "available_quantity": 1,
-    "condition": "new",
-    "currency_id": "MXN",
-    "buying_mode": "buy_it_now",
-    "listing_type_id": "free"
-  }
+    title: "Producto de Prueba",
+    category_id: "MLM1051",
+    price: 100,
+    available_quantity: 1,
+    condition: "new",
+    listing_type_id: "free",
+    pictures: "", // Sin imágenes para prueba
+    description: "", // Sin descripción para prueba
+    warranty_type: "", // Sin garantía
+    warranty_time: ""
+  };
 
 
   // {
@@ -36,7 +38,7 @@ export class PublishProductComponent {
   // };
 
   categories = [
-    { id: 'MLM1051', name: 'Computación > Accesorios' },
+    { id: 'MLA1055', name: 'Computación > Accesorios' },
     { id: 'MLM1000', name: 'Electrónica > Audio y Video' },
     { id: 'MLM1648', name: 'Celulares y Teléfonos' },
     { id: 'MLM1430', name: 'Ropa y Accesorios' },
