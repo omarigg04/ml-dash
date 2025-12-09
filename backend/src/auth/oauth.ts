@@ -71,9 +71,19 @@ export class MercadoLibreAuth {
      */
     getAuthorizationUrl(): string {
         // offline_access: to get refresh tokens
-        // read: to read orders, shipments, user data
-        // write: to create/update/delete items (publications)
-        const scopes = ['offline_access', 'read', 'write'].join(' ');
+        // read, write: generic scopes (legacy/fallback)
+        // items.read, items.write: granular scopes for items
+        // orders.read: granular scope for orders
+        // shipments.read: granular scope for shipments
+        const scopes = [
+            'offline_access',
+            'read',
+            'write',
+            'items.read',
+            'items.write',
+            'orders.read',
+            'shipments.read'
+        ].join(' ');
         const encodedScopes = encodeURIComponent(scopes);
         const encodedRedirectUri = encodeURIComponent(this.redirectUri);
         return `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${this.appId}&redirect_uri=${encodedRedirectUri}&scope=${encodedScopes}`;
