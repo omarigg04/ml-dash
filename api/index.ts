@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import axios from 'axios';
 import { mlAuth } from '../backend/src/auth/oauth';
 import ordersRouter from '../backend/src/routes/orders';
 import shipmentsRouter from '../backend/src/routes/shipments';
@@ -26,6 +27,42 @@ app.get('/api', (req, res) => {
     message: 'MercadoLibre Dashboard API',
     hasToken: mlAuth.hasValidToken(),
   });
+});
+
+// Check user/seller status
+app.get('/api/user/status', async (req, res) => {
+  try {
+    const token = await mlAuth.getToken();
+
+    // Get user info
+    const userResponse = await axios.get('https://api.mercadolibre.com/users/me', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const userId = userResponse.data.id;
+
+    // Get listing limits
+    const limitsResponse = await axios.get(`https://api.mercadolibre.com/users/${userId}/listings_limit`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    res.json({
+      user: {
+        id: userResponse.data.id,
+        nickname: userResponse.data.nickname,
+        email: userResponse.data.email,
+        sellerReputation: userResponse.data.seller_reputation,
+        status: userResponse.data.status,
+      },
+      listingLimits: limitsResponse.data,
+      canPublish: userResponse.data.status?.site_status === 'active'
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Failed to get user status',
+      details: error.response?.data || error.message
+    });
+  }
 });
 
 // OAuth authorization endpoint
