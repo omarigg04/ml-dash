@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
+import axios from 'axios';
 import { mlAuth } from './auth/oauth';
 import ordersRouter from './routes/orders';
 import shipmentsRouter from './routes/shipments';
@@ -27,6 +28,80 @@ app.get('/', (req: Request, res: Response) => {
     message: 'MercadoLibre Dashboard Backend',
     hasToken: mlAuth.hasValidToken(),
   });
+});
+
+// Debug endpoint to check current token scopes
+app.get('/debug/token', async (req: Request, res: Response) => {
+  try {
+    // Access the private tokenData property
+    await (mlAuth as any).loadTokensAsync?.() || Promise.resolve();
+    const tokenData = (mlAuth as any).tokenData;
+
+    if (!tokenData) {
+      return res.json({
+        hasToken: false,
+        message: 'No token found. Please authorize at /auth'
+      });
+    }
+
+    const scopesArray = tokenData.scope?.split(' ') || [];
+
+    res.json({
+      hasToken: true,
+      tokenLength: tokenData.access_token?.length || 0,
+      scopes: tokenData.scope || 'No scopes found',
+      scopesArray: scopesArray,
+      hasOfflineAccess: scopesArray.includes('offline_access'),
+      hasReadScope: scopesArray.includes('read'),
+      hasWriteScope: scopesArray.includes('write'),
+      tokenCreatedAt: tokenData.created_at ? new Date(tokenData.created_at).toISOString() : 'unknown',
+      isExpired: mlAuth.isTokenExpired()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Failed to get token info',
+      message: error.message
+    });
+  }
+});
+
+// Test endpoint - verify token works with MercadoLibre API
+app.get('/debug/test-token', async (req: Request, res: Response) => {
+  try {
+    const token = await mlAuth.getToken();
+
+    console.log('🔍 Testing token with ML API...');
+    console.log('Token length:', token.length);
+    console.log('Token (first 20 chars):', token.substring(0, 20) + '...');
+
+    // Test with a simple GET request to /users/me
+    const testResponse = await axios.get('https://api.mercadolibre.com/users/me', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    console.log('✅ Token is valid!');
+    console.log('User ID:', testResponse.data.id);
+    console.log('User nickname:', testResponse.data.nickname);
+
+    res.json({
+      success: true,
+      message: 'Token is valid and working',
+      userId: testResponse.data.id,
+      nickname: testResponse.data.nickname,
+      siteId: testResponse.data.site_id,
+      tokenWorks: true
+    });
+  } catch (error: any) {
+    console.error('❌ Token test failed:', error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      error: error.response?.data || error.message,
+      status: error.response?.status,
+      tokenWorks: false
+    });
+  }
 });
 
 // OAuth authorization endpoint

@@ -35,7 +35,13 @@ router.post('/', async (req: Request, res: Response) => {
 
         // Get valid access token
         const token = await mlAuth.getToken();
-        console.log('🔑 Using token to create item (length):', token.length);
+        const tokenData = (mlAuth as any).tokenData;
+
+        console.log('🔑 Token Debug Info:');
+        console.log('  - Token length:', token.length);
+        console.log('  - Token first 20 chars:', token.substring(0, 20) + '...');
+        console.log('  - Scopes granted:', tokenData?.scope || 'NO SCOPES');
+        console.log('  - Has write scope:', tokenData?.scope?.includes('write') || false);
 
         // Prepare item data for MercadoLibre API (WITHOUT description initially)
         const itemData: any = {
