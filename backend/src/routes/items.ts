@@ -46,7 +46,6 @@ router.post('/', async (req: Request, res: Response) => {
 
         // Prepare item data for MercadoLibre API (WITHOUT description initially)
         const itemData: any = {
-            title: title.substring(0, 60), // ML limit is 60 chars
             category_id,
             price: parseFloat(price),
             currency_id: 'MXN',
@@ -56,9 +55,13 @@ router.post('/', async (req: Request, res: Response) => {
             listing_type_id, // free, bronze, silver, gold_special, gold_premium
         };
 
-        // Add family_name if provided (required for User Products model)
+        // User Products model: Use family_name instead of title
+        // When family_name is present, DO NOT send title (ML auto-generates it)
         if (family_name) {
             itemData.family_name = family_name;
+        } else {
+            // Legacy model: Use title
+            itemData.title = title.substring(0, 60); // ML limit is 60 chars
         }
 
         // Add pictures if provided (max 6)
