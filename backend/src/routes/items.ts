@@ -56,6 +56,11 @@ router.post('/', async (req: Request, res: Response) => {
             listing_type_id, // free, bronze, silver, gold_special, gold_premium
         };
 
+        // Add family_name if provided (required for User Products model)
+        if (family_name) {
+            itemData.family_name = family_name;
+        }
+
         // Add pictures if provided (max 6)
         if (pictures && Array.isArray(pictures) && pictures.length > 0) {
             itemData.pictures = pictures.slice(0, 6).map((url: string) => ({ source: url }));
