@@ -12,7 +12,7 @@ export class PublishProductComponent {
 
   product = {
     title: "Producto de Prueba",
-    category_id: "MLM1051",
+    category_id: "MLM1953", // Libros, Revistas y Comics - categoría más simple
     price: 100,
     available_quantity: 1,
     condition: "new",
