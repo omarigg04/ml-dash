@@ -33,7 +33,7 @@ app.get('/api', (req, res) => {
 app.get('/api/user/status', async (req, res) => {
   try {
     const token = await mlAuth.getToken();
-
+    console.log(token)
     // Get user info
     const userResponse = await axios.get('https://api.mercadolibre.com/users/me', {
       headers: { Authorization: `Bearer ${token}` }
@@ -63,6 +63,8 @@ app.get('/api/user/status', async (req, res) => {
       details: error.response?.data || error.message
     });
   }
+
+
 });
 
 // OAuth authorization endpoint
