@@ -18,9 +18,10 @@ export class PublishProductComponent {
     condition: "new",
     listing_type_id: "free",
     pictures: "", // Sin imágenes para prueba
-    description: "Libro de prueba para testing", // Sin descripción para prueba
-    warranty_type: "", // Sin garantía
-    warranty_time: ""
+    description: "Libro de prueba para testing",
+    warranty_type: "",
+    warranty_time: "",
+    family_name: "Libro de Prueba" // Requerido por User Products
   };
 
 

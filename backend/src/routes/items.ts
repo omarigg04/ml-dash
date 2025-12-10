@@ -21,7 +21,8 @@ router.post('/', async (req: Request, res: Response) => {
             listing_type_id = 'free', // Default to free listing to avoid permission issues
             warranty_type,
             warranty_time,
-            attributes
+            attributes,
+            family_name // Required for User Products model
         } = req.body;
 
         // Validate required fields
