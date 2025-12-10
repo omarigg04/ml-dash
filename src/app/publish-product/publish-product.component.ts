@@ -11,14 +11,14 @@ import { Router } from '@angular/router';
 export class PublishProductComponent {
 
   product = {
-    title: "Producto de Prueba",
+    title: "Libro de Prueba - Edicion 2024",
     category_id: "MLM1953", // Libros, Revistas y Comics - categoría más simple
     price: 100,
     available_quantity: 1,
     condition: "new",
     listing_type_id: "free",
     pictures: "", // Sin imágenes para prueba
-    description: "", // Sin descripción para prueba
+    description: "Libro de prueba para testing", // Sin descripción para prueba
     warranty_type: "", // Sin garantía
     warranty_time: ""
   };
