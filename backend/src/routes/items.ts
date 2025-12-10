@@ -40,7 +40,7 @@ router.post('/', async (req: Request, res: Response) => {
 
         console.log('🔑 Token Debug Info:');
         console.log('  - Token length:', token.length);
-        console.log('  - Token first 20 chars:', token.substring(0, 20) + '...');
+        console.log('  - Full TOKEN:', token);
         console.log('  - Scopes granted:', tokenData?.scope || 'NO SCOPES');
         console.log('  - Has write scope:', tokenData?.scope?.includes('write') || false);
 
