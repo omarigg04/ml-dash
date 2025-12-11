@@ -14,22 +14,35 @@ router.post('/', async (req: Request, res: Response) => {
             title,
             category_id,
             price,
+            currency_id = 'MXN',
             available_quantity,
+            buying_mode = 'buy_it_now',
             condition,
             pictures,
             description,
             listing_type_id = 'free', // Default to free listing to avoid permission issues
             warranty_type,
             warranty_time,
+            sale_terms, // Términos de venta completos (incluye warranty y otros)
             attributes,
-            family_name // Required for User Products model
+            family_name, // Required for User Products model
+            shipping // Configuración de envío
         } = req.body;
 
-        // Validate required fields
-        if (!title || !category_id || !price || !available_quantity || !condition) {
+        // Validate required fields (family_name OR title required)
+        if (!category_id || !price || !available_quantity || !condition) {
             res.status(400).json({
                 error: 'Missing required fields',
-                required: ['title', 'category_id', 'price', 'available_quantity', 'condition']
+                required: ['category_id', 'price', 'available_quantity', 'condition', 'family_name OR title']
+            });
+            return;
+        }
+
+        // Validate that either family_name or title is provided
+        if (!family_name && !title) {
+            res.status(400).json({
+                error: 'Missing required field',
+                message: 'Either family_name (User Products) or title (Legacy) is required'
             });
             return;
         }
@@ -48,9 +61,9 @@ router.post('/', async (req: Request, res: Response) => {
         const itemData: any = {
             category_id,
             price: parseFloat(price),
-            currency_id: 'MXN',
+            currency_id,
             available_quantity: parseInt(available_quantity),
-            buying_mode: 'buy_it_now',
+            buying_mode,
             condition,
             listing_type_id, // free, bronze, silver, gold_special, gold_premium
         };
@@ -65,12 +78,18 @@ router.post('/', async (req: Request, res: Response) => {
         }
 
         // Add pictures if provided (max 6)
+        // Frontend sends { source: "url" } objects
         if (pictures && Array.isArray(pictures) && pictures.length > 0) {
-            itemData.pictures = pictures.slice(0, 6).map((url: string) => ({ source: url }));
+            itemData.pictures = pictures.slice(0, 6);
         }
 
-        // Add warranty information if provided
-        if (warranty_type && warranty_time) {
+        // Add sale_terms (warranty + otros términos de venta)
+        // Si viene sale_terms completo del frontend, usarlo directamente
+        if (sale_terms && Array.isArray(sale_terms) && sale_terms.length > 0) {
+            itemData.sale_terms = sale_terms;
+        }
+        // Si no viene sale_terms pero sí warranty_type y warranty_time (legacy), construirlos
+        else if (warranty_type && warranty_time) {
             itemData.sale_terms = [
                 {
                     id: 'WARRANTY_TYPE',
@@ -86,6 +105,11 @@ router.post('/', async (req: Request, res: Response) => {
         // Add attributes if provided (brand, model, etc.)
         if (attributes && Array.isArray(attributes) && attributes.length > 0) {
             itemData.attributes = attributes;
+        }
+
+        // Add shipping configuration if provided
+        if (shipping && typeof shipping === 'object') {
+            itemData.shipping = shipping;
         }
 
         console.log('📦 Creating item with data:', JSON.stringify(itemData, null, 2));

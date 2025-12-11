@@ -1,54 +1,159 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
 import { Router } from '@angular/router';
+
+// Interfaces para el producto
+interface Attribute {
+  id: string;
+  name: string;
+  value_id?: string | null;
+  value_name: string;
+  value_type: 'string' | 'list' | 'number' | 'number_unit';
+  values?: Array<{
+    id?: string | null;
+    name: string;
+    struct?: {
+      number?: number;
+      unit?: string;
+    } | null;
+  }>;
+}
+
+interface SaleTerm {
+  id: string;
+  value_name: string;
+}
+
+interface Picture {
+  source: string;
+}
+
+interface Shipping {
+  mode?: string;
+  local_pick_up?: boolean;
+  free_shipping?: boolean;
+  logistic_type?: string;
+  dimensions?: string | null;
+}
+
+interface Product {
+  family_name: string;
+  category_id: string;
+  price: number;
+  currency_id: string;
+  available_quantity: number;
+  buying_mode: string;
+  condition: string;
+  listing_type_id: string;
+  sale_terms?: SaleTerm[];
+  pictures?: Picture[];
+  attributes?: Attribute[];
+  shipping?: Shipping;
+}
+
+interface CategoryTemplate {
+  id: string;
+  name: string;
+  description: string;
+  defaultProduct: Product;
+}
 
 @Component({
   selector: 'app-publish-product',
   templateUrl: './publish-product.component.html',
   styleUrls: ['./publish-product.component.scss']
 })
-export class PublishProductComponent {
+export class PublishProductComponent implements OnInit {
 
-  product = {
-    title: "Libro de Prueba - Edicion 2024",
-    category_id: "MLM1953", // Libros, Revistas y Comics - categoría más simple
-    price: 100,
-    available_quantity: 1,
+  // Producto actual (se inicializa con el template seleccionado)
+  product: Product = {
+    family_name: "Item de test No ofertar",
+    category_id: "MLM187825",
+    price: 350,
+    currency_id: "MXN",
+    available_quantity: 10,
+    buying_mode: "buy_it_now",
     condition: "new",
-    listing_type_id: "free",
-    pictures: "", // Sin imágenes para prueba
-    description: "Libro de prueba para testing",
-    warranty_type: "",
-    warranty_time: "",
-    family_name: "Libro de Prueba" // Requerido por User Products
+    listing_type_id: "gold_special"
   };
 
 
-  // {
-  //   title: 'Cable USB-C Premium 2 metros',
-  //   category_id: 'MLM1051', // Default: Computación > Accesorios
-  //   price: 199.99,
-  //   available_quantity: 10,
-  //   condition: 'new',
-  //   pictures: '', // Dejar vacío por ahora para probar sin imágenes
-  //   description: 'Cable USB-C de alta calidad con trenzado de nylon. Perfecto para carga rápida y transferencia de datos. Compatible con la mayoría de dispositivos móviles modernos.',
-  //   listing_type_id: 'free', // free, bronze, silver, gold_special, gold_premium
-  //   warranty_type: 'Garantía del vendedor',
-  //   warranty_time: '6 meses'
-  // };
+  // Categoría seleccionada actualmente
+  selectedCategoryId: string = 'MLM187825';
 
-  categories = [
-    { id: 'MLA1055', name: 'Computación > Accesorios' },
-    { id: 'MLM1000', name: 'Electrónica > Audio y Video' },
-    { id: 'MLM1648', name: 'Celulares y Teléfonos' },
-    { id: 'MLM1430', name: 'Ropa y Accesorios' },
-    { id: 'MLM1132', name: 'Juegos y Juguetes' },
-    { id: 'MLM1039', name: 'Cámaras y Accesorios' },
-    { id: 'MLM1144', name: 'Consolas y Videojuegos' },
-    { id: 'MLM1574', name: 'Hogar y Muebles' },
-    { id: 'MLM1499', name: 'Industrias y Oficinas' },
-    { id: 'MLM1276', name: 'Deportes y Fitness' },
+  // Templates de categorías predefinidas
+  categoryTemplates: CategoryTemplate[] = [
+    {
+      id: 'MLM187825',
+      name: 'Transistores',
+      description: 'Componentes Electrónicos > Transistores',
+      defaultProduct: {
+        family_name: "Item de test No ofertar",
+        category_id: "MLM187825",
+        price: 350,
+        currency_id: "MXN",
+        available_quantity: 10,
+        buying_mode: "buy_it_now",
+        condition: "new",
+        listing_type_id: "gold_special",
+        sale_terms: [
+          { id: "WARRANTY_TYPE", value_name: "Garantía del vendedor" },
+          { id: "WARRANTY_TIME", value_name: "90 días" }
+        ],
+        pictures: [
+          { source: "http://mla-s2-p.mlstatic.com/968521-MLA20805195516_072016-O.jpg" }
+        ],
+        attributes: [
+          {
+            id: "BRAND",
+            name: "Marca",
+            value_id: "276243",
+            value_name: "Genérica",
+            value_type: "string",
+            values: [{ id: "276243", name: "Genérica", struct: null }]
+          },
+          {
+            id: "EMPTY_GTIN_REASON",
+            name: "Motivo de GTIN vacío",
+            value_id: "17055160",
+            value_name: "El producto no tiene código registrado",
+            value_type: "list",
+            values: [{ id: "17055160", name: "El producto no tiene código registrado", struct: null }]
+          },
+          {
+            id: "ITEM_CONDITION",
+            name: "Condición del ítem",
+            value_id: "2230284",
+            value_name: "Nuevo",
+            value_type: "list",
+            values: [{ id: "2230284", name: "Nuevo", struct: null }]
+          },
+          {
+            id: "MODEL",
+            name: "Modelo",
+            value_id: "40492397",
+            value_name: "NPN",
+            value_type: "string",
+            values: [{ id: "40492397", name: "NPN", struct: null }]
+          },
+          {
+            id: "TRANSISTOR_CODE",
+            name: "Código del transistor",
+            value_id: "4786733",
+            value_name: "2N3055",
+            value_type: "string",
+            values: [{ id: "4786733", name: "2N3055", struct: null }]
+          }
+        ],
+        shipping: {
+          mode: "me1",
+          local_pick_up: false,
+          free_shipping: true,
+          logistic_type: "xd_drop_off"
+        }
+      }
+    }
   ];
 
   listingTypes = [
@@ -59,50 +164,74 @@ export class PublishProductComponent {
     { id: 'gold_premium', name: 'Oro Premium', description: 'Máxima exposición' }
   ];
 
-  warrantyTypes = [
-    'Sin garantía',
-    'Garantía del vendedor',
-    'Garantía de fábrica'
-  ];
-
-  warrantyTimes = [
-    '90 días',
-    '6 meses',
-    '1 año',
-    '2 años'
-  ];
-
   loading = false;
   successMessage = '';
   errorMessage = '';
+
+  // Helper para formularios dinámicos
+  picturesText: string = '';
 
   constructor(
     private http: HttpClient,
     private router: Router
   ) { }
 
+  ngOnInit(): void {
+    // Cargar el template de la categoría inicial (Transistores)
+    this.loadCategoryTemplate(this.selectedCategoryId);
+  }
+
+  /**
+   * Cambia la categoría y carga su template correspondiente
+   */
+  onCategoryChange(categoryId: string): void {
+    this.selectedCategoryId = categoryId;
+    this.loadCategoryTemplate(categoryId);
+  }
+
+  /**
+   * Carga el template de una categoría específica
+   */
+  loadCategoryTemplate(categoryId: string): void {
+    const template = this.categoryTemplates.find(t => t.id === categoryId);
+    if (template) {
+      // Deep clone para evitar referencias compartidas
+      this.product = JSON.parse(JSON.stringify(template.defaultProduct));
+
+      // Convertir pictures array a texto para el formulario
+      if (this.product.pictures && this.product.pictures.length > 0) {
+        this.picturesText = this.product.pictures.map(p => p.source).join('\n');
+      } else {
+        this.picturesText = '';
+      }
+    }
+  }
+
   onSubmit(): void {
     this.loading = true;
     this.successMessage = '';
     this.errorMessage = '';
 
-    // Prepare pictures array
-    const pictures = this.product.pictures
-      ? this.product.pictures.split('\n').filter(url => url.trim())
+    // Convertir texto de imágenes a array de objetos Picture
+    const pictures: Picture[] = this.picturesText
+      ? this.picturesText.split('\n')
+          .filter(url => url.trim())
+          .map(url => ({ source: url.trim() }))
       : [];
 
-    const productData = {
+    // Preparar el payload final
+    const productData: Product = {
       ...this.product,
-      pictures,
-      price: parseFloat(this.product.price.toString()),
-      available_quantity: parseInt(this.product.available_quantity.toString())
+      pictures: pictures.length > 0 ? pictures : undefined
     };
+
+    console.log('📦 Sending product data to API:', JSON.stringify(productData, null, 2));
 
     this.http.post(`${environment.apiUrl}/items`, productData).subscribe({
       next: (response: any) => {
         this.loading = false;
         this.successMessage = `¡Producto publicado exitosamente! ID: ${response.item.id}`;
-        console.log('Product created:', response);
+        console.log('✅ Product created:', response);
 
         // Reset form after 2 seconds
         setTimeout(() => {
@@ -112,26 +241,40 @@ export class PublishProductComponent {
       error: (error) => {
         this.loading = false;
         this.errorMessage = error.error?.message || 'Error al publicar el producto';
-        console.error('Error creating product:', error);
+        console.error('❌ Error creating product:', error);
+        console.error('Error details:', error.error);
       }
     });
   }
 
   resetForm(): void {
-    this.product = {
-      title: "Libro de Prueba - Edicion 2024",
-      category_id: "MLM1953",
-      price: 100,
-      available_quantity: 1,
-      condition: "new",
-      listing_type_id: "free",
-      pictures: "",
-      description: "Libro de prueba para testing",
-      warranty_type: "",
-      warranty_time: "",
-      family_name: "Libro de Prueba"
-    };
+    // Recargar el template de la categoría seleccionada
+    this.loadCategoryTemplate(this.selectedCategoryId);
     this.successMessage = '';
     this.errorMessage = '';
+  }
+
+  /**
+   * Añade un atributo dinámicamente
+   */
+  addAttribute(): void {
+    if (!this.product.attributes) {
+      this.product.attributes = [];
+    }
+    this.product.attributes.push({
+      id: '',
+      name: '',
+      value_name: '',
+      value_type: 'string'
+    });
+  }
+
+  /**
+   * Elimina un atributo
+   */
+  removeAttribute(index: number): void {
+    if (this.product.attributes) {
+      this.product.attributes.splice(index, 1);
+    }
   }
 }
