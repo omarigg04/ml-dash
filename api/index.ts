@@ -29,6 +29,49 @@ app.get('/api', (req, res) => {
   });
 });
 
+// Debug endpoint to get current token
+app.get('/api/debug/token', async (req, res) => {
+  try {
+    await (mlAuth as any).loadTokensAsync?.() || Promise.resolve();
+    const tokenData = (mlAuth as any).tokenData;
+
+    if (!tokenData) {
+      return res.json({
+        hasToken: false,
+        message: 'No token found. Please authorize at /api/auth'
+      });
+    }
+
+    const scopesArray = tokenData.scope?.split(' ') || [];
+
+    console.log('🔑 Token Debug Info (from /api/debug/token):');
+    console.log('  - Token length:', tokenData.access_token?.length || 0);
+    console.log('  - Full TOKEN:', tokenData.access_token);
+    console.log('  - Refresh Token:', tokenData.refresh_token);
+    console.log('  - Scopes granted:', tokenData.scope || 'NO SCOPES');
+
+    res.json({
+      hasToken: true,
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      tokenLength: tokenData.access_token?.length || 0,
+      scopes: tokenData.scope || 'No scopes found',
+      scopesArray: scopesArray,
+      hasOfflineAccess: scopesArray.includes('offline_access'),
+      hasReadScope: scopesArray.includes('read'),
+      hasWriteScope: scopesArray.includes('write'),
+      tokenCreatedAt: tokenData.created_at ? new Date(tokenData.created_at).toISOString() : 'unknown',
+      isExpired: mlAuth.isTokenExpired(),
+      expiresIn: tokenData.expires_in
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Failed to get token info',
+      message: error.message
+    });
+  }
+});
+
 // Check user/seller status
 app.get('/api/user/status', async (req, res) => {
   try {

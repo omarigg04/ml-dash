@@ -46,8 +46,18 @@ app.get('/debug/token', async (req: Request, res: Response) => {
 
     const scopesArray = tokenData.scope?.split(' ') || [];
 
+    // Print to console (like when publishing)
+    console.log('🔑 Token Debug Info (from /debug/token):');
+    console.log('  - Token length:', tokenData.access_token?.length || 0);
+    console.log('  - Full TOKEN:', tokenData.access_token);
+    console.log('  - Refresh Token:', tokenData.refresh_token);
+    console.log('  - Scopes granted:', tokenData.scope || 'NO SCOPES');
+    console.log('  - Has write scope:', scopesArray.includes('write'));
+
     res.json({
       hasToken: true,
+      access_token: tokenData.access_token, // NOW SHOWS THE FULL TOKEN
+      refresh_token: tokenData.refresh_token,
       tokenLength: tokenData.access_token?.length || 0,
       scopes: tokenData.scope || 'No scopes found',
       scopesArray: scopesArray,
@@ -55,7 +65,8 @@ app.get('/debug/token', async (req: Request, res: Response) => {
       hasReadScope: scopesArray.includes('read'),
       hasWriteScope: scopesArray.includes('write'),
       tokenCreatedAt: tokenData.created_at ? new Date(tokenData.created_at).toISOString() : 'unknown',
-      isExpired: mlAuth.isTokenExpired()
+      isExpired: mlAuth.isTokenExpired(),
+      expiresIn: tokenData.expires_in
     });
   } catch (error: any) {
     res.status(500).json({
