@@ -218,7 +218,7 @@ router.get('/', async (req: Request, res: Response) => {
                 headers: { Authorization: `Bearer ${token}` },
                 params: {
                     offset: req.query.offset || 0,
-                    limit: req.query.limit || 50,
+                    limit: req.query.limit || 20,
                     status: req.query.status // optional: active, paused, closed
                 }
             }
