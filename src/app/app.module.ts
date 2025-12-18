@@ -19,6 +19,11 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { PublishProductComponent } from './publish-product/publish-product.component';
+import { PublicationsListComponent } from './publications-list/publications-list.component';
+import { MatTableModule } from '@angular/material/table';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 @NgModule({
   declarations: [
@@ -28,6 +33,7 @@ import { PublishProductComponent } from './publish-product/publish-product.compo
     BarChartComponent,
     VentasBarsComponent,
     PublishProductComponent,
+    PublicationsListComponent,
   ],
   imports: [
     BrowserModule,
@@ -42,9 +48,11 @@ import { PublishProductComponent } from './publish-product/publish-product.compo
     FormsModule,
     ReactiveFormsModule,
     MatCardModule,
-    MatProgressSpinnerModule
-    
-    
+    MatProgressSpinnerModule,
+    MatTableModule,
+    MatButtonModule,
+    MatIconModule,
+    MatTooltipModule
   ],
   providers: [DatePipe],
   bootstrap: [AppComponent]

@@ -195,4 +195,130 @@ router.post('/', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * GET /api/items
+ * List all user's MercadoLibre items
+ */
+router.get('/', async (req: Request, res: Response) => {
+    try {
+        const token = await mlAuth.getToken();
+
+        // Step 1: Get seller ID
+        const userResponse = await axios.get('https://api.mercadolibre.com/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const sellerId = userResponse.data.id;
+
+        console.log('📦 Fetching items for seller:', sellerId);
+
+        // Step 2: Get items list
+        const itemsResponse = await axios.get(
+            `https://api.mercadolibre.com/users/${sellerId}/items/search`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+                params: {
+                    offset: req.query.offset || 0,
+                    limit: req.query.limit || 50,
+                    status: req.query.status // optional: active, paused, closed
+                }
+            }
+        );
+
+        const itemIds = itemsResponse.data.results;
+
+        console.log(`✅ Found ${itemIds.length} items`);
+
+        if (itemIds.length === 0) {
+            return res.json({
+                items: [],
+                paging: itemsResponse.data.paging
+            });
+        }
+
+        // Step 3: Fetch detailed info for each item (ML allows multi-get)
+        const detailsResponse = await axios.get(
+            `https://api.mercadolibre.com/items?ids=${itemIds.join(',')}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        // Step 4: Transform data for frontend
+        const items = detailsResponse.data.map((item: any) => ({
+            id: item.body.id,
+            title: item.body.title,
+            price: item.body.price,
+            available_quantity: item.body.available_quantity,
+            status: item.body.status,
+            thumbnail: item.body.thumbnail || item.body.pictures?.[0]?.url || null,
+            listing_type_id: item.body.listing_type_id,
+            condition: item.body.condition,
+            permalink: item.body.permalink,
+            // Include full data for duplicate feature
+            fullData: item.body
+        }));
+
+        res.json({
+            items,
+            paging: itemsResponse.data.paging
+        });
+
+    } catch (error: any) {
+        console.error('❌ Error fetching items:', error.response?.data || error.message);
+        res.status(500).json({
+            error: 'Failed to fetch items',
+            details: error.response?.data || error.message
+        });
+    }
+});
+
+/**
+ * POST /api/items/:id/relist
+ * Republish a closed item
+ */
+router.post('/:id/relist', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { price, quantity, listing_type_id } = req.body;
+
+        if (!price || !quantity || !listing_type_id) {
+            return res.status(400).json({
+                error: 'Missing required fields: price, quantity, listing_type_id'
+            });
+        }
+
+        const token = await mlAuth.getToken();
+
+        console.log(`🔄 Relisting item ${id} with price: ${price}, quantity: ${quantity}`);
+
+        const response = await axios.post(
+            `https://api.mercadolibre.com/items/${id}/relist`,
+            {
+                price: parseFloat(price),
+                quantity: parseInt(quantity),
+                listing_type_id
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        console.log('✅ Item relisted successfully. New ID:', response.data.id);
+
+        res.json({
+            success: true,
+            message: 'Item relisted successfully',
+            newItem: response.data
+        });
+
+    } catch (error: any) {
+        console.error('❌ Error relisting item:', error.response?.data || error.message);
+        res.status(500).json({
+            error: 'Failed to relist item',
+            details: error.response?.data || error.message
+        });
+    }
+});
+
 export default router;

@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 
 // Interfaces para el producto
 interface Attribute {
@@ -173,12 +173,62 @@ export class PublishProductComponent implements OnInit {
 
   constructor(
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) { }
 
   ngOnInit(): void {
-    // Cargar el template de la categoría inicial (Transistores)
-    this.loadCategoryTemplate(this.selectedCategoryId);
+    // Check if in duplicate mode
+    this.route.queryParams.subscribe(params => {
+      if (params['mode'] === 'duplicate') {
+        this.loadDuplicateData();
+      } else {
+        // Cargar el template de la categoría inicial (Transistores)
+        this.loadCategoryTemplate(this.selectedCategoryId);
+      }
+    });
+  }
+
+  /**
+   * Load data from duplicated item
+   */
+  private loadDuplicateData(): void {
+    const duplicateData = sessionStorage.getItem('duplicateItem');
+    if (duplicateData) {
+      const item = JSON.parse(duplicateData);
+
+      // Pre-fill form with item data
+      this.product = {
+        family_name: item.title + ' (Copia)',
+        category_id: item.category_id,
+        price: item.price,
+        currency_id: item.currency_id || 'MXN',
+        available_quantity: item.available_quantity,
+        buying_mode: item.buying_mode || 'buy_it_now',
+        condition: item.condition,
+        listing_type_id: item.listing_type_id,
+        sale_terms: item.sale_terms || [],
+        pictures: item.pictures || [],
+        attributes: item.attributes || [],
+        shipping: item.shipping || {}
+      };
+
+      // Update category selector
+      this.selectedCategoryId = item.category_id;
+
+      // Convert pictures to text for form
+      if (this.product.pictures && this.product.pictures.length > 0) {
+        this.picturesText = this.product.pictures.map(p => p.source).join('\n');
+      }
+
+      // Clear sessionStorage
+      sessionStorage.removeItem('duplicateItem');
+
+      console.log('📋 Loaded duplicate item:', this.product);
+    } else {
+      // If no data found, load default template
+      this.loadCategoryTemplate(this.selectedCategoryId);
+    }
   }
 
   /**
