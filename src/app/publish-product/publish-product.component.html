@@ -34,7 +34,7 @@
                                             name="category_selector"
                                             (change)="onCategoryChange(selectedCategoryId)"
                                             [disabled]="isDuplicateMode"
-                                            required>
+                                            [required]="!isDuplicateMode">
                                         <option *ngFor="let template of categoryTemplates" [value]="template.id">
                                             {{ template.name }} - {{ template.description }}
                                         </option>
