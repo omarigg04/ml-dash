@@ -22,21 +22,26 @@
                     <form (ngSubmit)="onSubmit()" #productForm="ngForm">
 
                         <!-- Category Template Selector -->
-                        <div class="mb-4 p-3 bg-light border rounded">
+                        <div class="mb-4 p-3 border rounded" [ngClass]="isDuplicateMode ? 'bg-secondary-subtle' : 'bg-light'">
                             <label class="form-label fw-bold">🏷️ Seleccionar Categoría de Producto</label>
+                            <div *ngIf="isDuplicateMode" class="alert alert-info mb-2">
+                                <small>📋 Modo Duplicación: La categoría está fijada según el producto duplicado</small>
+                            </div>
                             <div class="row">
                                 <div class="col-md-12">
                                     <select class="form-select form-select-lg"
                                             [(ngModel)]="selectedCategoryId"
                                             name="category_selector"
                                             (change)="onCategoryChange(selectedCategoryId)"
+                                            [disabled]="isDuplicateMode"
                                             required>
                                         <option *ngFor="let template of categoryTemplates" [value]="template.id">
                                             {{ template.name }} - {{ template.description }}
                                         </option>
                                     </select>
                                     <small class="form-text text-muted mt-2 d-block">
-                                        Selecciona el tipo de producto que deseas publicar. Los campos se ajustarán automáticamente.
+                                        <span *ngIf="!isDuplicateMode">Selecciona el tipo de producto que deseas publicar. Los campos se ajustarán automáticamente.</span>
+                                        <span *ngIf="isDuplicateMode">Los datos del producto duplicado se han cargado automáticamente.</span>
                                     </small>
                                 </div>
                             </div>

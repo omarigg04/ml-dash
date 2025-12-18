@@ -167,6 +167,7 @@ export class PublishProductComponent implements OnInit {
   loading = false;
   successMessage = '';
   errorMessage = '';
+  isDuplicateMode = false; // Track if we're in duplicate mode
 
   // Helper para formularios dinámicos
   picturesText: string = '';
@@ -196,6 +197,9 @@ export class PublishProductComponent implements OnInit {
     const duplicateData = sessionStorage.getItem('duplicateItem');
     if (duplicateData) {
       const item = JSON.parse(duplicateData);
+
+      // Set duplicate mode flag
+      this.isDuplicateMode = true;
 
       console.log('📋 Duplicating item:', item);
 
@@ -251,6 +255,12 @@ export class PublishProductComponent implements OnInit {
    * Cambia la categoría y carga su template correspondiente
    */
   onCategoryChange(categoryId: string): void {
+    // Don't reload template if we're in duplicate mode (to preserve duplicated data)
+    if (this.isDuplicateMode) {
+      console.log('🔒 In duplicate mode - category change ignored to preserve data');
+      return;
+    }
+
     this.selectedCategoryId = categoryId;
     this.loadCategoryTemplate(categoryId);
   }
