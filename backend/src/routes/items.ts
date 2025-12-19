@@ -248,15 +248,90 @@ router.get('/', async (req: Request, res: Response) => {
         }
 
         // Step 3: Get items list
-        const itemsResponse = await axios.get(
-            `https://api.mercadolibre.com/users/${sellerId}/items/search`,
-            {
-                headers: { Authorization: `Bearer ${token}` },
-                params: mlParams
-            }
-        );
+        let itemsResponse;
+        let itemIds: string[] = [];
+        let totalItems = 0;
 
-        const itemIds = itemsResponse.data.results;
+        if (searchQuery) {
+            // When searching, fetch ALL items to search comprehensively
+            console.log('  - Search mode: fetching all items for comprehensive search');
+
+            const batchSize = 100; // ML API max limit per request
+            let currentOffset = 0;
+            let firstBatch = true;
+
+            // First request to get total count
+            while (true) {
+                const fetchParams: any = {
+                    offset: currentOffset,
+                    limit: batchSize
+                };
+
+                if (status) {
+                    fetchParams.status = status;
+                }
+
+                if (listingType) {
+                    fetchParams.listing_type_id = listingType;
+                }
+
+                const batchResponse = await axios.get(
+                    `https://api.mercadolibre.com/users/${sellerId}/items/search`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` },
+                        params: fetchParams
+                    }
+                );
+
+                const batchIds = batchResponse.data.results;
+                itemIds.push(...batchIds);
+
+                // Get total from first batch
+                if (firstBatch) {
+                    totalItems = batchResponse.data.paging.total;
+                    console.log(`  - Total items to fetch: ${totalItems}`);
+                    firstBatch = false;
+                }
+
+                console.log(`  - Fetched batch at offset ${currentOffset}: ${batchIds.length} items (${itemIds.length}/${totalItems})`);
+
+                // Store the last response for paging info
+                itemsResponse = batchResponse;
+
+                // Check if we've fetched all items
+                if (batchIds.length < batchSize || itemIds.length >= totalItems) {
+                    break;
+                }
+
+                currentOffset += batchSize;
+            }
+
+            console.log(`  - ✅ Fetched all ${itemIds.length} items for search`);
+        } else {
+            // Normal mode: single request with pagination
+            const fetchParams: any = {
+                offset,
+                limit
+            };
+
+            if (status) {
+                fetchParams.status = status;
+            }
+
+            if (listingType) {
+                fetchParams.listing_type_id = listingType;
+            }
+
+            itemsResponse = await axios.get(
+                `https://api.mercadolibre.com/users/${sellerId}/items/search`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: fetchParams
+                }
+            );
+
+            itemIds = itemsResponse.data.results;
+        }
 
         console.log(`✅ Found ${itemIds.length} items (total: ${itemsResponse.data.paging.total})`);
 
@@ -312,13 +387,14 @@ router.get('/', async (req: Request, res: Response) => {
             allItems.push(...batchItems);
         }
 
-        // Step 5: Apply frontend filters (search by title)
+        // Step 5: Apply search filter (if searching)
         let filteredItems = allItems;
 
         if (searchQuery) {
             filteredItems = allItems.filter(item =>
                 item.title.toLowerCase().includes(searchQuery)
             );
+            console.log(`  - Filtered to ${filteredItems.length} items matching search query`);
         }
 
         // Step 6: Apply sorting
@@ -347,9 +423,28 @@ router.get('/', async (req: Request, res: Response) => {
             });
         }
 
+        // Step 7: Apply client-side pagination (when searching)
+        let paginatedItems = filteredItems;
+        let adjustedPaging = itemsResponse.data.paging;
+
+        if (searchQuery) {
+            // Manual pagination for search results
+            const start = offset;
+            const end = offset + limit;
+            paginatedItems = filteredItems.slice(start, end);
+
+            adjustedPaging = {
+                total: filteredItems.length,
+                offset: offset,
+                limit: limit
+            };
+
+            console.log(`  - Paginated: showing ${start}-${end} of ${filteredItems.length} search results`);
+        }
+
         res.json({
-            items: filteredItems,
-            paging: itemsResponse.data.paging,
+            items: paginatedItems,
+            paging: adjustedPaging,
             filters: {
                 status: status || null,
                 listing_type: listingType || null,
