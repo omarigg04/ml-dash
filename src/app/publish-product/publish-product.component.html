@@ -38,7 +38,7 @@
     <form (ngSubmit)="onSubmit()" #productForm="ngForm">
 
       <!-- Category Template Selector -->
-      <div class="form-section" [ngClass]="isDuplicateMode ? 'form-section-readonly' : ''">
+      <div *ngIf="!isDuplicateMode" class="form-section">
         <div class="form-section-header">
           <mat-icon>label</mat-icon>
           <h4>Seleccionar Categoría de Producto</h4>
@@ -68,7 +68,7 @@
       </div>
 
       <!-- Product Details Form (for Transistors) -->
-      <div *ngIf="selectedCategoryId === 'MLM187825'">
+      <div *ngIf="product">
 
         <div class="form-section">
           <div class="form-section-header">
