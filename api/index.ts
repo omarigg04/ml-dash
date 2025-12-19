@@ -210,6 +210,34 @@ app.get('/api/callback', async (req, res) => {
   }
 });
 
+// Inject token endpoint (for local development testing)
+app.post('/api/auth/inject-token', async (req, res) => {
+  try {
+    const { access_token, refresh_token, expires_in, scope } = req.body;
+
+    if (!access_token || !refresh_token) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'Both access_token and refresh_token are required'
+      });
+    }
+
+    await mlAuth.injectToken(access_token, refresh_token, expires_in, scope);
+
+    res.json({
+      success: true,
+      message: 'Token injected successfully! Your backend is now authenticated.',
+      scope: scope || 'offline_access read write'
+    });
+  } catch (error: any) {
+    console.error('Error injecting token:', error);
+    res.status(500).json({
+      error: 'Failed to inject token',
+      message: error.message
+    });
+  }
+});
+
 // API Routes
 app.use('/api/orders', ordersRouter);
 app.use('/api/shipments', shipmentsRouter);
@@ -223,6 +251,16 @@ app.use((err: any, req: any, res: any, next: any) => {
     message: err.message,
   });
 });
+
+// Start server for local development only (not in Vercel)
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log('\n🚀 MercadoLibre Dashboard Backend (Local)');
+    console.log(`📡 Server running on http://localhost:${PORT}`);
+    console.log(`🔐 CORS enabled for all origins\n`);
+  });
+}
 
 // Export for Vercel serverless
 export default app;

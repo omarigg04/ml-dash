@@ -1,0 +1,15 @@
+<div class="app-container">
+  <!-- Sidebar -->
+  <app-sidebar></app-sidebar>
+
+  <!-- Main Content Area -->
+  <div class="main-content">
+    <!-- Top Header -->
+    <app-top-nav (menuToggle)="onMenuToggle()"></app-top-nav>
+
+    <!-- Content Area -->
+    <main class="content-area">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>

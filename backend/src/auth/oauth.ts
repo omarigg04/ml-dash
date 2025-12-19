@@ -291,6 +291,25 @@ export class MercadoLibreAuth {
             }
         }
     }
+
+    /**
+     * Inject tokens directly (for local development testing)
+     */
+    async injectToken(access_token: string, refresh_token: string, expires_in: number = 21600, scope?: string): Promise<void> {
+        this.tokenData = {
+            access_token,
+            refresh_token,
+            expires_in,
+            scope: scope || 'offline_access read write',
+            token_type: 'Bearer',
+            user_id: 0,
+            created_at: Date.now()
+        };
+
+        await this.saveTokens();
+        console.log('✅ Token injected successfully');
+        console.log('🔍 Scopes:', this.tokenData.scope);
+    }
 }
 
 export const mlAuth = new MercadoLibreAuth();

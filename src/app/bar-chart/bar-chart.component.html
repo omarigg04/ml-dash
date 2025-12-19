@@ -1,68 +1,128 @@
-<mat-card>
-  <mat-card-content class="summary">
-    <!-- Container for datepicker and summary boxes -->
-    <div class="controls-container">
-      <form [formGroup]="dateRangeForm" class="date-picker-form picker-box">
-        <mat-form-field appearance="fill">
-          <mat-label>Choose a date range</mat-label>
-          <mat-date-range-input [rangePicker]="picker">
-            <input matStartDate formControlName="start" placeholder="Start date">
-            <input matEndDate formControlName="end" placeholder="End date">
+<!-- Page Header -->
+<div class="page-header">
+  <h1 class="page-title">Dashboard de Ventas</h1>
+  <p class="page-description">Resumen de ingresos y estadísticas</p>
+</div>
+
+<!-- Stats Cards Grid -->
+<div class="grid grid-cols-4 stats-grid">
+  <!-- Total Sum Card -->
+  <div class="card stat-card">
+    <div class="stat-header">
+      <div class="stat-icon-container" style="background-color: hsl(var(--chart-1) / 0.1);">
+        <mat-icon class="stat-icon" style="color: hsl(var(--chart-1));">attach_money</mat-icon>
+      </div>
+    </div>
+    <div class="stat-body">
+      <p class="stat-label">Ventas Totales</p>
+      <mat-spinner *ngIf="totalSumIsLoading" diameter="24" class="stat-spinner"></mat-spinner>
+      <h2 *ngIf="!totalSumIsLoading" class="stat-value">{{ totalSum | currency:'MXN':'symbol':'1.0-0' }}</h2>
+      <p class="stat-change positive" *ngIf="!totalSumIsLoading">
+        <mat-icon class="change-icon">trending_up</mat-icon>
+        <span>+12.5% vs mes anterior</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- Shipping Card -->
+  <div class="card stat-card">
+    <div class="stat-header">
+      <div class="stat-icon-container" style="background-color: hsl(var(--chart-2) / 0.1);">
+        <mat-icon class="stat-icon" style="color: hsl(var(--chart-2));">local_shipping</mat-icon>
+      </div>
+    </div>
+    <div class="stat-body">
+      <p class="stat-label">Costos de Envío</p>
+      <mat-spinner *ngIf="enviosIsLoading" diameter="24" class="stat-spinner"></mat-spinner>
+      <h2 *ngIf="!enviosIsLoading" class="stat-value">{{ envios | currency:'MXN':'symbol':'1.0-0' }}</h2>
+      <p class="stat-change neutral" *ngIf="!enviosIsLoading">
+        <span class="text-muted">Total acumulado</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- Fees Card -->
+  <div class="card stat-card">
+    <div class="stat-header">
+      <div class="stat-icon-container" style="background-color: hsl(var(--chart-3) / 0.1);">
+        <mat-icon class="stat-icon" style="color: hsl(var(--chart-3));">receipt</mat-icon>
+      </div>
+    </div>
+    <div class="stat-body">
+      <p class="stat-label">Comisiones ML</p>
+      <mat-spinner *ngIf="feesIsLoading" diameter="24" class="stat-spinner"></mat-spinner>
+      <h2 *ngIf="!feesIsLoading" class="stat-value">{{ fees | currency:'MXN':'symbol':'1.0-0' }}</h2>
+      <p class="stat-change neutral" *ngIf="!feesIsLoading">
+        <span class="text-muted">Total en comisiones</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- Real Sum Card -->
+  <div class="card stat-card stat-card-highlight">
+    <div class="stat-header">
+      <div class="stat-icon-container" style="background-color: hsl(var(--success) / 0.1);">
+        <mat-icon class="stat-icon" style="color: hsl(var(--success));">account_balance_wallet</mat-icon>
+      </div>
+    </div>
+    <div class="stat-body">
+      <p class="stat-label">Ganancia Real</p>
+      <mat-spinner *ngIf="realSumIsLoading" diameter="24" class="stat-spinner"></mat-spinner>
+      <h2 *ngIf="!realSumIsLoading" class="stat-value text-success">{{ realSum | currency:'MXN':'symbol':'1.0-0' }}</h2>
+      <p class="stat-change positive" *ngIf="!realSumIsLoading">
+        <mat-icon class="change-icon">trending_up</mat-icon>
+        <span>+8.3% vs mes anterior</span>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Chart Card -->
+<div class="card chart-card">
+  <div class="chart-header">
+    <div>
+      <h3 class="chart-title">Comparación de Rendimiento</h3>
+      <p class="chart-subtitle">Ventas diarias - Comparación de períodos</p>
+    </div>
+    <div class="chart-controls">
+      <mat-form-field appearance="outline" class="period-selector">
+        <mat-label>Período</mat-label>
+        <mat-select [(value)]="selectedPeriod" (selectionChange)="onPeriodChange($event.value)">
+          <mat-option value="2weeks">Últimas 2 semanas</mat-option>
+          <mat-option value="2months">Últimos 2 meses</mat-option>
+          <mat-option value="2bimesters">Últimos 2 bimestres</mat-option>
+          <mat-option value="2years">Últimos 2 años</mat-option>
+          <mat-option value="custom">Personalizado...</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Custom date picker (shown when "Personalizado" is selected) -->
+      <div *ngIf="selectedPeriod === 'custom'" class="custom-date-picker">
+        <mat-form-field appearance="outline" class="compact-date-field">
+          <mat-label>Rango personalizado</mat-label>
+          <mat-date-range-input [rangePicker]="picker" [max]="maxDate">
+            <input matStartDate [(ngModel)]="customStartDate" placeholder="Inicio">
+            <input matEndDate [(ngModel)]="customEndDate" placeholder="Fin">
           </mat-date-range-input>
-          <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+          <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
           <mat-date-range-picker #picker></mat-date-range-picker>
         </mat-form-field>
-        <button mat-button (click)="applyFilter()">Apply Filter</button>
-      </form>
-
-      <div class="summary-box">
-        <mat-spinner *ngIf="totalSumIsLoading" diameter="45"></mat-spinner>
-        <div *ngIf="!totalSumIsLoading">
-        <h3>Total Sum</h3>
-        <p>{{ totalSum | currency:'MXN'}}</p>
-      </div>
-      </div>
-      <div class="summary-box">
-        <mat-spinner *ngIf="enviosIsLoading" diameter="45"></mat-spinner>
-        <div *ngIf="!enviosIsLoading">
-        <h3>Shipping</h3>
-        <p>{{ envios | currency:'MXN'}}</p>
-      </div>
-      </div>
-      <div class="summary-box">
-        <mat-spinner *ngIf="feesIsLoading" diameter="45"></mat-spinner>
-        <div *ngIf="!feesIsLoading">
-        <h3>Fees</h3>
-        <p>{{ fees | currency:'MXN'}}</p>
-      </div>
-      </div>
-      <div class="summary-box">
-        <mat-spinner *ngIf="satSumIsLoading" diameter="45"></mat-spinner>
-        <div *ngIf="!satSumIsLoading">
-        <h3>SAT</h3>
-        <p>{{ satSum | currency:'MXN'}}</p>
-      </div>
-      </div>
-      <div class="summary-box realTotal">
-        <mat-spinner *ngIf="realSumIsLoading" diameter="45"></mat-spinner>
-        <div *ngIf="!realSumIsLoading">
-        <h3>Real Sum</h3>
-        <p>{{ realSum | currency:'MXN'}}</p>
-      </div>
+        <button mat-icon-button
+                class="apply-custom-btn"
+                (click)="applyCustomRange()"
+                matTooltip="Aplicar">
+          <mat-icon>check</mat-icon>
+        </button>
       </div>
     </div>
-  </mat-card-content>
-</mat-card>
+  </div>
 
-<mat-card>
-  <mat-card-content>
-    <!-- Contenedor para el spinner y el chart -->
-    <div class="chart-container">
-      <!-- Spinner -->
-      <mat-spinner *ngIf="isLoading" class="spinner"></mat-spinner>
-      <!-- Chart -->
-      <ag-charts-angular *ngIf="!isLoading" style="height: 650px; width: 100%;" [options]="options"></ag-charts-angular>
-    </div>
-    <!-- ... resto de tu contenido ... -->
-  </mat-card-content>
-</mat-card>
+  <div class="chart-container">
+    <mat-spinner *ngIf="isLoading" diameter="50" class="chart-spinner"></mat-spinner>
+    <ag-charts-angular
+      *ngIf="!isLoading"
+      style="height: 400px; width: 100%;"
+      [options]="options">
+    </ag-charts-angular>
+  </div>
+</div>

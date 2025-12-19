@@ -1,0 +1,40 @@
+<aside [class.collapsed]="isCollapsed" [class.mobile-open]="isMobileOpen" class="sidebar">
+  <!-- Logo Section -->
+  <div class="sidebar-logo">
+    <div class="logo-container">
+      <svg width="32" height="32" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M6.70247571,4412.07175 L12.0994757,4404.08575 C12.3864757,4403.69975 13.0004757,4403.90275 13.0004757,4404.38375 L13.0004757,4415.43475 C13.0004757,4415.82075 12.5804757,4416.06175 12.2474757,4415.86675 L6.85047571,4412.80175 C6.59347571,4412.65075 6.52447571,4412.31075 6.70247571,4412.07175 L6.70247571,4412.07175 Z M21.1494757,4412.80175 L15.7534757,4415.86675 C15.4194757,4416.06175 15.0004757,4415.82075 15.0004757,4415.43475 L15.0004757,4404.38375 C15.0004757,4403.90275 15.6134757,4403.69975 15.9014757,4404.08575 L21.2984757,4412.07175 C21.4754757,4412.31075 21.4064757,4412.65075 21.1494757,4412.80175 L21.1494757,4412.80175 Z M15.0004757,4399.52575 L15.0004757,4399.52575 C14.5184757,4398.82475 13.4824757,4398.82475 13.0004757,4399.52575 L13.0004757,4399.52575 L4.24047571,4412.02975 C3.80847571,4412.60975 3.97647571,4413.43575 4.60047571,4413.80175 L13.0004757,4418.62575 L13.4234757,4418.85375 C13.7834757,4419.04775 14.2164757,4419.04775 14.5764757,4418.85375 L15.0004757,4418.62575 L23.4004757,4413.80175 C24.0234757,4413.43575 24.1914757,4412.60975 23.7604757,4412.02975 L15.0004757,4399.52575 Z"
+              transform="translate(-4, -4398)" />
+      </svg>
+      <span *ngIf="!isCollapsed" class="logo-text">MercadoLibre</span>
+    </div>
+  </div>
+
+  <!-- Navigation Menu -->
+  <nav class="sidebar-nav">
+    <div class="nav-section">
+      <div *ngFor="let item of menuItems" class="menu-item-wrapper">
+        <div
+          class="menu-item"
+          [class.active]="isActiveRoute(item.route)"
+          (click)="navigateTo(item.route)"
+        >
+          <mat-icon class="menu-icon">{{ item.icon }}</mat-icon>
+          <span *ngIf="!isCollapsed" class="menu-label">{{ item.label }}</span>
+          <span *ngIf="item.badge && !isCollapsed"
+                [class]="'menu-badge badge-' + (item.badgeType || 'count')">
+            {{ item.badge }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Collapse Toggle Button (Desktop) -->
+  <button class="collapse-toggle" (click)="toggleSidebar()">
+    <mat-icon>{{ isCollapsed ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+  </button>
+</aside>
+
+<!-- Mobile Overlay -->
+<div *ngIf="isMobileOpen" class="mobile-overlay" (click)="toggleMobileSidebar()"></div>

@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "dev:vercel": "cd backend && npx ts-node-dev --respawn --transpile-only ../api/index.ts"
   },
   "private": true,
   "dependencies": {

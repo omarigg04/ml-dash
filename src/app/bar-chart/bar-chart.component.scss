@@ -1,98 +1,376 @@
-h3, p{
-  margin: 0;
-}
+// Page Header
+.page-header {
+  margin-bottom: 2rem;
 
-/* Contenedor principal para datepicker y summary boxes */
-.controls-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  align-items: center;
-  height: auto; /* Permite que el contenedor crezca con el contenido */
-}
+  .page-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin: 0 0 0.5rem 0;
+  }
 
-/* Formulario del datepicker */
-.date-picker-form {
-  display: flex;
-  align-items: center; /* Alinea el contenido del formulario verticalmente */
-  flex-grow: 1;
-  margin-right: 20px; /* Ajusta espaciado entre formulario y summary boxes */
-}
-
-/* Estilos para los elementos del formulario como inputs y botones */
-button, input {
-  border-radius: 4px;
-  padding: 10px;
-  margin-bottom: 0.5rem; /* Ajuste para alinear con los demás elementos */
-}
-
-button {
-  background-color: #3c6400;
-  color: white;
-  border: none;
-  height: auto; /* Permite que el botón crezca según el contenido */
-  align-self: center; /* Esto centra el botón si es más pequeño que los elementos circundantes */
-  margin-left: 1rem;
-  position: relative;
-  bottom: .5rem;
-}
-
-/* Summary boxes */
-.summary-box {
-  font-size: 1.5rem;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  margin: 10px;
-  justify-content: center; /* Centra el contenido de los summary box horizontalmente */
-  padding: 0.5rem 1rem; /* Ajuste de padding para estética y alineación */
-  flex: 1; /* Crecimiento flexible para ocupar el espacio disponible */
-  min-width: 150px; /* Asegura un ancho mínimo */
-  mat-spinner{
+  .page-description {
+    font-size: 0.95rem;
+    color: hsl(var(--muted-foreground));
     margin: 0;
   }
-
 }
 
+// Stats Grid
+.stats-grid {
+  gap: 1.5rem;
+  margin-bottom: 2rem;
 
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
 
-@media (max-width: 768px) {
-  .summary-box {
-    flex-basis: 100%; /* Cada box ocupa el 100% del ancho de su contenedor en pantallas pequeñas */
-    margin-bottom: 10px; /* Añade espacio entre boxes en pantallas pequeñas */
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
   }
 }
 
-/* Estilos generales de los mat-card */
-mat-card {
-  background-color: #e9e9e9;
-  margin-bottom: 20px;
-  overflow: visible;
-  padding: 0.3rem;
+// Stat Cards
+.stat-card {
+  position: relative;
+  transition: all 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+  }
+
+  &.stat-card-highlight {
+    border: 1px solid hsl(var(--success) / 0.2);
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--success) / 0.02) 100%);
+  }
 }
 
-/* Contenido de los mat-card */
-mat-card-content {
+.stat-header {
   display: flex;
-  flex-direction: column;
-  justify-content: space-around;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
 }
 
-
-mat-card-content.summary {
-  height: 8rem;
-}
-
-.chart-container {
-  position: relative; /* Contenedor relativo para el posicionamiento del spinner */
-  height: 650px; /* La altura debe coincidir con la de tu gráfico para alinear correctamente */
-  width: 100%;
+.stat-icon-container {
   display: flex;
-  justify-content: center; /* Centra el contenido horizontalmente */
-  align-items: center; /* Centra el contenido verticalmente */
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+
+  .stat-icon {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+  }
 }
 
-.summary-box[_ngcontent-ng-c686892858]   mat-spinner[_ngcontent-ng-c686892858] {
-  margin: 0;
-  left: 40%;
+.stat-body {
+  .stat-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    margin: 0 0 0.5rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin: 0 0 0.5rem 0;
+    line-height: 1;
+
+    &.text-success {
+      color: hsl(var(--success));
+    }
+  }
+
+  .stat-spinner {
+    margin: 0.5rem 0;
+  }
+
+  .stat-change {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    margin: 0;
+
+    .change-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    &.positive {
+      color: hsl(var(--success));
+    }
+
+    &.negative {
+      color: hsl(var(--destructive));
+    }
+
+    &.neutral {
+      color: hsl(var(--muted-foreground));
+
+      .text-muted {
+        color: hsl(var(--muted-foreground));
+      }
+    }
+  }
 }
 
+// Chart Controls
+.chart-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+
+  .period-selector {
+    min-width: 200px;
+
+    ::ng-deep {
+      .mat-mdc-text-field-wrapper {
+        background-color: hsl(var(--card));
+      }
+
+      .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+      }
+
+      .mat-mdc-form-field-infix {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        min-height: 44px;
+      }
+
+      .mat-mdc-select-value {
+        color: hsl(var(--foreground));
+      }
+
+      .mat-mdc-select-arrow {
+        color: hsl(var(--foreground));
+      }
+
+      .mdc-notched-outline__leading,
+      .mdc-notched-outline__notch,
+      .mdc-notched-outline__trailing {
+        border-color: hsl(var(--border)) !important;
+      }
+
+      &:hover .mdc-notched-outline {
+        .mdc-notched-outline__leading,
+        .mdc-notched-outline__notch,
+        .mdc-notched-outline__trailing {
+          border-color: hsl(var(--primary)) !important;
+        }
+      }
+    }
+  }
+
+  .custom-date-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    .compact-date-field {
+      width: 280px;
+
+      ::ng-deep {
+        .mat-mdc-text-field-wrapper {
+          background-color: hsl(var(--card));
+        }
+
+        .mat-mdc-form-field-subscript-wrapper {
+          display: none;
+        }
+
+        .mat-mdc-form-field-infix {
+          padding-top: 12px;
+          padding-bottom: 12px;
+          min-height: 44px;
+        }
+
+        .mdc-notched-outline__leading,
+        .mdc-notched-outline__notch,
+        .mdc-notched-outline__trailing {
+          border-color: hsl(var(--border)) !important;
+        }
+
+        input {
+          color: hsl(var(--foreground));
+        }
+      }
+    }
+
+    .apply-custom-btn {
+      color: hsl(var(--foreground));
+      transition: all 0.2s;
+
+      &:hover:not(:disabled) {
+        background-color: hsl(var(--primary) / 0.1);
+        color: hsl(var(--primary));
+      }
+
+      &:disabled {
+        opacity: 0.4;
+      }
+    }
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    width: 100%;
+
+    .period-selector,
+    .custom-date-picker {
+      width: 100%;
+
+      .compact-date-field {
+        width: 100%;
+      }
+    }
+  }
+}
+
+// Chart Card
+.chart-card {
+  .chart-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+
+    .chart-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: hsl(var(--foreground));
+      margin: 0 0 0.25rem 0;
+    }
+
+    .chart-subtitle {
+      font-size: 0.875rem;
+      color: hsl(var(--muted-foreground));
+      margin: 0;
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+
+  .chart-container {
+    position: relative;
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .chart-spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+  }
+}
+
+// Material Form Field Overrides
+::ng-deep {
+  .filter-card {
+    .mat-mdc-form-field {
+      width: 100%;
+
+      .mat-mdc-text-field-wrapper {
+        background-color: hsl(var(--background));
+      }
+
+      .mat-mdc-form-field-focus-overlay {
+        background-color: transparent;
+      }
+    }
+
+    .mat-date-range-input-container {
+      height: 56px;
+    }
+  }
+}
+
+// Chart Legend & Tooltip Styling
+::ng-deep {
+  .ag-charts-wrapper {
+    .ag-chart-legend {
+      padding: 1rem 0;
+
+      .ag-chart-legend-item {
+        margin: 0 1rem;
+
+        .ag-chart-legend-marker {
+          border-radius: 50%;
+        }
+
+        .ag-chart-legend-label {
+          font-weight: 500;
+          color: hsl(var(--foreground));
+        }
+      }
+    }
+  }
+
+  // Custom tooltip styling
+  .ag-chart-tooltip {
+    background-color: hsl(var(--card)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+    padding: 0.75rem 1rem !important;
+
+    .ag-chart-tooltip-title {
+      font-weight: 600 !important;
+      color: hsl(var(--foreground)) !important;
+      margin-bottom: 0.5rem !important;
+    }
+
+    .ag-chart-tooltip-content {
+      color: hsl(var(--muted-foreground)) !important;
+    }
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .page-header {
+    margin-bottom: 1.5rem;
+
+    .page-title {
+      font-size: 1.5rem;
+    }
+  }
+
+  .stats-grid {
+    gap: 1rem;
+  }
+
+  .stat-body {
+    .stat-value {
+      font-size: 1.5rem;
+    }
+  }
+
+  .chart-card {
+    .chart-container {
+      ag-charts-angular {
+        height: 300px !important;
+      }
+    }
+  }
+}

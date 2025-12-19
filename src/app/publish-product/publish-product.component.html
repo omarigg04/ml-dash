@@ -1,282 +1,324 @@
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-10">
-            <div class="card shadow">
-                <div class="card-header bg-warning text-dark">
-                    <h3 class="mb-0">📦 Publicar Producto en MercadoLibre</h3>
-                </div>
-                <div class="card-body">
+<!-- Page Header -->
+<div class="page-header">
+  <h1 class="page-title">Publicar Producto</h1>
+  <p class="page-description">Crea una nueva publicación en MercadoLibre</p>
+</div>
 
-                    <!-- Success Message -->
-                    <div *ngIf="successMessage" class="alert alert-success alert-dismissible fade show" role="alert">
-                        <strong>✅ {{ successMessage }}</strong>
-                        <button type="button" class="btn-close" (click)="successMessage = ''"></button>
-                    </div>
+<!-- Success Message -->
+<div *ngIf="successMessage" class="alert alert-success">
+  <mat-icon class="alert-icon">check_circle</mat-icon>
+  <span>{{ successMessage }}</span>
+  <button type="button" class="alert-close" (click)="successMessage = ''">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
 
-                    <!-- Error Message -->
-                    <div *ngIf="errorMessage" class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <strong>❌ {{ errorMessage }}</strong>
-                        <button type="button" class="btn-close" (click)="errorMessage = ''"></button>
-                    </div>
+<!-- Error Message -->
+<div *ngIf="errorMessage" class="alert alert-error">
+  <mat-icon class="alert-icon">error</mat-icon>
+  <span>{{ errorMessage }}</span>
+  <button type="button" class="alert-close" (click)="errorMessage = ''">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
 
-                    <form (ngSubmit)="onSubmit()" #productForm="ngForm">
-
-                        <!-- Category Template Selector -->
-                        <div class="mb-4 p-3 border rounded" [ngClass]="isDuplicateMode ? 'bg-secondary-subtle' : 'bg-light'">
-                            <label class="form-label fw-bold">🏷️ Seleccionar Categoría de Producto</label>
-                            <div *ngIf="isDuplicateMode" class="alert alert-info mb-2">
-                                <small>📋 Modo Duplicación: La categoría está fijada según el producto duplicado</small>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-12">
-                                    <select class="form-select form-select-lg"
-                                            [(ngModel)]="selectedCategoryId"
-                                            name="category_selector"
-                                            (change)="onCategoryChange(selectedCategoryId)"
-                                            [disabled]="isDuplicateMode"
-                                            [required]="!isDuplicateMode">
-                                        <option *ngFor="let template of categoryTemplates" [value]="template.id">
-                                            {{ template.name }} - {{ template.description }}
-                                        </option>
-                                    </select>
-                                    <small class="form-text text-muted mt-2 d-block">
-                                        <span *ngIf="!isDuplicateMode">Selecciona el tipo de producto que deseas publicar. Los campos se ajustarán automáticamente.</span>
-                                        <span *ngIf="isDuplicateMode">Los datos del producto duplicado se han cargado automáticamente.</span>
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Formulario para Transistores -->
-                        <div *ngIf="selectedCategoryId === 'MLM187825'">
-
-                            <h5 class="mb-3 text-primary">🔧 Información del Transistor</h5>
-
-                            <!-- Family Name (Nombre del Producto) -->
-                            <div class="mb-3">
-                                <label for="family_name" class="form-label">Nombre del Producto *</label>
-                                <input type="text"
-                                       class="form-control"
-                                       id="family_name"
-                                       name="family_name"
-                                       [(ngModel)]="product.family_name"
-                                       required
-                                       placeholder="Ej: Transistor NPN 2N3055">
-                                <small class="form-text text-muted">
-                                    MercadoLibre generará automáticamente el título basado en este nombre y los atributos
-                                </small>
-                            </div>
-
-                            <!-- Price & Stock Row -->
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="price" class="form-label">Precio (MXN) *</label>
-                                    <input type="number"
-                                           class="form-control"
-                                           id="price"
-                                           name="price"
-                                           [(ngModel)]="product.price"
-                                           required
-                                           min="0"
-                                           step="0.01"
-                                           placeholder="350.00">
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="stock" class="form-label">Cantidad Disponible *</label>
-                                    <input type="number"
-                                           class="form-control"
-                                           id="stock"
-                                           name="available_quantity"
-                                           [(ngModel)]="product.available_quantity"
-                                           required
-                                           min="1"
-                                           placeholder="10">
-                                </div>
-                            </div>
-
-                            <!-- Condition & Listing Type Row -->
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Condición *</label>
-                                    <select class="form-select"
-                                            name="condition"
-                                            [(ngModel)]="product.condition"
-                                            required>
-                                        <option value="new">Nuevo</option>
-                                        <option value="used">Usado</option>
-                                        <option value="refurbished">Reacondicionado</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="listingType" class="form-label">Tipo de Publicación</label>
-                                    <select class="form-select"
-                                            id="listingType"
-                                            name="listing_type_id"
-                                            [(ngModel)]="product.listing_type_id">
-                                        <option *ngFor="let type of listingTypes" [value]="type.id">
-                                            {{ type.name }}
-                                        </option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- Attributes Section -->
-                            <div class="mb-4">
-                                <h6 class="mb-3">📝 Atributos del Transistor</h6>
-                                <div class="border rounded p-3 bg-light">
-                                    <div *ngIf="product.attributes && product.attributes.length > 0">
-                                        <div *ngFor="let attr of product.attributes; let i = index" class="mb-3 pb-3 border-bottom">
-                                            <div class="row">
-                                                <div class="col-md-4">
-                                                    <label class="form-label">ID del Atributo</label>
-                                                    <input type="text"
-                                                           class="form-control form-control-sm"
-                                                           [(ngModel)]="attr.id"
-                                                           [name]="'attr_id_' + i"
-                                                           placeholder="Ej: BRAND, MODEL">
-                                                </div>
-                                                <div class="col-md-3">
-                                                    <label class="form-label">Nombre</label>
-                                                    <input type="text"
-                                                           class="form-control form-control-sm"
-                                                           [(ngModel)]="attr.name"
-                                                           [name]="'attr_name_' + i"
-                                                           placeholder="Ej: Marca">
-                                                </div>
-                                                <div class="col-md-3">
-                                                    <label class="form-label">Valor</label>
-                                                    <input type="text"
-                                                           class="form-control form-control-sm"
-                                                           [(ngModel)]="attr.value_name"
-                                                           [name]="'attr_value_' + i"
-                                                           placeholder="Ej: Genérica">
-                                                </div>
-                                                <div class="col-md-2">
-                                                    <label class="form-label">&nbsp;</label>
-                                                    <button type="button"
-                                                            class="btn btn-sm btn-danger w-100"
-                                                            (click)="removeAttribute(i)">
-                                                        🗑️ Eliminar
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <button type="button"
-                                            class="btn btn-sm btn-outline-primary"
-                                            (click)="addAttribute()">
-                                        ➕ Añadir Atributo
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Sale Terms (Warranty) -->
-                            <div class="mb-4" *ngIf="product.sale_terms && product.sale_terms.length > 0">
-                                <h6 class="mb-3">🛡️ Garantía</h6>
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Tipo de Garantía</label>
-                                        <input type="text"
-                                               class="form-control"
-                                               [(ngModel)]="product.sale_terms[0].value_name"
-                                               name="warranty_type_value"
-                                               placeholder="Ej: Garantía del vendedor">
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Tiempo de Garantía</label>
-                                        <input type="text"
-                                               class="form-control"
-                                               [(ngModel)]="product.sale_terms[1].value_name"
-                                               name="warranty_time_value"
-                                               placeholder="Ej: 90 días">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Pictures URLs -->
-                            <div class="mb-3">
-                                <label for="pictures" class="form-label">🖼️ URLs de Imágenes (opcional)</label>
-                                <textarea class="form-control"
-                                          id="pictures"
-                                          name="pictures_text"
-                                          [(ngModel)]="picturesText"
-                                          rows="3"
-                                          placeholder="http://ejemplo.com/imagen1.jpg&#10;http://ejemplo.com/imagen2.jpg&#10;Una URL por línea"></textarea>
-                                <small class="form-text text-muted">Una URL por línea. Máximo 6 imágenes.</small>
-                            </div>
-
-                            <!-- Shipping Info -->
-                            <div class="mb-4" *ngIf="product.shipping">
-                                <h6 class="mb-3">🚚 Configuración de Envío</h6>
-                                <div class="row">
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label">Modo de Envío</label>
-                                        <input type="text"
-                                               class="form-control"
-                                               [(ngModel)]="product.shipping.mode"
-                                               name="shipping_mode"
-                                               placeholder="Ej: me1">
-                                    </div>
-                                    <div class="col-md-4 mb-3">
-                                        <div class="form-check mt-4">
-                                            <input class="form-check-input"
-                                                   type="checkbox"
-                                                   [(ngModel)]="product.shipping.free_shipping"
-                                                   name="free_shipping"
-                                                   id="freeShipping">
-                                            <label class="form-check-label" for="freeShipping">
-                                                Envío Gratis
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label">Tipo Logístico</label>
-                                        <input type="text"
-                                               class="form-control"
-                                               [(ngModel)]="product.shipping.logistic_type"
-                                               name="logistic_type"
-                                               placeholder="Ej: xd_drop_off">
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        <!-- Buttons -->
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <button type="button"
-                                    class="btn btn-secondary"
-                                    (click)="resetForm()"
-                                    [disabled]="loading">
-                                🔄 Resetear
-                            </button>
-                            <button type="submit"
-                                    class="btn btn-warning btn-lg"
-                                    [disabled]="!productForm.valid || loading"
-                                    style="background-color: #FFE600; border-color: #FFE600; color: #333; font-weight: bold;">
-                                <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
-                                {{ loading ? 'Publicando...' : '🚀 Publicar Producto' }}
-                            </button>
-                        </div>
-
-                    </form>
-
-                </div>
-            </div>
-
-            <!-- Info Card -->
-            <div class="card mt-3 bg-light">
-                <div class="card-body">
-                    <h6 class="card-title">ℹ️ Información</h6>
-                    <ul class="mb-0 small">
-                        <li>Los campos se ajustan automáticamente según la categoría seleccionada</li>
-                        <li>MercadoLibre genera el título automáticamente basándose en el nombre y atributos del producto</li>
-                        <li>Asegúrate de completar todos los atributos requeridos para evitar errores de validación</li>
-                        <li>El template se resetea automáticamente después de publicar exitosamente</li>
-                    </ul>
-                </div>
-            </div>
-
-        </div>
+<!-- Form Card -->
+<div class="card form-card">
+  <div class="form-header">
+    <div class="form-header-content">
+      <mat-icon class="form-icon">inventory_2</mat-icon>
+      <div>
+        <h3 class="form-title">Información del Producto</h3>
+        <p class="form-subtitle">Complete los detalles de su publicación</p>
+      </div>
     </div>
+  </div>
+
+  <div class="form-body">
+    <form (ngSubmit)="onSubmit()" #productForm="ngForm">
+
+      <!-- Category Template Selector -->
+      <div class="form-section" [ngClass]="isDuplicateMode ? 'form-section-readonly' : ''">
+        <div class="form-section-header">
+          <mat-icon>label</mat-icon>
+          <h4>Seleccionar Categoría de Producto</h4>
+        </div>
+
+        <div *ngIf="isDuplicateMode" class="duplicate-mode-alert">
+          <mat-icon>content_copy</mat-icon>
+          <span>Modo Duplicación: La categoría está fijada según el producto duplicado</span>
+        </div>
+
+        <div class="form-group">
+          <select class="form-select"
+                  [(ngModel)]="selectedCategoryId"
+                  name="category_selector"
+                  (change)="onCategoryChange(selectedCategoryId)"
+                  [disabled]="isDuplicateMode"
+                  [required]="!isDuplicateMode">
+            <option *ngFor="let template of categoryTemplates" [value]="template.id">
+              {{ template.name }} - {{ template.description }}
+            </option>
+          </select>
+          <small class="form-hint">
+            <span *ngIf="!isDuplicateMode">Selecciona el tipo de producto que deseas publicar. Los campos se ajustarán automáticamente.</span>
+            <span *ngIf="isDuplicateMode">Los datos del producto duplicado se han cargado automáticamente.</span>
+          </small>
+        </div>
+      </div>
+
+      <!-- Product Details Form (for Transistors) -->
+      <div *ngIf="selectedCategoryId === 'MLM187825'">
+
+        <div class="form-section">
+          <div class="form-section-header">
+            <mat-icon>build</mat-icon>
+            <h4>Información del Transistor</h4>
+          </div>
+
+          <!-- Family Name -->
+          <div class="form-group">
+            <label for="family_name" class="form-label">Nombre del Producto *</label>
+            <input type="text"
+                   class="form-input"
+                   id="family_name"
+                   name="family_name"
+                   [(ngModel)]="product.family_name"
+                   required
+                   placeholder="Ej: Transistor NPN 2N3055">
+            <small class="form-hint">
+              MercadoLibre generará automáticamente el título basado en este nombre y los atributos
+            </small>
+          </div>
+
+          <!-- Price & Stock Row -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="price" class="form-label">Precio (MXN) *</label>
+              <input type="number"
+                     class="form-input"
+                     id="price"
+                     name="price"
+                     [(ngModel)]="product.price"
+                     required
+                     min="0"
+                     step="0.01"
+                     placeholder="350.00">
+            </div>
+            <div class="form-group">
+              <label for="stock" class="form-label">Cantidad Disponible *</label>
+              <input type="number"
+                     class="form-input"
+                     id="stock"
+                     name="available_quantity"
+                     [(ngModel)]="product.available_quantity"
+                     required
+                     min="1"
+                     placeholder="10">
+            </div>
+          </div>
+
+          <!-- Condition & Listing Type Row -->
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Condición *</label>
+              <select class="form-select"
+                      name="condition"
+                      [(ngModel)]="product.condition"
+                      required>
+                <option value="new">Nuevo</option>
+                <option value="used">Usado</option>
+                <option value="refurbished">Reacondicionado</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="listingType" class="form-label">Tipo de Publicación</label>
+              <select class="form-select"
+                      id="listingType"
+                      name="listing_type_id"
+                      [(ngModel)]="product.listing_type_id">
+                <option *ngFor="let type of listingTypes" [value]="type.id">
+                  {{ type.name }}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attributes Section -->
+        <div class="form-section">
+          <div class="form-section-header">
+            <mat-icon>edit_note</mat-icon>
+            <h4>Atributos del Transistor</h4>
+          </div>
+
+          <div class="attributes-container">
+            <div *ngIf="product.attributes && product.attributes.length > 0">
+              <div *ngFor="let attr of product.attributes; let i = index" class="attribute-item">
+                <div class="form-row attribute-row">
+                  <div class="form-group">
+                    <label class="form-label">ID del Atributo</label>
+                    <input type="text"
+                           class="form-input form-input-sm"
+                           [(ngModel)]="attr.id"
+                           [name]="'attr_id_' + i"
+                           placeholder="Ej: BRAND, MODEL">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Nombre</label>
+                    <input type="text"
+                           class="form-input form-input-sm"
+                           [(ngModel)]="attr.name"
+                           [name]="'attr_name_' + i"
+                           placeholder="Ej: Marca">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Valor</label>
+                    <input type="text"
+                           class="form-input form-input-sm"
+                           [(ngModel)]="attr.value_name"
+                           [name]="'attr_value_' + i"
+                           placeholder="Ej: Genérica">
+                  </div>
+                  <div class="form-group attribute-action">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="button"
+                            class="btn-icon btn-destructive"
+                            (click)="removeAttribute(i)">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button type="button"
+                    class="btn-outline"
+                    (click)="addAttribute()">
+              <mat-icon>add</mat-icon>
+              Añadir Atributo
+            </button>
+          </div>
+        </div>
+
+        <!-- Sale Terms (Warranty) -->
+        <div class="form-section" *ngIf="product.sale_terms && product.sale_terms.length > 0">
+          <div class="form-section-header">
+            <mat-icon>verified_user</mat-icon>
+            <h4>Garantía</h4>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Tipo de Garantía</label>
+              <input type="text"
+                     class="form-input"
+                     [(ngModel)]="product.sale_terms[0].value_name"
+                     name="warranty_type_value"
+                     placeholder="Ej: Garantía del vendedor">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tiempo de Garantía</label>
+              <input type="text"
+                     class="form-input"
+                     [(ngModel)]="product.sale_terms[1].value_name"
+                     name="warranty_time_value"
+                     placeholder="Ej: 90 días">
+            </div>
+          </div>
+        </div>
+
+        <!-- Pictures URLs -->
+        <div class="form-section">
+          <div class="form-section-header">
+            <mat-icon>image</mat-icon>
+            <h4>URLs de Imágenes</h4>
+          </div>
+
+          <div class="form-group">
+            <label for="pictures" class="form-label">URLs de Imágenes (opcional)</label>
+            <textarea class="form-textarea"
+                      id="pictures"
+                      name="pictures_text"
+                      [(ngModel)]="picturesText"
+                      rows="4"
+                      placeholder="http://ejemplo.com/imagen1.jpg&#10;http://ejemplo.com/imagen2.jpg&#10;Una URL por línea"></textarea>
+            <small class="form-hint">Una URL por línea. Máximo 6 imágenes.</small>
+          </div>
+        </div>
+
+        <!-- Shipping Info -->
+        <div class="form-section" *ngIf="product.shipping">
+          <div class="form-section-header">
+            <mat-icon>local_shipping</mat-icon>
+            <h4>Configuración de Envío</h4>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Modo de Envío</label>
+              <input type="text"
+                     class="form-input"
+                     [(ngModel)]="product.shipping.mode"
+                     name="shipping_mode"
+                     placeholder="Ej: me1">
+            </div>
+            <div class="form-group">
+              <div class="form-checkbox">
+                <input class="checkbox-input"
+                       type="checkbox"
+                       [(ngModel)]="product.shipping.free_shipping"
+                       name="free_shipping"
+                       id="freeShipping">
+                <label class="checkbox-label" for="freeShipping">
+                  Envío Gratis
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo Logístico</label>
+              <input type="text"
+                     class="form-input"
+                     [(ngModel)]="product.shipping.logistic_type"
+                     name="logistic_type"
+                     placeholder="Ej: xd_drop_off">
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button type="button"
+                class="btn-secondary"
+                (click)="resetForm()"
+                [disabled]="loading">
+          <mat-icon>refresh</mat-icon>
+          Resetear
+        </button>
+        <button type="submit"
+                class="btn-primary btn-publish"
+                [disabled]="!productForm.valid || loading">
+          <mat-spinner *ngIf="loading" diameter="20" class="btn-spinner"></mat-spinner>
+          <mat-icon *ngIf="!loading">rocket_launch</mat-icon>
+          {{ loading ? 'Publicando...' : 'Publicar Producto' }}
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<!-- Info Card -->
+<div class="card info-card">
+  <div class="info-header">
+    <mat-icon>info</mat-icon>
+    <h4>Información</h4>
+  </div>
+  <ul class="info-list">
+    <li>Los campos se ajustan automáticamente según la categoría seleccionada</li>
+    <li>MercadoLibre genera el título automáticamente basándose en el nombre y atributos del producto</li>
+    <li>Asegúrate de completar todos los atributos requeridos para evitar errores de validación</li>
+    <li>El template se resetea automáticamente después de publicar exitosamente</li>
+  </ul>
 </div>

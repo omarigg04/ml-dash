@@ -1,0 +1,37 @@
+<header class="top-header">
+  <!-- Mobile Menu Toggle -->
+  <button class="mobile-menu-btn" (click)="onMenuToggle()">
+    <mat-icon>menu</mat-icon>
+  </button>
+
+  <!-- Search Bar -->
+  <div class="search-container">
+    <mat-icon class="search-icon">search</mat-icon>
+    <input
+      type="text"
+      class="search-input"
+      placeholder="Buscar..."
+      [(ngModel)]="searchQuery"
+      (keyup.enter)="onSearch()"
+    />
+  </div>
+
+  <!-- Right Section -->
+  <div class="header-actions">
+    <!-- Notifications -->
+    <button class="icon-btn" [matTooltip]="'Notificaciones'">
+      <mat-icon [matBadge]="3" matBadgeColor="warn" matBadgeSize="small">notifications</mat-icon>
+    </button>
+
+    <!-- User Profile -->
+    <div class="user-profile">
+      <div class="avatar">
+        <mat-icon>account_circle</mat-icon>
+      </div>
+      <div class="user-info">
+        <span class="user-name">John Doe</span>
+        <span class="user-role">Administrador</span>
+      </div>
+    </div>
+  </div>
+</header>

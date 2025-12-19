@@ -1,8 +1,23 @@
-<div class="main-box">
-  <mat-spinner *ngIf="isLoading" class="spinner"></mat-spinner>
+<!-- Page Header -->
+<div class="page-header">
+  <h1 class="page-title">Órdenes</h1>
+  <p class="page-description">Historial completo de pedidos cumplidos</p>
+</div>
+
+<!-- Grid Card -->
+<div class="card grid-card">
+  <div class="grid-header">
+    <div>
+      <h3 class="grid-title">Tabla de Órdenes</h3>
+      <p class="grid-subtitle">Visualiza y filtra todos tus pedidos</p>
+    </div>
+  </div>
+
+  <div class="grid-container">
+    <mat-spinner *ngIf="isLoading" diameter="50" class="grid-spinner"></mat-spinner>
     <ag-grid-angular
-      style="width: 85%; height: 720px;"
-      class="ag-theme-alpine"
+      *ngIf="!isLoading"
+      class="ag-theme-alpine grid-table"
       [rowData]="rowData"
       [columnDefs]="columnDefs"
       [pagination]="true"
@@ -12,3 +27,4 @@
     >
     </ag-grid-angular>
   </div>
+</div>

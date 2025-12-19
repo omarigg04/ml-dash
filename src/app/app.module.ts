@@ -24,6 +24,11 @@ import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatBadgeModule } from '@angular/material/badge';
+import { MatSelectModule } from '@angular/material/select';
+import { SidebarComponent } from './layout/sidebar.component';
+import { TopNavComponent } from './layout/top-nav.component';
+import { LayoutComponent } from './layout/layout.component';
 
 @NgModule({
   declarations: [
@@ -34,6 +39,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     VentasBarsComponent,
     PublishProductComponent,
     PublicationsListComponent,
+    SidebarComponent,
+    TopNavComponent,
+    LayoutComponent,
   ],
   imports: [
     BrowserModule,
@@ -52,7 +60,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     MatTableModule,
     MatButtonModule,
     MatIconModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatBadgeModule,
+    MatSelectModule
   ],
   providers: [DatePipe],
   bootstrap: [AppComponent]

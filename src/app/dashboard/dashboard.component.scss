@@ -1,35 +1,124 @@
-.main-box {
-    position: relative; /* Asegura que el posicionamiento absoluto del spinner sea relativo a este contenedor */
-    height: 800px;
-    width: 100%;
+// Page Header
+.page-header {
+  margin-bottom: 2rem;
+
+  .page-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    margin: 0 0 0.5rem 0;
+  }
+
+  .page-description {
+    font-size: 0.95rem;
+    color: hsl(var(--muted-foreground));
+    margin: 0;
+  }
+}
+
+// Grid Card
+.grid-card {
+  .grid-header {
     display: flex;
-    justify-content: center; /* Centra el contenedor del grid horizontalmente */
-    align-items: center; /* Centra el contenedor del grid verticalmente */
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+
+    .grid-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: hsl(var(--foreground));
+      margin: 0 0 0.25rem 0;
+    }
+
+    .grid-subtitle {
+      font-size: 0.875rem;
+      color: hsl(var(--muted-foreground));
+      margin: 0;
+    }
+  }
+
+  .grid-container {
+    position: relative;
+    min-height: 600px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .grid-spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 100;
+    }
+
+    .grid-table {
+      width: 100%;
+      height: 720px;
+    }
+  }
 }
 
-.spinner {
-    position: absolute; /* Posicionamiento absoluto para el spinner */
-    top: 50%; /* Centrado vertical */
-    left: 50%; /* Centrado horizontal */
-    transform: translate(-50%, -50%); /* Ajusta la posición exacta del centro del spinner */
-    z-index: 100;
-}
+// AG Grid Theme Overrides
+::ng-deep {
+  .ag-theme-alpine {
+    --ag-background-color: hsl(var(--card));
+    --ag-foreground-color: hsl(var(--foreground));
+    --ag-border-color: hsl(var(--border));
+    --ag-header-background-color: hsl(var(--muted));
+    --ag-header-foreground-color: hsl(var(--foreground));
+    --ag-odd-row-background-color: hsl(var(--card));
+    --ag-row-hover-color: hsl(var(--muted) / 0.5);
+    --ag-selected-row-background-color: hsl(var(--primary) / 0.1);
+    --ag-font-family: var(--font-sans);
+    --ag-font-size: 14px;
 
-.ag-grid-angular {
-    width: 85%; /* Ajuste del ancho del grid */
-    height: 720px; /* Ajuste de la altura del grid */
-}
+    .ag-header {
+      border-bottom: 2px solid hsl(var(--border));
+    }
 
+    .ag-header-cell {
+      font-weight: 600;
+      padding: 1rem 0.75rem;
+    }
 
-// ::ng-deep .ag-overlay-loading-center span {
-//     display: none;
-// }
+    .ag-cell {
+      padding: 0.75rem;
+      line-height: 1.5;
+    }
 
-::ng-deep .ag-overlay-loading-center {
+    .ag-row {
+      border-bottom: 1px solid hsl(var(--border));
+    }
+
+    .ag-paging-panel {
+      border-top: 2px solid hsl(var(--border));
+      padding: 1rem;
+      background-color: hsl(var(--muted) / 0.3);
+    }
+  }
+
+  .ag-overlay-loading-center {
     display: none;
-    border: var(--ag-borders) var(--ag-border-color);
-    background: var(--ag-background-color);
-    border-radius: var(--ag-card-radius);
-    box-shadow: var(--ag-card-shadow);
-    padding: var(--ag-grid-size);
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .page-header {
+    margin-bottom: 1.5rem;
+
+    .page-title {
+      font-size: 1.5rem;
+    }
+  }
+
+  .grid-card {
+    .grid-container {
+      .grid-table {
+        height: 600px;
+      }
+    }
+  }
 }

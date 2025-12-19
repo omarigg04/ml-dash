@@ -1,10 +1,22 @@
-<div class="publications-container">
-  <h2>Mis Publicaciones</h2>
+<!-- Page Header -->
+<div class="page-header">
+  <h1 class="page-title">Mis Publicaciones</h1>
+  <p class="page-description">Gestiona tus productos publicados en MercadoLibre</p>
+</div>
 
-  <mat-spinner *ngIf="isLoading" diameter="50"></mat-spinner>
+<!-- Table Card -->
+<div class="card table-card">
+  <div class="table-header">
+    <div>
+      <h3 class="table-title">Lista de Publicaciones</h3>
+      <p class="table-subtitle">{{ dataSource.length }} publicaciones encontradas</p>
+    </div>
+  </div>
 
-  <div *ngIf="!isLoading" class="table-container">
-    <table mat-table [dataSource]="dataSource" class="publications-table">
+  <div class="table-container">
+    <mat-spinner *ngIf="isLoading" diameter="50" class="table-spinner"></mat-spinner>
+
+    <table *ngIf="!isLoading" mat-table [dataSource]="dataSource" class="publications-table">
 
       <!-- Thumbnail Column -->
       <ng-container matColumnDef="thumbnail">
@@ -23,7 +35,9 @@
       <ng-container matColumnDef="title">
         <th mat-header-cell *matHeaderCellDef>Título</th>
         <td mat-cell *matCellDef="let item" class="title-cell">
-          {{ item.title }}
+          <div class="title-content">
+            <span class="title-text">{{ item.title }}</span>
+          </div>
         </td>
       </ng-container>
 
@@ -31,7 +45,8 @@
       <ng-container matColumnDef="price">
         <th mat-header-cell *matHeaderCellDef>Precio</th>
         <td mat-cell *matCellDef="let item">
-          ${{ item.price | number:'1.2-2' }} MXN
+          <span class="price-value">${{ item.price | number:'1.2-2' }}</span>
+          <span class="price-currency">MXN</span>
         </td>
       </ng-container>
 
@@ -39,7 +54,7 @@
       <ng-container matColumnDef="stock">
         <th mat-header-cell *matHeaderCellDef>Stock</th>
         <td mat-cell *matCellDef="let item">
-          {{ item.available_quantity }}
+          <span class="stock-value">{{ item.available_quantity }}</span>
         </td>
       </ng-container>
 
@@ -60,41 +75,45 @@
       <ng-container matColumnDef="actions">
         <th mat-header-cell *matHeaderCellDef>Acciones</th>
         <td mat-cell *matCellDef="let item">
-          <button
-            mat-raised-button
-            color="primary"
-            (click)="onDuplicate(item)"
-            class="action-btn"
-          >
-            📋 Duplicar
-          </button>
+          <div class="action-buttons">
+            <button
+              mat-button
+              class="btn-action btn-duplicate"
+              (click)="onDuplicate(item)"
+              matTooltip="Duplicar publicación">
+              <mat-icon>content_copy</mat-icon>
+              <span class="btn-label">Duplicar</span>
+            </button>
 
-          <button
-            mat-raised-button
-            color="accent"
-            (click)="onRelist(item)"
-            [disabled]="item.status !== 'closed'"
-            class="action-btn"
-          >
-            🔄 Republicar
-          </button>
+            <button
+              mat-button
+              class="btn-action btn-relist"
+              (click)="onRelist(item)"
+              [disabled]="item.status !== 'closed'"
+              matTooltip="Republicar item cerrado">
+              <mat-icon>refresh</mat-icon>
+              <span class="btn-label">Republicar</span>
+            </button>
 
-          <button
-            mat-icon-button
-            (click)="onViewDetails(item)"
-            matTooltip="Ver detalles"
-          >
-            👁️
-          </button>
+            <button
+              mat-icon-button
+              class="btn-icon-action"
+              (click)="onViewDetails(item)"
+              matTooltip="Ver detalles">
+              <mat-icon>visibility</mat-icon>
+            </button>
+          </div>
         </td>
       </ng-container>
 
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="table-row"></tr>
     </table>
 
-    <div *ngIf="dataSource.length === 0" class="no-data">
-      No hay publicaciones para mostrar
+    <div *ngIf="!isLoading && dataSource.length === 0" class="no-data">
+      <mat-icon class="no-data-icon">inventory_2</mat-icon>
+      <p class="no-data-text">No hay publicaciones para mostrar</p>
+      <p class="no-data-hint">Crea tu primera publicación para comenzar</p>
     </div>
   </div>
 </div>
