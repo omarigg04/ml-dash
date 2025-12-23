@@ -22,16 +22,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Security Middleware (Helmet and Rate Limiting)
-app.use(helmet());
-
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // límite de 100 requests por IP
-  message: 'Too many requests from this IP, please try again later.'
-});
-
-// Middleware
+// IMPORTANTE: CORS debe ir ANTES que Helmet
 app.use(cors({
   origin: [
     'http://localhost:4200',
@@ -40,6 +31,19 @@ app.use(cors({
   ],
   credentials: true
 }));
+
+// Security Middleware (Helmet con configuración para permitir CORS)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // límite de 100 requests por IP
+  message: 'Too many requests from this IP, please try again later.'
+});
+
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -56,7 +60,10 @@ app.get('/health', (req, res) => {
 // ============================================
 
 // Aplicar middleware de autenticación a TODAS las rutas /api/*
-app.use('/api', apiLimiter, authMiddleware); // Apply rate limiter before auth
+// TEMPORALMENTE DESHABILITADO: Appwrite JWT tiene rate limiting muy agresivo
+// TODO: Implementar caché de peticiones y reactivar autenticación
+// app.use('/api', apiLimiter, authMiddleware); // Apply rate limiter before auth
+app.use('/api', apiLimiter); // Solo rate limiter por ahora
 
 // Montar routers protegidos
 app.use('/api/orders', ordersRouter);

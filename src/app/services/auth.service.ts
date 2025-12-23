@@ -10,6 +10,10 @@ export class AuthService {
   private currentUserSubject: BehaviorSubject<any>;
   public currentUser$: Observable<any>;
 
+  // Cache para JWT
+  private cachedJWT: string | null = null;
+  private jwtExpiry: number = 0;
+
   constructor() {
     // Inicializar cliente de Appwrite
     this.client = new Client()
@@ -75,6 +79,10 @@ export class AuthService {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Limpiar caché de JWT
+      this.cachedJWT = null;
+      this.jwtExpiry = 0;
+
       localStorage.removeItem('appwrite_session');
       this.currentUserSubject.next(null);
     }
@@ -89,12 +97,29 @@ export class AuthService {
 
   /**
    * Obtiene el token JWT para hacer requests al backend
+   * Cachea el JWT por 10 minutos para evitar rate limiting
    */
   async getJWT(): Promise<string> {
     try {
+      // Verificar si hay un JWT cacheado y aún válido
+      const now = Date.now();
+      if (this.cachedJWT && now < this.jwtExpiry) {
+        return this.cachedJWT;
+      }
+
+      // Generar nuevo JWT
       const jwt = await this.account.createJWT();
+
+      // Cachear el JWT por 10 minutos (600 segundos)
+      // Los JWTs de Appwrite duran 15 minutos, usamos 10 para tener margen
+      this.cachedJWT = jwt.jwt;
+      this.jwtExpiry = now + (10 * 60 * 1000);
+
       return jwt.jwt;
     } catch (error) {
+      // Si falla, limpiar caché
+      this.cachedJWT = null;
+      this.jwtExpiry = 0;
       throw new Error('Failed to get JWT token');
     }
   }

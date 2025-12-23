@@ -33,7 +33,7 @@ export class BarChartComponent implements OnInit {
   maxDate: Date = new Date(); // Fecha máxima: hoy
   selectedStartDate: Date | null = null;
   selectedEndDate: Date | null = null;
-  selectedPeriod: string = '2months'; // Valor por defecto
+  selectedPeriod: string = '2weeks'; // Valor por defecto (28 días)
   customStartDate: Date | null = null;
   customEndDate: Date | null = null;
 
@@ -163,7 +163,7 @@ export class BarChartComponent implements OnInit {
   }
 
   resetFilter() {
-    this.selectedPeriod = '2months';
+    this.selectedPeriod = '2weeks';
     this.customStartDate = null;
     this.customEndDate = null;
     this.selectedStartDate = null;
