@@ -11,14 +11,6 @@
             "destination": "/api/index"
         },
         {
-            "source": "/auth",
-            "destination": "/api/index"
-        },
-        {
-            "source": "/callback",
-            "destination": "/api/index"
-        },
-        {
             "source": "/(.*)",
             "destination": "/index.html"
         }

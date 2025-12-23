@@ -27,8 +27,10 @@ export class TopNavComponent {
 
   loginWithMercadoLibre(): void {
     // Abrir OAuth de MercadoLibre en una nueva ventana popup
-    const baseUrl = environment.apiUrl.replace('/api', '');
-    const authUrl = `${baseUrl}/auth`;
+    // En producción: /api/auth, En desarrollo: http://localhost:3000/auth
+    const authUrl = environment.production
+      ? '/api/auth'  // Producción (Vercel)
+      : 'http://localhost:3000/auth';  // Desarrollo local
 
     // Abrir popup centrado
     const width = 600;
