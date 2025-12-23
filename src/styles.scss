@@ -4,8 +4,8 @@
    ========================================== */
 
 // Import AG Grid styles
-@import "~ag-grid-community/styles/ag-grid.css";
-@import "~ag-grid-community/styles/ag-theme-alpine.css";
+@import "ag-grid-community/styles/ag-grid.css";
+@import "ag-grid-community/styles/ag-theme-alpine.css";
 
 /* ==========================================
    CSS VARIABLES - COLOR PALETTE
@@ -229,6 +229,7 @@ body {
   flex-direction: column;
   height: 100vh;
   transition: margin-left 0.3s ease;
+  min-width: 0; /* Prevents wide content from breaking the flexbox layout */
 }
 
 .main-content.sidebar-collapsed {
@@ -250,6 +251,7 @@ body {
 .content-area {
   flex: 1;
   overflow-y: auto;
+  overflow-x: auto; // Allow horizontal scroll for wide content like tables/charts
   padding: 1.5rem;
   background-color: hsl(var(--secondary));
 }
@@ -486,9 +488,11 @@ tbody tr:hover {
    RESPONSIVE BREAKPOINTS
    ========================================== */
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
+    z-index: 50; /* Ensure sidebar is on top when it slides in */
+    transition: transform 0.3s ease-in-out;
   }
 
   .sidebar.mobile-open {
@@ -507,13 +511,6 @@ tbody tr:hover {
   .grid-cols-3,
   .grid-cols-4 {
     grid-template-columns: repeat(1, 1fr);
-  }
-}
-
-@media (min-width: 641px) and (max-width: 768px) {
-  .grid-cols-3,
-  .grid-cols-4 {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 
