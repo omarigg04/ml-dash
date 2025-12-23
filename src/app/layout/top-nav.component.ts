@@ -26,8 +26,31 @@ export class TopNavComponent {
   }
 
   loginWithMercadoLibre(): void {
-    // Construct the base URL by removing '/api' and then append the correct endpoint.
+    // Abrir OAuth de MercadoLibre en una nueva ventana popup
     const baseUrl = environment.apiUrl.replace('/api', '');
-    window.location.href = `${baseUrl}/auth`;
+    const authUrl = `${baseUrl}/auth`;
+
+    // Abrir popup centrado
+    const width = 600;
+    const height = 700;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    const popup = window.open(
+      authUrl,
+      'MercadoLibre OAuth',
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`
+    );
+
+    // Opcional: detectar cuando se cierra el popup
+    if (popup) {
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed);
+          console.log('✅ Autorización de MercadoLibre completada');
+          // Opcional: recargar datos si es necesario
+        }
+      }, 500);
+    }
   }
 }
