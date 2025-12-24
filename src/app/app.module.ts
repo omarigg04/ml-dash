@@ -8,6 +8,7 @@ import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { AgGridModule } from 'ag-grid-angular';
 import { LoginComponent } from './auth/login/login.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
+import { CachingInterceptor } from './interceptors/caching.interceptor';
 import { NavBarComponent } from './nav-bar/nav-bar.component';
 import { DatePipe } from '@angular/common';
 import { AgChartsAngularModule } from 'ag-charts-angular';
@@ -79,6 +80,13 @@ import { SettingsComponent } from './settings/settings.component';
   ],
   providers: [
     DatePipe,
+    // IMPORTANTE: CachingInterceptor DEBE ir ANTES que AuthInterceptor
+    // para que las respuestas cacheadas no pasen por autenticación
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: CachingInterceptor,
+      multi: true
+    },
     {
       provide: HTTP_INTERCEPTORS,
       useClass: AuthInterceptor,

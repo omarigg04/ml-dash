@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Client, Account } from 'appwrite';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { CachingService } from './caching.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -14,7 +15,7 @@ export class AuthService {
   private cachedJWT: string | null = null;
   private jwtExpiry: number = 0;
 
-  constructor() {
+  constructor(private cachingService: CachingService) {
     // Inicializar cliente de Appwrite
     this.client = new Client()
       .setEndpoint(environment.appwrite.endpoint)
@@ -82,6 +83,9 @@ export class AuthService {
       // Limpiar caché de JWT
       this.cachedJWT = null;
       this.jwtExpiry = 0;
+
+      // Invalidar TODO el caché de la aplicación
+      this.cachingService.invalidateAll();
 
       localStorage.removeItem('appwrite_session');
       this.currentUserSubject.next(null);
