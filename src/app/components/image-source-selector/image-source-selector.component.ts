@@ -152,7 +152,8 @@ export class ImageSourceSelectorComponent implements OnInit {
 
         this.galleryImages = images.map((img: any) => ({
           pictureId: img.id || img.pictureId, // El ID es el picture_id de ML
-          url: img.thumbnailUrl || img.url, // Usar thumbnailUrl para mostrar
+          url: img.fullSizeUrl || img.thumbnailUrl || img.url, // URL de alta calidad para validación
+          thumbnailUrl: img.thumbnailUrl || img.url, // Thumbnail para preview en galería
           title: img.title || img.id || 'Sin título', // Usar ID como título si no hay title
           width: 200, // Tamaño estándar de thumbnail
           height: 200,

@@ -310,14 +310,38 @@ router.get('/catalog', async (req: Request, res: Response) => {
         for (const item of allItemsData) {
             if (item.pictures && Array.isArray(item.pictures)) {
                 for (const picture of item.pictures) {
-                    const fullUrl = picture.url || picture.secure_url;
+                    // Helper to extract numeric size from size string (e.g., "2048x2048" -> 2048)
+                    const extractSize = (sizeStr: string): number => {
+                        const match = sizeStr.match(/(\d+)x(\d+)/);
+                        return match ? Math.max(parseInt(match[1]), parseInt(match[2])) : 0;
+                    };
+
+                    // Find HIGHEST quality variation (largest size)
+                    let highestQualityVariation = picture.variations?.[0];
+                    let maxSize = 0;
+
+                    if (picture.variations && Array.isArray(picture.variations)) {
+                        for (const variation of picture.variations) {
+                            const size = extractSize(variation.size);
+                            if (size > maxSize) {
+                                maxSize = size;
+                                highestQualityVariation = variation;
+                            }
+                        }
+                    }
+
+                    // Use highest quality URL as full_url
+                    const fullUrl = highestQualityVariation?.secure_url ||
+                                   highestQualityVariation?.url ||
+                                   picture.secure_url ||
+                                   picture.url;
 
                     // Skip if already added (deduplicate)
                     if (imageMap.has(fullUrl)) {
                         continue;
                     }
 
-                    // Find thumbnail variation (smallest size)
+                    // Find thumbnail variation (smallest size for preview)
                     const thumbnailVariation = picture.variations?.find((v: any) =>
                         v.size === '500x500' || v.size === '250x250'
                     ) || picture.variations?.[0];
