@@ -88,8 +88,7 @@
       <div class="image-container">
         <img [src]="image.thumbnailUrl"
              [alt]="image.id"
-             class="gallery-image"
-             (error)="$any($event.target).src='assets/no-image.png'">
+             class="gallery-image">
 
         <div class="image-overlay">
           <button class="overlay-btn btn-view"
@@ -239,8 +238,7 @@
           <div class="catalog-image-container">
             <img [src]="image.thumbnail_url"
                  [alt]="image.source_item.title"
-                 class="catalog-image"
-                 (error)="$any($event.target).src='assets/no-image.png'">
+                 class="catalog-image">
 
             <div class="catalog-overlay">
               <button class="overlay-btn btn-copy-full"

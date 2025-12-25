@@ -16,6 +16,7 @@ import { BarChartComponent } from './bar-chart/bar-chart.component';
 import { VentasBarsComponent } from './ventas-bars/ventas-bars.component';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MatFormFieldModule } from '@angular/material/form-field'; // Importa el módulo del Form Field
+import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker'; // Importa el módulo del DatePicker
 import { MatMomentDateModule } from '@angular/material-moment-adapter'; // Importa MatMomentDateModule para fechas con Moment.js
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -31,7 +32,10 @@ import { MatBadgeModule } from '@angular/material/badge';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatPaginatorModule } from '@angular/material/paginator';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SidebarComponent } from './layout/sidebar.component';
+import { ImageSourceSelectorComponent } from './components/image-source-selector/image-source-selector.component';
 import { TopNavComponent } from './layout/top-nav.component';
 import { LayoutComponent } from './layout/layout.component';
 import { ImageGalleryComponent } from './image-gallery/image-gallery.component';
@@ -54,6 +58,7 @@ import { SettingsComponent } from './settings/settings.component';
     ImageGalleryComponent,
     ToastComponent,
     SettingsComponent,
+    ImageSourceSelectorComponent,
   ],
   imports: [
     BrowserModule,
@@ -64,6 +69,7 @@ import { SettingsComponent } from './settings/settings.component';
     BrowserAnimationsModule,
     MatDatepickerModule,
     MatFormFieldModule,
+    MatInputModule,
     MatMomentDateModule,
     FormsModule,
     ReactiveFormsModule,
@@ -76,7 +82,9 @@ import { SettingsComponent } from './settings/settings.component';
     MatBadgeModule,
     MatSelectModule,
     MatTabsModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatPaginatorModule,
+    MatProgressBarModule
   ],
   providers: [
     DatePipe,

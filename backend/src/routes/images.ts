@@ -109,6 +109,96 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
 });
 
 /**
+ * POST /api/images/diagnostic
+ * Validate an image using MercadoLibre's diagnostic API
+ *
+ * Validates images for moderation issues like:
+ * - Watermarks
+ * - Text overlays
+ * - Background issues
+ * - Quality problems
+ */
+router.post('/diagnostic', async (req: Request, res: Response) => {
+    try {
+        const { picture_url, context } = req.body;
+
+        if (!picture_url) {
+            res.status(400).json({
+                error: 'Missing image data',
+                message: 'Please provide picture_url (URL, Base64, or picture_id)'
+            });
+            return;
+        }
+
+        if (!context?.category_id) {
+            res.status(400).json({
+                error: 'Missing category_id',
+                message: 'Please provide context.category_id'
+            });
+            return;
+        }
+
+        const token = await mlAuth.getToken();
+
+        console.log('🔍 Validating image with ML diagnostic API...');
+        console.log('  - Category:', context.category_id);
+        console.log('  - Picture type:', context.picture_type || 'thumbnail');
+        console.log('  - Picture URL/ID length:', picture_url.length);
+
+        // Call MercadoLibre diagnostic API
+        const diagnosticResponse = await axios.post(
+            'https://api.mercadolibre.com/moderations/pictures/diagnostic',
+            {
+                picture_url: picture_url, // Can be URL, Base64, or picture_id
+                context: {
+                    category_id: context.category_id,
+                    picture_type: context.picture_type || 'thumbnail'
+                }
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        console.log('✅ Diagnostic completed');
+        console.log('  - Action:', diagnosticResponse.data.action);
+        console.log('  - Detections:', diagnosticResponse.data.detections?.length || 0);
+
+        res.json(diagnosticResponse.data);
+
+    } catch (error: any) {
+        console.error('❌ Error in diagnostic:', error.response?.data || error.message);
+
+        if (error.response?.status === 401) {
+            res.status(401).json({
+                error: 'Unauthorized',
+                message: 'Access token is invalid or expired. Please re-authorize the app.',
+                details: error.response.data
+            });
+            return;
+        }
+
+        if (error.response?.status === 400) {
+            res.status(400).json({
+                error: 'Invalid request',
+                message: 'The diagnostic request is invalid',
+                details: error.response.data
+            });
+            return;
+        }
+
+        res.status(error.response?.status || 500).json({
+            error: 'Failed to validate image',
+            message: error.response?.data?.message || error.message,
+            details: error.response?.data
+        });
+    }
+});
+
+/**
  * GET /api/images/catalog
  * Get all images from all user's publications
  *

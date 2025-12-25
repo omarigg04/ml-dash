@@ -174,6 +174,9 @@ export class PublishProductComponent implements OnInit {
   // Helper para formularios dinámicos
   picturesText: string = '';
 
+  // Imágenes validadas del selector
+  validatedPictureIds: Array<{ id: string }> = [];
+
   constructor(
     private http: HttpClient,
     private router: Router,
@@ -216,6 +219,18 @@ export class PublishProductComponent implements OnInit {
         }));
       }
 
+      // Ensure sale_terms has at least 2 elements (WARRANTY_TYPE and WARRANTY_TIME)
+      let saleTerms: SaleTerm[] = [];
+      if (item.sale_terms && Array.isArray(item.sale_terms) && item.sale_terms.length >= 2) {
+        saleTerms = item.sale_terms;
+      } else {
+        // Initialize with default warranty terms
+        saleTerms = [
+          { id: "WARRANTY_TYPE", value_name: item.sale_terms?.[0]?.value_name || "Garantía del vendedor" },
+          { id: "WARRANTY_TIME", value_name: item.sale_terms?.[1]?.value_name || "90 días" }
+        ];
+      }
+
       // Pre-fill form with item data
       this.product = {
         family_name: item.title + ' (Copia)',
@@ -226,7 +241,7 @@ export class PublishProductComponent implements OnInit {
         buying_mode: item.buying_mode || 'buy_it_now',
         condition: item.condition,
         listing_type_id: item.listing_type_id,
-        sale_terms: item.sale_terms || [],
+        sale_terms: saleTerms,
         pictures: mappedPictures,
         attributes: item.attributes || [],
         shipping: item.shipping || {}
@@ -286,17 +301,33 @@ export class PublishProductComponent implements OnInit {
     }
   }
 
+  /**
+   * Maneja las imágenes validadas del selector
+   */
+  handleImagesValidated(pictureIds: Array<{ id: string }>): void {
+    console.log('[PublishProduct] Imágenes validadas recibidas:', pictureIds);
+    this.validatedPictureIds = pictureIds;
+  }
+
   onSubmit(): void {
     this.loading = true;
     this.successMessage = '';
     this.errorMessage = '';
 
-    // Convertir texto de imágenes a array de objetos Picture
-    const pictures: Picture[] = this.picturesText
-      ? this.picturesText.split('\n')
-          .filter(url => url.trim())
-          .map(url => ({ source: url.trim() }))
-      : [];
+    // Usar imágenes del selector si están disponibles, sino usar el textarea
+    let pictures: Picture[] = [];
+
+    if (this.validatedPictureIds.length > 0) {
+      // Usar picture_ids validados del selector
+      pictures = this.validatedPictureIds.map(pic => ({ source: pic.id }));
+      console.log('[PublishProduct] Usando imágenes del selector:', pictures);
+    } else if (this.picturesText) {
+      // Fallback: usar URLs del textarea
+      pictures = this.picturesText.split('\n')
+        .filter(url => url.trim())
+        .map(url => ({ source: url.trim() }));
+      console.log('[PublishProduct] Usando imágenes del textarea:', pictures);
+    }
 
     // Preparar el payload final
     const productData: Product = {

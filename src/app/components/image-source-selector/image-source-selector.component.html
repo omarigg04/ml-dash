@@ -1,0 +1,259 @@
+<div class="image-selector-container">
+  <!-- Tabs para seleccionar fuente -->
+  <mat-tab-group [(selectedIndex)]="selectedTab">
+
+    <!-- TAB 1: Subir Nueva Imagen -->
+    <mat-tab label="Subir Nueva">
+      <div class="upload-section">
+        <div class="upload-area"
+             (drop)="onDrop($event)"
+             (dragover)="onDragOver($event)"
+             (click)="onFileInputClick()">
+          <mat-icon class="upload-icon">cloud_upload</mat-icon>
+          <p class="upload-text">Arrastra tus imágenes aquí</p>
+          <small class="upload-hint">o haz clic para seleccionar</small>
+          <small class="upload-specs">JPG o PNG • Máx 10MB • Recomendado 1200x1200px</small>
+          <input #fileInput
+                 type="file"
+                 hidden
+                 multiple
+                 (change)="onFileSelected($event)"
+                 accept="image/jpeg,image/png">
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- TAB 2: Seleccionar de Galería -->
+    <mat-tab label="Desde Galería">
+      <div class="gallery-section">
+        <div class="gallery-header">
+          <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Buscar en galería</mat-label>
+            <input matInput
+                   placeholder="Buscar por nombre o tags..."
+                   [(ngModel)]="gallerySearchTerm"
+                   (ngModelChange)="filterGallery()"
+                   (keydown.enter)="$event.preventDefault()">
+            <mat-icon matSuffix>search</mat-icon>
+          </mat-form-field>
+
+          <button type="button" mat-button (click)="refreshGallery()" [disabled]="isLoadingGallery">
+            <mat-icon>refresh</mat-icon>
+            Actualizar
+          </button>
+        </div>
+
+        <!-- Loading spinner -->
+        <div *ngIf="isLoadingGallery" class="loading-gallery">
+          <mat-spinner diameter="40"></mat-spinner>
+          <p>Cargando galería...</p>
+        </div>
+
+        <!-- Grid de imágenes de la galería -->
+        <div *ngIf="!isLoadingGallery" class="gallery-grid">
+          <div *ngFor="let image of getPaginatedGalleryImages()"
+               class="gallery-item"
+               [class.selected]="isImageSelected(image)"
+               (click)="selectFromGallery(image)">
+            <img [src]="image.url" [alt]="image.title || 'Gallery image'">
+
+            <!-- Overlay de selección -->
+            <div class="selection-overlay" *ngIf="isImageSelected(image)">
+              <mat-icon>check_circle</mat-icon>
+            </div>
+
+            <!-- Info de la imagen -->
+            <div class="image-info">
+              <small class="image-title">{{ image.title || 'Sin título' }}</small>
+              <small class="image-dimensions" *ngIf="image.width && image.height">
+                {{ image.width }}x{{ image.height }}px
+              </small>
+            </div>
+
+            <!-- Badge de validada -->
+            <span class="validated-badge" *ngIf="image.validated">
+              <mat-icon>verified</mat-icon>
+            </span>
+          </div>
+
+          <!-- Mensaje si no hay imágenes -->
+          <div *ngIf="filteredGalleryImages.length === 0" class="no-images">
+            <mat-icon>image_not_supported</mat-icon>
+            <p>No se encontraron imágenes</p>
+            <small *ngIf="gallerySearchTerm">Intenta con otro término de búsqueda</small>
+          </div>
+        </div>
+
+        <!-- Paginación -->
+        <mat-paginator
+          *ngIf="!isLoadingGallery && filteredGalleryImages.length > 0"
+          [length]="filteredGalleryImages.length"
+          [pageSize]="pageSize"
+          [pageSizeOptions]="[12, 24, 48]"
+          (page)="onPageChange($event)">
+        </mat-paginator>
+      </div>
+    </mat-tab>
+
+    <!-- TAB 3: URL Directa -->
+    <mat-tab label="Desde URL">
+      <div class="url-section">
+        <mat-form-field appearance="outline" class="url-input">
+          <mat-label>URL de la imagen</mat-label>
+          <input matInput
+                 placeholder="https://ejemplo.com/imagen.jpg"
+                 [(ngModel)]="imageUrl"
+                 (ngModelChange)="onUrlChange()"
+                 (keydown.enter)="$event.preventDefault(); isValidUrl(imageUrl) && loadFromUrl()">
+          <mat-icon matSuffix>link</mat-icon>
+          <mat-hint>La URL debe terminar en .jpg, .jpeg o .png</mat-hint>
+        </mat-form-field>
+
+        <button type="button"
+                mat-raised-button
+                color="primary"
+                (click)="loadFromUrl()"
+                [disabled]="!isValidUrl(imageUrl)">
+          <mat-icon>add_photo_alternate</mat-icon>
+          Agregar Imagen
+        </button>
+
+        <!-- Preview de URL -->
+        <div class="url-preview" *ngIf="urlPreview">
+          <p class="preview-label">Vista previa:</p>
+          <img [src]="urlPreview" alt="URL Preview">
+        </div>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+
+  <!-- Preview de imágenes seleccionadas -->
+  <div class="selected-images-section" *ngIf="selectedImages.length > 0">
+    <div class="section-header">
+      <h3>Imágenes Seleccionadas ({{ selectedImages.length }}/{{ maxImages }})</h3>
+      <p class="hint" *ngIf="selectedImages.length > 0">
+        La primera imagen será la principal (thumbnail)
+      </p>
+    </div>
+
+    <div class="selected-grid">
+      <div *ngFor="let img of selectedImages; let i = index" class="selected-item">
+        <img [src]="img.preview" alt="Selected">
+
+        <!-- Badge de fuente -->
+        <span class="source-badge" [class]="img.source">
+          {{ getSourceLabel(img.source) }}
+        </span>
+
+        <!-- Badge de validación -->
+        <span class="validation-badge success" *ngIf="img.validated">
+          <mat-icon>check_circle</mat-icon>
+        </span>
+
+        <span class="validation-badge error" *ngIf="img.validationErrors && img.validationErrors.length > 0">
+          <mat-icon>error</mat-icon>
+        </span>
+
+        <!-- Botón de remover -->
+        <button type="button"
+                mat-icon-button
+                class="remove-btn"
+                (click)="removeImage(i)"
+                [disabled]="isValidating">
+          <mat-icon>close</mat-icon>
+        </button>
+
+        <!-- Controles de orden -->
+        <div class="image-order">
+          <button type="button"
+                  mat-icon-button
+                  [disabled]="i === 0 || isValidating"
+                  (click)="moveImage(i, -1)"
+                  matTooltip="Mover arriba">
+            <mat-icon>arrow_upward</mat-icon>
+          </button>
+          <span class="order-number">{{ i + 1 }}</span>
+          <button type="button"
+                  mat-icon-button
+                  [disabled]="i === selectedImages.length - 1 || isValidating"
+                  (click)="moveImage(i, 1)"
+                  matTooltip="Mover abajo">
+            <mat-icon>arrow_downward</mat-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla de errores de validación -->
+    <div class="validation-errors-table" *ngIf="getImagesWithErrors().length > 0">
+      <div class="table-header">
+        <mat-icon>error_outline</mat-icon>
+        <h4>Errores de Validación ({{ getImagesWithErrors().length }})</h4>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Imagen</th>
+            <th>Fuente</th>
+            <th>Estado</th>
+            <th>Errores Detectados</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let img of getImagesWithErrors(); let idx = index">
+            <td class="image-cell">
+              <img [src]="img.preview" [alt]="'Imagen ' + (idx + 1)">
+            </td>
+            <td class="source-cell">
+              <span class="source-badge-table" [class]="img.source">
+                {{ getSourceLabel(img.source) }}
+              </span>
+            </td>
+            <td class="status-cell">
+              <span class="status-error">
+                <mat-icon>cancel</mat-icon>
+                No válida
+              </span>
+            </td>
+            <td class="errors-cell">
+              <ul class="error-list">
+                <li *ngFor="let error of img.validationErrors">{{ error }}</li>
+              </ul>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Progreso de validación -->
+    <div class="validation-progress" *ngIf="isValidating">
+      <mat-progress-bar mode="determinate" [value]="validationProgress"></mat-progress-bar>
+      <p>Validando imágenes... {{ validationProgress }}%</p>
+    </div>
+
+    <!-- Botón de validar -->
+    <div class="actions">
+      <button type="button"
+              mat-raised-button
+              color="primary"
+              (click)="validateAllImages()"
+              [disabled]="isValidating || selectedImages.length === 0">
+        <mat-icon>{{ isValidating ? 'hourglass_empty' : 'verified' }}</mat-icon>
+        {{ isValidating ? 'Validando...' : 'Validar Todas con MercadoLibre' }}
+      </button>
+
+      <div class="validation-summary" *ngIf="!isValidating && getValidatedCount() > 0">
+        <mat-icon class="success-icon">check_circle</mat-icon>
+        <span>{{ getValidatedCount() }}/{{ selectedImages.length }} imágenes validadas</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mensaje si no hay selección -->
+  <div class="no-selection" *ngIf="selectedImages.length === 0">
+    <mat-icon>add_photo_alternate</mat-icon>
+    <p>No has seleccionado ninguna imagen</p>
+    <small>Usa las pestañas de arriba para agregar imágenes</small>
+  </div>
+</div>
