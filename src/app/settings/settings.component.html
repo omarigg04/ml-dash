@@ -4,6 +4,28 @@
   <p class="page-description">Personaliza la apariencia y el comportamiento de la aplicación</p>
 </div>
 
+<!-- MercadoLibre Integration Card -->
+<div class="card settings-card">
+  <div class="settings-header">
+    <mat-icon>store</mat-icon>
+    <h2>Integración con MercadoLibre</h2>
+  </div>
+
+  <div class="settings-section">
+    <div class="setting-item">
+      <div class="setting-info">
+        <h3 class="setting-title">Autorización de cuenta</h3>
+        <p class="setting-description">Conecta tu cuenta de MercadoLibre para gestionar tus publicaciones</p>
+      </div>
+
+      <button class="meli-login-btn" (click)="loginWithMercadoLibre()">
+        <mat-icon>key</mat-icon>
+        Autorizar con MercadoLibre
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Appearance Settings Card -->
 <div class="card settings-card">
   <div class="settings-header">
