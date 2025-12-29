@@ -78,18 +78,61 @@
 
           <!-- Family Name -->
           <div class="form-group">
-            <label for="family_name" class="form-label">Nombre del Producto *</label>
+            <label for="family_name" class="form-label">
+              Nombre del Producto *
+              <span *ngIf="isLoadingPredictions" class="loading-indicator">
+                <mat-spinner diameter="16"></mat-spinner> Prediciendo categoría...
+              </span>
+            </label>
             <input type="text"
                    class="form-input"
                    id="family_name"
                    name="family_name"
                    [(ngModel)]="product.family_name"
+                   (ngModelChange)="onProductNameChange($event)"
                    required
                    maxlength="60"
                    placeholder="Ej: Transistor NPN 2N3055">
             <small class="form-hint">
               MercadoLibre generará automáticamente el título basado en este nombre y los atributos (máx. 60 caracteres)
+              <br>
+              💡 Escribe el nombre del producto y te sugeriremos la categoría automáticamente
             </small>
+
+            <!-- Category Predictions Panel -->
+            <div *ngIf="showCategoryPredictions" class="category-predictions-panel">
+              <div class="predictions-header">
+                <h4>
+                  <mat-icon>lightbulb</mat-icon>
+                  Categorías Sugeridas
+                </h4>
+                <button type="button"
+                        class="close-btn"
+                        (click)="closeCategoryPredictions()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+
+              <div class="predictions-list">
+                <div *ngFor="let prediction of categoryPredictions"
+                     class="prediction-item"
+                     (click)="selectPredictedCategory(prediction)">
+                  <div class="prediction-content">
+                    <div class="prediction-category">
+                      <mat-icon>category</mat-icon>
+                      <strong>{{ prediction.category_name }}</strong>
+                    </div>
+                    <div class="prediction-domain">
+                      {{ prediction.domain_name }}
+                    </div>
+                    <div class="prediction-id">
+                      ID: {{ prediction.category_id }}
+                    </div>
+                  </div>
+                  <mat-icon class="select-icon">arrow_forward</mat-icon>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Description -->

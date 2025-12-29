@@ -7,6 +7,7 @@ import ordersRouter from '../backend/src/routes/orders';
 import shipmentsRouter from '../backend/src/routes/shipments';
 import itemsRouter from '../backend/src/routes/items';
 import imagesRouter from '../backend/src/routes/images';
+import categoriesRouter from '../backend/src/routes/categories';
 
 // Load environment variables
 dotenv.config();
@@ -240,10 +241,13 @@ app.post('/api/auth/inject-token', async (req, res) => {
 });
 
 // API Routes
+console.log('📦 Registering API routes...');
 app.use('/api/orders', ordersRouter);
 app.use('/api/shipments', shipmentsRouter);
 app.use('/api/items', itemsRouter);
 app.use('/api/images', imagesRouter);
+app.use('/api/categories', categoriesRouter);
+console.log('✅ All routes registered (including /api/categories)');
 
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {

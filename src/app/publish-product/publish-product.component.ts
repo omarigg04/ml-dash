@@ -1,10 +1,12 @@
 import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ToastComponent } from '../shared/toast/toast.component';
+import { CategoryPredictorService, CategoryPrediction } from '../services/category-predictor.service';
 
 // Interfaces para el producto
 interface Attribute {
@@ -180,14 +182,34 @@ export class PublishProductComponent implements OnInit {
   // Imágenes validadas del selector
   validatedPictureIds: Array<{ id: string; url?: string }> = [];
 
+  // Predictor de categorías
+  categoryPredictions: CategoryPrediction[] = [];
+  isLoadingPredictions = false;
+  showCategoryPredictions = false;
+  private productNameSubject = new Subject<string>();
+
   constructor(
     private http: HttpClient,
     private router: Router,
     private route: ActivatedRoute,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private categoryPredictor: CategoryPredictorService
   ) { }
 
   ngOnInit(): void {
+    // Setup category predictor with debounce
+    this.productNameSubject.pipe(
+      debounceTime(800), // Wait 800ms after user stops typing
+      distinctUntilChanged()
+    ).subscribe(productName => {
+      if (productName && productName.trim().length >= 3) {
+        this.predictCategory(productName);
+      } else {
+        this.categoryPredictions = [];
+        this.showCategoryPredictions = false;
+      }
+    });
+
     // Check if in duplicate mode
     this.route.queryParams.subscribe(params => {
       if (params['mode'] === 'duplicate') {
@@ -453,5 +475,96 @@ export class PublishProductComponent implements OnInit {
     if (this.product.attributes) {
       this.product.attributes.splice(index, 1);
     }
+  }
+
+  /**
+   * Maneja cambios en el nombre del producto para predecir categoría
+   */
+  onProductNameChange(value: string): void {
+    this.productNameSubject.next(value);
+  }
+
+  /**
+   * Predice la categoría basándose en el nombre del producto
+   */
+  predictCategory(productName: string): void {
+    if (!productName || productName.trim().length < 3) {
+      return;
+    }
+
+    this.isLoadingPredictions = true;
+    console.log('[PublishProduct] Predicting category for:', productName);
+
+    this.categoryPredictor.predictCategory(productName, 3).subscribe({
+      next: (response) => {
+        this.categoryPredictions = response.predictions;
+        this.showCategoryPredictions = response.predictions.length > 0;
+        this.isLoadingPredictions = false;
+
+        console.log('[PublishProduct] Category predictions:', this.categoryPredictions);
+      },
+      error: (error) => {
+        console.error('[PublishProduct] Error predicting category:', error);
+        this.categoryPredictions = [];
+        this.showCategoryPredictions = false;
+        this.isLoadingPredictions = false;
+      }
+    });
+  }
+
+  /**
+   * Selecciona una categoría predicha
+   */
+  selectPredictedCategory(prediction: CategoryPrediction): void {
+    console.log('[PublishProduct] Selected category:', prediction);
+
+    // Verificar si la categoría ya existe en categoryTemplates
+    const existingTemplate = this.categoryTemplates.find(t => t.id === prediction.category_id);
+
+    if (!existingTemplate) {
+      // Agregar la categoría predicha al dropdown
+      this.categoryTemplates.push({
+        id: prediction.category_id,
+        name: prediction.category_name,
+        description: prediction.domain_name,
+        defaultProduct: {
+          family_name: '',
+          category_id: prediction.category_id,
+          price: 0,
+          currency_id: 'MXN',
+          available_quantity: 1,
+          buying_mode: 'buy_it_now',
+          condition: 'new',
+          listing_type_id: 'gold_special'
+        }
+      });
+
+      console.log('[PublishProduct] Added predicted category to templates:', prediction.category_name);
+    }
+
+    // Actualizar el category_id del producto
+    this.product.category_id = prediction.category_id;
+    this.selectedCategoryId = prediction.category_id;
+
+    // Ocultar las predicciones
+    this.showCategoryPredictions = false;
+
+    // Mostrar mensaje de confirmación
+    this.snackBar.openFromComponent(ToastComponent, {
+      duration: 3000,
+      horizontalPosition: 'end',
+      verticalPosition: 'top',
+      data: {
+        message: `Categoría seleccionada: ${prediction.category_name}`,
+        type: 'success'
+      }
+    });
+  }
+
+  /**
+   * Cierra el panel de predicciones
+   */
+  closeCategoryPredictions(): void {
+    this.showCategoryPredictions = false;
   }
 }
