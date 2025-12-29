@@ -4,6 +4,70 @@ import { mlAuth } from '../auth/oauth';
 
 const router = Router();
 
+// ============================================
+// CACHE SYSTEM
+// ============================================
+
+interface CacheEntry {
+    data: any[];
+    timestamp: number;
+    sellerId: string;
+}
+
+const itemsCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+function getCacheKey(sellerId: string, status?: string, listingType?: string): string {
+    return `${sellerId}_${status || 'all'}_${listingType || 'all'}`;
+}
+
+function getFromCache(sellerId: string, status?: string, listingType?: string): any[] | null {
+    const key = getCacheKey(sellerId, status, listingType);
+    const cached = itemsCache.get(key);
+
+    if (!cached) {
+        return null;
+    }
+
+    const age = Date.now() - cached.timestamp;
+    if (age > CACHE_TTL) {
+        console.log('🗑️ Cache expired, removing:', key);
+        itemsCache.delete(key);
+        return null;
+    }
+
+    console.log(`✅ Cache hit! Age: ${Math.round(age / 1000)}s`);
+    return cached.data;
+}
+
+function saveToCache(sellerId: string, data: any[], status?: string, listingType?: string): void {
+    const key = getCacheKey(sellerId, status, listingType);
+    itemsCache.set(key, {
+        data,
+        timestamp: Date.now(),
+        sellerId
+    });
+    console.log(`💾 Cached ${data.length} items with key:`, key);
+}
+
+function clearItemsCache(sellerId?: string): void {
+    if (sellerId) {
+        // Clear only for specific seller
+        const keysToDelete: string[] = [];
+        itemsCache.forEach((value, key) => {
+            if (value.sellerId === sellerId) {
+                keysToDelete.push(key);
+            }
+        });
+        keysToDelete.forEach(key => itemsCache.delete(key));
+        console.log(`🗑️ Cleared ${keysToDelete.length} cache entries for seller:`, sellerId);
+    } else {
+        // Clear all
+        itemsCache.clear();
+        console.log('🗑️ All items cache cleared');
+    }
+}
+
 /**
  * POST /api/items
  * Create a new product listing on MercadoLibre
@@ -129,6 +193,12 @@ router.post('/', async (req: Request, res: Response) => {
         const itemId = response.data.id;
         console.log('✅ Item created successfully with ID:', itemId);
 
+        // Clear cache for this seller (new item invalidates cache)
+        const userResponse = await axios.get('https://api.mercadolibre.com/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        clearItemsCache(userResponse.data.id);
+
         // Step 2: Add description AFTER item creation (if provided)
         if (description && description.trim()) {
             try {
@@ -233,6 +303,63 @@ router.get('/', async (req: Request, res: Response) => {
         console.log('  - Search query:', searchQuery || 'none');
         console.log('  - Sort by:', sortBy || 'default');
 
+        // Check cache first (when sorting or searching)
+        if (searchQuery || sortBy) {
+            console.log('🔍 Checking cache...');
+            const cachedItems = getFromCache(sellerId, status, listingType);
+            if (cachedItems) {
+                console.log('✅ Using cached items!');
+                let filteredItems = cachedItems;
+
+                // Apply search filter
+                if (searchQuery) {
+                    filteredItems = cachedItems.filter(item =>
+                        item.title.toLowerCase().includes(searchQuery)
+                    );
+                    console.log(`  - Filtered to ${filteredItems.length} items matching search query`);
+                }
+
+                // Apply sorting
+                if (sortBy) {
+                    filteredItems.sort((a, b) => {
+                        switch (sortBy) {
+                            case 'price_asc': return a.price - b.price;
+                            case 'price_desc': return b.price - a.price;
+                            case 'date_asc': return new Date(a.date_created).getTime() - new Date(b.date_created).getTime();
+                            case 'date_desc': return new Date(b.date_created).getTime() - new Date(a.date_created).getTime();
+                            case 'title_asc': return a.title.localeCompare(b.title);
+                            case 'title_desc': return b.title.localeCompare(a.title);
+                            case 'stock_asc': return a.available_quantity - b.available_quantity;
+                            case 'stock_desc': return b.available_quantity - a.available_quantity;
+                            default: return 0;
+                        }
+                    });
+                }
+
+                // Apply pagination
+                const start = offset;
+                const end = offset + limit;
+                const paginatedItems = filteredItems.slice(start, end);
+
+                return res.json({
+                    items: paginatedItems,
+                    paging: {
+                        total: filteredItems.length,
+                        offset: offset,
+                        limit: limit
+                    },
+                    filters: {
+                        status: status || null,
+                        listing_type: listingType || null,
+                        search: searchQuery || null,
+                        sort: sortBy || null
+                    },
+                    cached: true
+                });
+            }
+            console.log('❌ Cache miss, fetching from ML API...');
+        }
+
         // Step 2: Build params for ML API
         const mlParams: any = {
             offset,
@@ -252,9 +379,13 @@ router.get('/', async (req: Request, res: Response) => {
         let itemIds: string[] = [];
         let totalItems = 0;
 
-        if (searchQuery) {
-            // When searching, fetch ALL items to search comprehensively
-            console.log('  - Search mode: fetching all items for comprehensive search');
+        // Fetch ALL items when searching OR sorting (to ensure correct order)
+        if (searchQuery || sortBy) {
+            if (searchQuery) {
+                console.log('  - Search mode: fetching all items for comprehensive search');
+            } else if (sortBy) {
+                console.log('  - Sort mode: fetching all items to ensure correct order');
+            }
 
             const batchSize = 100; // ML API max limit per request
             let currentOffset = 0;
@@ -387,6 +518,11 @@ router.get('/', async (req: Request, res: Response) => {
             allItems.push(...batchItems);
         }
 
+        // Save to cache (only when fetching all items for sorting/searching)
+        if (searchQuery || sortBy) {
+            saveToCache(sellerId, allItems, status, listingType);
+        }
+
         // Step 5: Apply search filter (if searching)
         let filteredItems = allItems;
 
@@ -423,12 +559,12 @@ router.get('/', async (req: Request, res: Response) => {
             });
         }
 
-        // Step 7: Apply client-side pagination (when searching)
+        // Step 7: Apply client-side pagination (when searching or sorting)
         let paginatedItems = filteredItems;
         let adjustedPaging = itemsResponse.data.paging;
 
-        if (searchQuery) {
-            // Manual pagination for search results
+        if (searchQuery || sortBy) {
+            // Manual pagination for search/sorted results
             const start = offset;
             const end = offset + limit;
             paginatedItems = filteredItems.slice(start, end);
@@ -439,7 +575,8 @@ router.get('/', async (req: Request, res: Response) => {
                 limit: limit
             };
 
-            console.log(`  - Paginated: showing ${start}-${end} of ${filteredItems.length} search results`);
+            const mode = searchQuery ? 'search' : 'sorted';
+            console.log(`  - Paginated: showing ${start}-${end} of ${filteredItems.length} ${mode} results`);
         }
 
         res.json({
