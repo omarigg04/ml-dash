@@ -463,6 +463,48 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/items/:id/description
+ * Get description for an item
+ */
+router.get('/:id/description', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const token = await mlAuth.getToken();
+
+        console.log(`📄 Fetching description for item ${id}`);
+
+        const response = await axios.get(
+            `https://api.mercadolibre.com/items/${id}/description`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            }
+        );
+
+        console.log('✅ Description fetched successfully');
+
+        res.json(response.data);
+
+    } catch (error: any) {
+        console.error('❌ Error fetching description:', error.response?.data || error.message);
+
+        // If description doesn't exist, return empty
+        if (error.response?.status === 404) {
+            return res.json({
+                plain_text: '',
+                text: ''
+            });
+        }
+
+        res.status(500).json({
+            error: 'Failed to fetch description',
+            details: error.response?.data || error.message
+        });
+    }
+});
+
+/**
  * POST /api/items/:id/relist
  * Republish a closed item
  */

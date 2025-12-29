@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -48,6 +49,7 @@ interface Product {
   buying_mode: string;
   condition: string;
   listing_type_id: string;
+  description?: string; // Descripción del producto
   sale_terms?: SaleTerm[];
   pictures?: Picture[];
   attributes?: Attribute[];
@@ -170,9 +172,13 @@ export class PublishProductComponent implements OnInit {
   successMessage = '';
   errorMessage = '';
   isDuplicateMode = false; // Track if we're in duplicate mode
+  originalItemImages: any[] = []; // Imágenes del item original (para modo duplicar)
 
   // Helper para formularios dinámicos
   picturesText: string = '';
+
+  // Imágenes validadas del selector
+  validatedPictureIds: Array<{ id: string; url?: string }> = [];
 
   constructor(
     private http: HttpClient,
@@ -196,7 +202,7 @@ export class PublishProductComponent implements OnInit {
   /**
    * Load data from duplicated item
    */
-  private loadDuplicateData(): void {
+  private async loadDuplicateData(): Promise<void> {
     const duplicateData = sessionStorage.getItem('duplicateItem');
     if (duplicateData) {
       const item = JSON.parse(duplicateData);
@@ -206,6 +212,24 @@ export class PublishProductComponent implements OnInit {
 
       console.log('📋 Duplicating item:', item);
 
+      // Guardar imágenes originales completas para pasar al selector
+      this.originalItemImages = item.pictures || [];
+      console.log('📸 Original images:', this.originalItemImages);
+
+      // Fetch description from API (separate endpoint)
+      let description = '';
+      try {
+        console.log('📄 Fetching description for item:', item.id);
+        const descResponse = await firstValueFrom(
+          this.http.get<any>(`${environment.apiUrl}/items/${item.id}/description`)
+        );
+        description = descResponse?.plain_text || '';
+        console.log('✅ Description fetched:', description ? `${description.substring(0, 100)}...` : '(empty)');
+      } catch (error) {
+        console.warn('⚠️ Could not fetch description:', error);
+        description = '';
+      }
+
       // Map pictures from ML format to form format
       // ML pictures have: {id, url, secure_url, size, ...}
       // Form expects: {source: "url"}
@@ -214,6 +238,18 @@ export class PublishProductComponent implements OnInit {
         mappedPictures = item.pictures.map((pic: any) => ({
           source: pic.secure_url || pic.url || pic.source
         }));
+      }
+
+      // Ensure sale_terms has at least 2 elements (WARRANTY_TYPE and WARRANTY_TIME)
+      let saleTerms: SaleTerm[] = [];
+      if (item.sale_terms && Array.isArray(item.sale_terms) && item.sale_terms.length >= 2) {
+        saleTerms = item.sale_terms;
+      } else {
+        // Initialize with default warranty terms
+        saleTerms = [
+          { id: "WARRANTY_TYPE", value_name: item.sale_terms?.[0]?.value_name || "Garantía del vendedor" },
+          { id: "WARRANTY_TIME", value_name: item.sale_terms?.[1]?.value_name || "90 días" }
+        ];
       }
 
       // Pre-fill form with item data
@@ -226,7 +262,8 @@ export class PublishProductComponent implements OnInit {
         buying_mode: item.buying_mode || 'buy_it_now',
         condition: item.condition,
         listing_type_id: item.listing_type_id,
-        sale_terms: item.sale_terms || [],
+        description: description, // Usar descripción obtenida del endpoint
+        sale_terms: saleTerms,
         pictures: mappedPictures,
         attributes: item.attributes || [],
         shipping: item.shipping || {}
@@ -286,17 +323,41 @@ export class PublishProductComponent implements OnInit {
     }
   }
 
+  /**
+   * Maneja las imágenes validadas del selector
+   */
+  handleImagesValidated(pictureIds: Array<{ id: string; url?: string }>): void {
+    console.log('[PublishProduct] Imágenes validadas recibidas:', pictureIds);
+    this.validatedPictureIds = pictureIds;
+  }
+
   onSubmit(): void {
     this.loading = true;
     this.successMessage = '';
     this.errorMessage = '';
 
-    // Convertir texto de imágenes a array de objetos Picture
-    const pictures: Picture[] = this.picturesText
-      ? this.picturesText.split('\n')
-          .filter(url => url.trim())
-          .map(url => ({ source: url.trim() }))
-      : [];
+    // Usar imágenes del selector si están disponibles, sino usar el textarea
+    let pictures: Picture[] = [];
+
+    if (this.validatedPictureIds.length > 0) {
+      // Usar URLs validadas del selector
+      // ML requiere { source: "url" } según documentación
+      pictures = this.validatedPictureIds
+        .filter(pic => pic.url) // Solo las que tienen URL
+        .map(pic => ({ source: pic.url! }));
+
+      console.log('[PublishProduct] Usando imágenes del selector (URLs):', pictures);
+
+      if (pictures.length === 0) {
+        console.warn('[PublishProduct] ⚠️ No se encontraron URLs en las imágenes validadas');
+      }
+    } else if (this.picturesText) {
+      // Fallback: usar URLs del textarea
+      pictures = this.picturesText.split('\n')
+        .filter(url => url.trim())
+        .map(url => ({ source: url.trim() }));
+      console.log('[PublishProduct] Usando imágenes del textarea:', pictures);
+    }
 
     // Preparar el payload final
     const productData: Product = {

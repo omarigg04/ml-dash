@@ -92,6 +92,21 @@
             </small>
           </div>
 
+          <!-- Description -->
+          <div class="form-group">
+            <label for="description" class="form-label">Descripción del Producto</label>
+            <textarea class="form-textarea"
+                      id="description"
+                      name="description"
+                      [(ngModel)]="product.description"
+                      rows="6"
+                      maxlength="50000"
+                      placeholder="Descripción detallada del producto. Puedes incluir características, especificaciones técnicas, garantía, etc."></textarea>
+            <small class="form-hint">
+              Descripción completa del producto. Máximo 50,000 caracteres. Puedes usar texto plano o HTML básico.
+            </small>
+          </div>
+
           <!-- Price & Stock Row -->
           <div class="form-row">
             <div class="form-group">
@@ -232,19 +247,38 @@
         <div class="form-section">
           <div class="form-section-header">
             <mat-icon>image</mat-icon>
-            <h4>URLs de Imágenes</h4>
+            <h4>Imágenes del Producto</h4>
           </div>
 
           <div class="form-group">
-            <label for="pictures" class="form-label">URLs de Imágenes (opcional)</label>
-            <textarea class="form-textarea"
-                      id="pictures"
-                      name="pictures_text"
-                      [(ngModel)]="picturesText"
-                      rows="4"
-                      placeholder="http://ejemplo.com/imagen1.jpg&#10;http://ejemplo.com/imagen2.jpg&#10;Una URL por línea"></textarea>
-            <small class="form-hint">Una URL por línea. Máximo 6 imágenes.</small>
+            <app-image-source-selector
+              [categoryId]="product.category_id"
+              [itemTitle]="product.family_name"
+              [initialImages]="originalItemImages"
+              [maxImages]="10"
+              (onImagesValidated)="handleImagesValidated($event)">
+            </app-image-source-selector>
+
+            <small class="form-hint">
+              Puedes subir imágenes nuevas, seleccionar de tu galería, o usar URLs directas.
+              Las imágenes serán validadas automáticamente antes de publicar.
+            </small>
           </div>
+
+          <!-- Fallback: Textarea para URLs (mantener para compatibilidad) -->
+          <details class="legacy-input">
+            <summary>O pegar URLs manualmente (método antiguo)</summary>
+            <div class="form-group">
+              <label for="pictures" class="form-label">URLs de Imágenes</label>
+              <textarea class="form-textarea"
+                        id="pictures"
+                        name="pictures_text"
+                        [(ngModel)]="picturesText"
+                        rows="4"
+                        placeholder="http://ejemplo.com/imagen1.jpg&#10;http://ejemplo.com/imagen2.jpg&#10;Una URL por línea"></textarea>
+              <small class="form-hint">Una URL por línea. Máximo 10 imágenes.</small>
+            </div>
+          </details>
         </div>
 
         <!-- Shipping Info -->

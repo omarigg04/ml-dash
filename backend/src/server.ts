@@ -44,8 +44,8 @@ const apiLimiter = rateLimit({
 });
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' })); // Aumentado para imágenes base64
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ============================================
 // PUBLIC ROUTES (sin autenticación)
@@ -239,8 +239,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // ============================================
 // START SERVER
 // ============================================
-
-const PORT = process.env.PORT || 3000;
 
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
