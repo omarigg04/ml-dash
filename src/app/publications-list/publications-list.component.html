@@ -21,11 +21,7 @@
       <label class="filter-label">Buscar</label>
       <div class="search-input-wrapper">
         <mat-icon class="search-icon">search</mat-icon>
-        <input
-          type="text"
-          class="search-input"
-          [(ngModel)]="searchQuery"
-          (keyup.enter)="onSearch()"
+        <input type="text" class="search-input" [(ngModel)]="searchQuery" (keyup.enter)="onSearch()"
           placeholder="Buscar por título...">
         <button *ngIf="searchQuery" class="btn-clear-search" (click)="clearSearch()">
           <mat-icon>close</mat-icon>
@@ -41,11 +37,7 @@
       <!-- Status Filter -->
       <div class="filter-group">
         <label class="filter-label" for="statusFilter">Estado</label>
-        <select
-          id="statusFilter"
-          class="filter-select"
-          [(ngModel)]="statusFilter"
-          (change)="onStatusFilterChange()">
+        <select id="statusFilter" class="filter-select" [(ngModel)]="statusFilter" (change)="onStatusFilterChange()">
           <option *ngFor="let option of statusOptions" [value]="option.value">
             {{ option.label }}
           </option>
@@ -55,10 +47,7 @@
       <!-- Listing Type Filter -->
       <div class="filter-group">
         <label class="filter-label" for="listingTypeFilter">Tipo de Publicación</label>
-        <select
-          id="listingTypeFilter"
-          class="filter-select"
-          [(ngModel)]="listingTypeFilter"
+        <select id="listingTypeFilter" class="filter-select" [(ngModel)]="listingTypeFilter"
           (change)="onListingTypeFilterChange()">
           <option *ngFor="let option of listingTypeOptions" [value]="option.value">
             {{ option.label }}
@@ -69,11 +58,7 @@
       <!-- Sort -->
       <div class="filter-group">
         <label class="filter-label" for="sortFilter">Ordenar por</label>
-        <select
-          id="sortFilter"
-          class="filter-select"
-          [(ngModel)]="sortBy"
-          (change)="onSortChange()">
+        <select id="sortFilter" class="filter-select" [(ngModel)]="sortBy" (change)="onSortChange()">
           <option *ngFor="let option of sortOptions" [value]="option.value">
             {{ option.label }}
           </option>
@@ -102,12 +87,9 @@
       <ng-container matColumnDef="thumbnail">
         <th mat-header-cell *matHeaderCellDef>Imagen</th>
         <td mat-cell *matCellDef="let item">
-          <img
-            [src]="item.thumbnail || 'assets/no-image.png'"
-            alt="Thumbnail"
-            class="thumbnail-image"
-            (error)="$any($event.target).src='assets/no-image.png'"
-          />
+          <img [src]="item.thumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2RkZCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBpbWFnZTwvdGV4dD48L3N2Zz4='"
+               alt="Thumbnail"
+               class="thumbnail-image" />
         </td>
       </ng-container>
 
@@ -142,10 +124,7 @@
       <ng-container matColumnDef="status">
         <th mat-header-cell *matHeaderCellDef>Estado</th>
         <td mat-cell *matCellDef="let item">
-          <span
-            class="status-badge"
-            [ngClass]="'status-' + item.status"
-          >
+          <span class="status-badge" [ngClass]="'status-' + item.status">
             {{ getStatusLabel(item.status) }}
           </span>
         </td>
@@ -156,16 +135,18 @@
         <th mat-header-cell *matHeaderCellDef>Acciones</th>
         <td mat-cell *matCellDef="let item">
           <div class="action-buttons">
-            <button
-              mat-button
-              class="btn-action btn-duplicate"
-              (click)="onDuplicate(item)"
+            <button mat-button class="btn-action btn-duplicate" (click)="onDuplicate(item)"
               matTooltip="Duplicar publicación">
               <mat-icon>content_copy</mat-icon>
               <span class="btn-label">Duplicar</span>
             </button>
 
-            <button
+            <button mat-button class="btn-action btn-edit" matTooltip="Editar publicación">
+              <mat-icon>edit</mat-icon>
+              <span class="btn-label">Editar</span>
+            </button>
+
+            <!-- <button
               mat-button
               class="btn-action btn-relist"
               (click)="onRelist(item)"
@@ -173,13 +154,9 @@
               matTooltip="Republicar item cerrado">
               <mat-icon>refresh</mat-icon>
               <span class="btn-label">Republicar</span>
-            </button>
+            </button> -->
 
-            <button
-              mat-icon-button
-              class="btn-icon-action"
-              (click)="onViewDetails(item)"
-              matTooltip="Ver detalles">
+            <button mat-icon-button class="btn-icon-action" (click)="onViewDetails(item)" matTooltip="Ver detalles">
               <mat-icon>visibility</mat-icon>
             </button>
           </div>
@@ -204,11 +181,7 @@
 
   <!-- Load More Button -->
   <div class="pagination-section" *ngIf="!isLoading && dataSource.length > 0">
-    <button
-      *ngIf="hasMore"
-      class="btn-load-more"
-      (click)="loadMore()"
-      [disabled]="isLoadingMore">
+    <button *ngIf="hasMore" class="btn-load-more" (click)="loadMore()" [disabled]="isLoadingMore">
       <mat-spinner *ngIf="isLoadingMore" diameter="20" class="btn-spinner"></mat-spinner>
       <mat-icon *ngIf="!isLoadingMore">expand_more</mat-icon>
       {{ isLoadingMore ? 'Cargando...' : 'Cargar más publicaciones' }}

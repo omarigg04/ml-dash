@@ -649,3 +649,63 @@ tbody tr:hover {
     margin: 8px;
   }
 }
+
+/* ==========================================
+   MATERIAL TABS - ESTILOS GLOBALES
+   Para ImageSourceSelector y otros componentes con tabs
+   ========================================== */
+
+.mat-mdc-tab-group {
+  .mat-mdc-tab-header {
+    background-color: hsl(var(--card));
+    border-bottom: 2px solid hsl(var(--border));
+    margin-bottom: 1rem;
+  }
+
+  .mat-mdc-tab-labels {
+    background-color: hsl(var(--muted) / 0.1);
+  }
+
+  .mat-mdc-tab {
+    min-width: 100px;
+    height: 48px;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 0.8;
+    }
+
+    &.mdc-tab--active {
+      opacity: 1;
+    }
+  }
+
+  .mdc-tab__text-label {
+    color: hsl(var(--foreground));
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+
+  .mdc-tab-indicator__content--underline {
+    border-color: hsl(var(--primary));
+    border-width: 3px;
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+  }
+
+  .mat-mdc-tab-body-wrapper {
+    padding: 1rem 0;
+  }
+}
+
+/* Dark mode overrides para tabs */
+body.dark-theme {
+  .mat-mdc-tab-header {
+    background-color: hsl(var(--card));
+  }
+
+  .mdc-tab__text-label {
+    color: hsl(var(--foreground));
+  }
+}

@@ -128,9 +128,56 @@
 // Chart Controls
 .chart-controls {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-direction: row;
+  gap: 1rem;
+
+  // Selector de comparación
+  .comparison-selector {
+    min-width: 180px;
+
+    ::ng-deep {
+      .mat-mdc-text-field-wrapper {
+        background-color: hsl(var(--background));
+      }
+
+      .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+      }
+
+      .mat-mdc-form-field-infix {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        min-height: 44px;
+      }
+
+      .mat-mdc-select-value {
+        color: hsl(var(--foreground)) !important;
+      }
+
+      .mat-mdc-select-arrow {
+        color: hsl(var(--foreground)) !important;
+      }
+
+      .mat-mdc-floating-label {
+        color: hsl(var(--muted-foreground)) !important;
+      }
+
+      .mdc-notched-outline__leading,
+      .mdc-notched-outline__notch,
+      .mdc-notched-outline__trailing {
+        border-color: hsl(var(--border)) !important;
+      }
+
+      &:hover .mdc-notched-outline {
+
+        .mdc-notched-outline__leading,
+        .mdc-notched-outline__notch,
+        .mdc-notched-outline__trailing {
+          border-color: hsl(var(--primary)) !important;
+        }
+      }
+    }
+  }
 
   .period-selector {
     min-width: 200px;
@@ -165,6 +212,7 @@
       }
 
       &:hover .mdc-notched-outline {
+
         .mdc-notched-outline__leading,
         .mdc-notched-outline__notch,
         .mdc-notched-outline__trailing {
@@ -184,7 +232,7 @@
 
       ::ng-deep {
         .mat-mdc-text-field-wrapper {
-          background-color: hsl(var(--card));
+          background-color: hsl(var(--background));
         }
 
         .mat-mdc-form-field-subscript-wrapper {
@@ -197,6 +245,10 @@
           min-height: 44px;
         }
 
+        .mat-mdc-floating-label {
+          color: hsl(var(--muted-foreground)) !important;
+        }
+
         .mdc-notched-outline__leading,
         .mdc-notched-outline__notch,
         .mdc-notched-outline__trailing {
@@ -204,22 +256,82 @@
         }
 
         input {
-          color: hsl(var(--foreground));
+          color: hsl(var(--foreground)) !important;
+        }
+
+        .mat-datepicker-toggle {
+          color: hsl(var(--foreground)) !important;
         }
       }
     }
 
     .apply-custom-btn {
-      color: hsl(var(--foreground));
-      transition: all 0.2s;
+      min-width: 100px;
+      height: 44px;
+      border-radius: 6px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      // Modo claro: botón azul con texto blanco
+      background-color: #3B82F6;
+      color: white;
 
       &:hover:not(:disabled) {
-        background-color: hsl(var(--primary) / 0.1);
-        color: hsl(var(--primary));
+        background-color: #2563EB;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
 
       &:disabled {
-        opacity: 0.4;
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  // Modo oscuro: ajustar colores del botón
+  :host-context(body.dark-theme) .chart-controls .custom-date-picker .apply-custom-btn {
+    background-color: #60A5FA;
+    color: #0F172A;
+
+    &:hover:not(:disabled) {
+      background-color: #3B82F6;
+    }
+  }
+
+  .unfulfilled-checkbox {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0;
+
+    ::ng-deep {
+      .mat-mdc-checkbox {
+        .mdc-form-field {
+          color: hsl(var(--foreground)) !important;
+        }
+
+        .mdc-checkbox__background {
+          border-color: hsl(var(--border)) !important;
+        }
+
+        &.mat-mdc-checkbox-checked {
+          .mdc-checkbox__background {
+            background-color: hsl(var(--primary)) !important;
+            border-color: hsl(var(--primary)) !important;
+          }
+        }
+      }
+
+      .mdc-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: hsl(var(--foreground)) !important;
+      }
+
+      // Asegurar que el label del checkbox sea visible
+      label {
+        color: hsl(var(--foreground)) !important;
       }
     }
   }
@@ -228,8 +340,10 @@
     flex-direction: column;
     width: 100%;
 
+    .comparison-selector,
     .period-selector,
-    .custom-date-picker {
+    .custom-date-picker,
+    .unfulfilled-checkbox {
       width: 100%;
 
       .compact-date-field {
@@ -241,6 +355,8 @@
 
 // Chart Card
 .chart-card {
+  padding: 2rem !important; // Más espacio interno
+
   .chart-header {
     display: flex;
     align-items: flex-start;
@@ -274,12 +390,19 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    background-color: hsl(var(--card)); // Fondo adaptable al tema
+    border-radius: 8px;
+    padding: 1rem;
 
     .chart-spinner {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
+    }
+
+    ag-charts-angular {
+      background: transparent !important;
     }
   }
 }
@@ -301,6 +424,54 @@
 
     .mat-date-range-input-container {
       height: 56px;
+    }
+  }
+}
+
+// Datepicker Styling usando panelClass (modo claro y oscuro)
+::ng-deep {
+  .custom-datepicker-panel {
+    .mat-calendar-body-cell:hover .mat-calendar-body-cell-content:not(.mat-calendar-body-selected):not(.mat-calendar-body-comparison-identical) {
+      background-color: rgba(0, 0, 0, 0.04);
+    }
+  }
+}
+
+// Modo oscuro - estilos específicos para tema oscuro
+:host-context(body.dark-theme) {
+  ::ng-deep .custom-datepicker-panel {
+    .mat-datepicker-content {
+      background-color: hsl(var(--card));
+    }
+
+    .mat-calendar {
+      background-color: hsl(var(--card));
+    }
+
+    .mat-calendar-header {
+      background-color: hsl(var(--card));
+    }
+
+    .mat-calendar-period-button,
+    .mat-calendar-arrow,
+    .mat-calendar-body-label {
+      color: hsl(var(--foreground));
+    }
+
+    .mat-calendar-table-header th {
+      color: hsl(var(--muted-foreground));
+    }
+
+    .mat-calendar-body-cell-content {
+      color: hsl(var(--foreground));
+    }
+
+    .mat-calendar-body-cell:hover .mat-calendar-body-cell-content:not(.mat-calendar-body-selected):not(.mat-calendar-body-comparison-identical) {
+      background-color: hsl(var(--accent));
+    }
+
+    .mat-calendar-body-today:not(.mat-calendar-body-selected) {
+      border-color: hsl(var(--primary));
     }
   }
 }

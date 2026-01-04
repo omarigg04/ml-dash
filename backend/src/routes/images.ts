@@ -109,6 +109,98 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
 });
 
 /**
+ * POST /api/images/diagnostic
+ * Validate an image using MercadoLibre's diagnostic API
+ *
+ * Validates images for moderation issues like:
+ * - Watermarks
+ * - Text overlays
+ * - Background issues
+ * - Quality problems
+ */
+router.post('/diagnostic', async (req: Request, res: Response) => {
+    try {
+        const { picture_url, context } = req.body;
+
+        if (!picture_url) {
+            res.status(400).json({
+                error: 'Missing image data',
+                message: 'Please provide picture_url (URL, Base64, or picture_id)'
+            });
+            return;
+        }
+
+        if (!context?.category_id) {
+            res.status(400).json({
+                error: 'Missing category_id',
+                message: 'Please provide context.category_id'
+            });
+            return;
+        }
+
+        const token = await mlAuth.getToken();
+
+        console.log('🔍 Validating image with ML diagnostic API...');
+        console.log('  - Category:', context.category_id);
+        console.log('  - Picture type:', context.picture_type || 'thumbnail');
+        console.log('  - Title:', context.title || '(not provided)');
+        console.log('  - Picture URL/ID length:', picture_url.length);
+
+        // Call MercadoLibre diagnostic API
+        const diagnosticResponse = await axios.post(
+            'https://api.mercadolibre.com/moderations/pictures/diagnostic',
+            {
+                picture_url: picture_url, // Can be URL, Base64, or picture_id
+                context: {
+                    category_id: context.category_id,
+                    picture_type: context.picture_type || 'thumbnail',
+                    ...(context.title && { title: context.title }) // Include title if provided
+                }
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        console.log('✅ Diagnostic completed');
+        console.log('  - Action:', diagnosticResponse.data.action);
+        console.log('  - Detections:', diagnosticResponse.data.detections?.length || 0);
+
+        res.json(diagnosticResponse.data);
+
+    } catch (error: any) {
+        console.error('❌ Error in diagnostic:', error.response?.data || error.message);
+
+        if (error.response?.status === 401) {
+            res.status(401).json({
+                error: 'Unauthorized',
+                message: 'Access token is invalid or expired. Please re-authorize the app.',
+                details: error.response.data
+            });
+            return;
+        }
+
+        if (error.response?.status === 400) {
+            res.status(400).json({
+                error: 'Invalid request',
+                message: 'The diagnostic request is invalid',
+                details: error.response.data
+            });
+            return;
+        }
+
+        res.status(error.response?.status || 500).json({
+            error: 'Failed to validate image',
+            message: error.response?.data?.message || error.message,
+            details: error.response?.data
+        });
+    }
+});
+
+/**
  * GET /api/images/catalog
  * Get all images from all user's publications
  *
@@ -220,14 +312,38 @@ router.get('/catalog', async (req: Request, res: Response) => {
         for (const item of allItemsData) {
             if (item.pictures && Array.isArray(item.pictures)) {
                 for (const picture of item.pictures) {
-                    const fullUrl = picture.url || picture.secure_url;
+                    // Helper to extract numeric size from size string (e.g., "2048x2048" -> 2048)
+                    const extractSize = (sizeStr: string): number => {
+                        const match = sizeStr.match(/(\d+)x(\d+)/);
+                        return match ? Math.max(parseInt(match[1]), parseInt(match[2])) : 0;
+                    };
+
+                    // Find HIGHEST quality variation (largest size)
+                    let highestQualityVariation = picture.variations?.[0];
+                    let maxSize = 0;
+
+                    if (picture.variations && Array.isArray(picture.variations)) {
+                        for (const variation of picture.variations) {
+                            const size = extractSize(variation.size);
+                            if (size > maxSize) {
+                                maxSize = size;
+                                highestQualityVariation = variation;
+                            }
+                        }
+                    }
+
+                    // Use highest quality URL as full_url
+                    const fullUrl = highestQualityVariation?.secure_url ||
+                                   highestQualityVariation?.url ||
+                                   picture.secure_url ||
+                                   picture.url;
 
                     // Skip if already added (deduplicate)
                     if (imageMap.has(fullUrl)) {
                         continue;
                     }
 
-                    // Find thumbnail variation (smallest size)
+                    // Find thumbnail variation (smallest size for preview)
                     const thumbnailVariation = picture.variations?.find((v: any) =>
                         v.size === '500x500' || v.size === '250x250'
                     ) || picture.variations?.[0];

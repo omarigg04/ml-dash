@@ -301,6 +301,7 @@
   border-radius: 8px;
   border: 1px solid hsl(var(--border));
   display: block;
+  margin-left: 4px;
 }
 
 // Title Cell
@@ -312,9 +313,19 @@
       display: block;
       font-weight: 500;
       color: hsl(var(--foreground));
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      line-height: 1.4;
+
+      @media (min-width: 769px) {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      @media (max-width: 768px) {
+        white-space: normal;
+        overflow-wrap: break-word;
+        word-break: break-word;
+      }
     }
   }
 }
@@ -437,6 +448,18 @@
     }
   }
 
+  &.btn-edit {
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--border));
+
+    &:hover:not(:disabled) {
+      background-color: hsl(var(--muted) / 0.5);
+      border-color: hsl(var(--primary));
+      color: hsl(var(--primary));
+    }
+  }
+
   &.btn-relist {
     &:hover:not(:disabled) {
       background-color: hsl(var(--success) / 0.1);
@@ -447,19 +470,24 @@
 }
 
 .btn-icon-action {
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   border-radius: 6px;
   color: hsl(var(--muted-foreground));
   transition: all 0.2s;
+  padding: 8px !important;
+  line-height: 1 !important;
 
   mat-icon {
-    font-size: 20px;
-    width: 20px;
-    height: 20px;
+    font-size: 20px !important;
+    width: 20px !important;
+    height: 20px !important;
+    line-height: 20px !important;
   }
 
   &:hover {
@@ -510,43 +538,134 @@
   }
 
   .table-card {
+    padding: 0; // Sin padding para aprovechar todo el espacio
+    border: none; // Eliminar bordes laterales marcados en rojo
+    box-shadow: none; // Eliminar sombra
+    background: transparent; // Fondo transparente
+
     .table-header {
       .table-title {
         font-size: 1.125rem;
       }
     }
+
+    .table-container {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  .filters-card {
+    padding: 1rem; // Mismo padding que desktop para consistencia
   }
 
   .publications-table {
+    font-size: 0.6875rem; // Letra más pequeña en mobile
+
     ::ng-deep {
-      .mat-mdc-header-cell,
+      .mat-mdc-header-cell {
+        padding: 0.4rem 0.2rem;
+        font-size: 0.5625rem; // Header más pequeño
+        letter-spacing: 0.2px;
+
+        // Ocultar columna Stock en mobile
+        &:nth-child(4) {
+          display: none;
+        }
+      }
+
       .mat-mdc-cell {
-        padding: 0.75rem 0.5rem;
-        font-size: 0.875rem;
+        padding: 0.5rem 0.2rem;
+        font-size: 0.6875rem; // Celdas más pequeñas
+
+        // Ocultar columna Stock en mobile
+        &:nth-child(4) {
+          display: none;
+        }
       }
     }
   }
 
   .thumbnail-image {
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
   }
 
   .title-cell {
-    max-width: 200px;
+    max-width: 110px;
+    min-width: 90px;
   }
 
+  // Precio más compacto
+  .price-value {
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .price-currency {
+    display: none; // Ocultar "MXN" en mobile
+  }
+
+  // Stock más compacto (aunque esté oculto)
+  .stock-value {
+    font-size: 0.6875rem;
+    padding: 0.1875rem 0.5rem;
+    min-width: 32px;
+  }
+
+  // Status badge más compacto
+  .status-badge {
+    font-size: 0.5625rem;
+    padding: 0.15rem 0.3rem;
+  }
+
+  // Botones de acción más compactos
   .action-buttons {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.375rem;
+    flex-direction: row;
+    gap: 0.25rem;
+    // justify-content: flex-end;
 
     .btn-action {
-      width: 100%;
-      justify-content: center;
+      min-width: 36px !important;
+      width: 36px !important;
+      height: 36px !important;
+      padding: 0 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      overflow: visible !important;
+
+      mat-icon {
+        font-size: 20px !important;
+        width: 20px !important;
+        height: 20px !important;
+        line-height: 1 !important;
+        margin: 0 !important;
+        color: white !important;
+      }
 
       .btn-label {
-        display: inline;
+        display: none !important; // Ocultar texto, solo iconos
+      }
+    }
+
+    .btn-icon-action {
+      width: 36px !important;
+      height: 36px !important;
+      min-width: 36px !important;
+      min-height: 36px !important;
+      padding: 0 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      overflow: visible !important;
+
+      mat-icon {
+        font-size: 20px !important;
+        width: 20px !important;
+        height: 20px !important;
+        line-height: 1 !important;
+        margin: 0 !important;
       }
     }
   }
@@ -554,6 +673,24 @@
   .filters-card {
     .filters-row {
       grid-template-columns: 1fr;
+    }
+
+    .filters-body .search-input-wrapper {
+      flex-wrap: wrap;
+
+      .search-input {
+        flex: 1 1 100%;
+        margin-bottom: 0.5rem;
+      }
+
+      .btn-clear-search {
+        right: 1rem;
+        top: 0.5rem;
+      }
+
+      .btn-search {
+        flex: 1 1 100%;
+      }
     }
   }
 }

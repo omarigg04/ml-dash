@@ -16,6 +16,7 @@ import ordersRouter from './routes/orders';
 import shipmentsRouter from './routes/shipments';
 import itemsRouter from './routes/items';
 import imagesRouter from './routes/images';
+import categoriesRouter from './routes/categories';
 
 dotenv.config();
 
@@ -44,8 +45,8 @@ const apiLimiter = rateLimit({
 });
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' })); // Aumentado para imágenes base64
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ============================================
 // PUBLIC ROUTES (sin autenticación)
@@ -66,10 +67,17 @@ app.get('/health', (req, res) => {
 app.use('/api', apiLimiter); // Solo rate limiter por ahora
 
 // Montar routers protegidos
+console.log('📦 Registering API routes...');
 app.use('/api/orders', ordersRouter);
+console.log('  ✓ /api/orders registered');
 app.use('/api/shipments', shipmentsRouter);
+console.log('  ✓ /api/shipments registered');
 app.use('/api/items', itemsRouter);
+console.log('  ✓ /api/items registered');
 app.use('/api/images', imagesRouter);
+console.log('  ✓ /api/images registered');
+app.use('/api/categories', categoriesRouter);
+console.log('  ✓ /api/categories registered');
 
 // Endpoint de validación de sesión
 app.get('/api/auth/session', (req, res) => {
@@ -239,8 +247,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // ============================================
 // START SERVER
 // ============================================
-
-const PORT = process.env.PORT || 3000;
 
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {

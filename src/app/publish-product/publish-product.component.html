@@ -78,17 +78,75 @@
 
           <!-- Family Name -->
           <div class="form-group">
-            <label for="family_name" class="form-label">Nombre del Producto *</label>
+            <label for="family_name" class="form-label">
+              Nombre del Producto *
+              <span *ngIf="isLoadingPredictions" class="loading-indicator">
+                <mat-spinner diameter="16"></mat-spinner> Prediciendo categoría...
+              </span>
+            </label>
             <input type="text"
                    class="form-input"
                    id="family_name"
                    name="family_name"
                    [(ngModel)]="product.family_name"
+                   (ngModelChange)="onProductNameChange($event)"
                    required
                    maxlength="60"
                    placeholder="Ej: Transistor NPN 2N3055">
             <small class="form-hint">
               MercadoLibre generará automáticamente el título basado en este nombre y los atributos (máx. 60 caracteres)
+              <br>
+              💡 Escribe el nombre del producto y te sugeriremos la categoría automáticamente
+            </small>
+
+            <!-- Category Predictions Panel -->
+            <div *ngIf="showCategoryPredictions" class="category-predictions-panel">
+              <div class="predictions-header">
+                <h4>
+                  <mat-icon>lightbulb</mat-icon>
+                  Categorías Sugeridas
+                </h4>
+                <button type="button"
+                        class="close-btn"
+                        (click)="closeCategoryPredictions()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+
+              <div class="predictions-list">
+                <div *ngFor="let prediction of categoryPredictions"
+                     class="prediction-item"
+                     (click)="selectPredictedCategory(prediction)">
+                  <div class="prediction-content">
+                    <div class="prediction-category">
+                      <mat-icon>category</mat-icon>
+                      <strong>{{ prediction.category_name }}</strong>
+                    </div>
+                    <div class="prediction-domain">
+                      {{ prediction.domain_name }}
+                    </div>
+                    <div class="prediction-id">
+                      ID: {{ prediction.category_id }}
+                    </div>
+                  </div>
+                  <mat-icon class="select-icon">arrow_forward</mat-icon>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="form-group">
+            <label for="description" class="form-label">Descripción del Producto</label>
+            <textarea class="form-textarea"
+                      id="description"
+                      name="description"
+                      [(ngModel)]="product.description"
+                      rows="6"
+                      maxlength="50000"
+                      placeholder="Descripción detallada del producto. Puedes incluir características, especificaciones técnicas, garantía, etc."></textarea>
+            <small class="form-hint">
+              Descripción completa del producto. Máximo 50,000 caracteres. Puedes usar texto plano o HTML básico.
             </small>
           </div>
 
@@ -156,39 +214,18 @@
           <div class="attributes-container">
             <div *ngIf="product.attributes && product.attributes.length > 0">
               <div *ngFor="let attr of product.attributes; let i = index" class="attribute-item">
-                <div class="form-row attribute-row">
-                  <div class="form-group">
-                    <label class="form-label">ID del Atributo</label>
-                    <input type="text"
-                           class="form-input form-input-sm"
-                           [(ngModel)]="attr.id"
-                           [name]="'attr_id_' + i"
-                           placeholder="Ej: BRAND, MODEL">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Nombre</label>
-                    <input type="text"
-                           class="form-input form-input-sm"
-                           [(ngModel)]="attr.name"
-                           [name]="'attr_name_' + i"
-                           placeholder="Ej: Marca">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Valor</label>
-                    <input type="text"
-                           class="form-input form-input-sm"
-                           [(ngModel)]="attr.value_name"
-                           [name]="'attr_value_' + i"
-                           placeholder="Ej: Genérica">
-                  </div>
-                  <div class="form-group attribute-action">
-                    <label class="form-label">&nbsp;</label>
-                    <button type="button"
-                            class="btn-icon btn-destructive"
-                            (click)="removeAttribute(i)">
-                      <mat-icon>delete</mat-icon>
-                    </button>
-                  </div>
+                <label class="form-label attribute-name">{{ attr.name }}</label>
+                <div class="attribute-value-row">
+                  <input type="text"
+                         class="form-input form-input-sm"
+                         [(ngModel)]="attr.value_name"
+                         [name]="'attr_value_' + i"
+                         placeholder="Valor">
+                  <button type="button"
+                          class="btn-icon btn-destructive"
+                          (click)="removeAttribute(i)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
                 </div>
               </div>
             </div>
@@ -232,19 +269,38 @@
         <div class="form-section">
           <div class="form-section-header">
             <mat-icon>image</mat-icon>
-            <h4>URLs de Imágenes</h4>
+            <h4>Imágenes del Producto</h4>
           </div>
 
           <div class="form-group">
-            <label for="pictures" class="form-label">URLs de Imágenes (opcional)</label>
-            <textarea class="form-textarea"
-                      id="pictures"
-                      name="pictures_text"
-                      [(ngModel)]="picturesText"
-                      rows="4"
-                      placeholder="http://ejemplo.com/imagen1.jpg&#10;http://ejemplo.com/imagen2.jpg&#10;Una URL por línea"></textarea>
-            <small class="form-hint">Una URL por línea. Máximo 6 imágenes.</small>
+            <app-image-source-selector
+              [categoryId]="product.category_id"
+              [itemTitle]="product.family_name"
+              [initialImages]="originalItemImages"
+              [maxImages]="10"
+              (onImagesValidated)="handleImagesValidated($event)">
+            </app-image-source-selector>
+
+            <small class="form-hint">
+              Puedes subir imágenes nuevas, seleccionar de tu galería, o usar URLs directas.
+              Las imágenes serán validadas automáticamente antes de publicar.
+            </small>
           </div>
+
+          <!-- Fallback: Textarea para URLs (mantener para compatibilidad) -->
+          <details class="legacy-input">
+            <summary>O pegar URLs manualmente (método antiguo)</summary>
+            <div class="form-group">
+              <label for="pictures" class="form-label">URLs de Imágenes</label>
+              <textarea class="form-textarea"
+                        id="pictures"
+                        name="pictures_text"
+                        [(ngModel)]="picturesText"
+                        rows="4"
+                        placeholder="http://ejemplo.com/imagen1.jpg&#10;http://ejemplo.com/imagen2.jpg&#10;Una URL por línea"></textarea>
+              <small class="form-hint">Una URL por línea. Máximo 10 imágenes.</small>
+            </div>
+          </details>
         </div>
 
         <!-- Shipping Info -->

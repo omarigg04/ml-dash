@@ -168,10 +168,22 @@ export class ImageGalleryComponent implements OnInit {
         if (event.type === 4) { // HttpEventType.Response
           const response = event.body;
 
-          // Find the largest image variation (usually 800x800)
-          const largestVariation = response.variations.find((v: ImageVariation) =>
-            v.size === '800x800'
-          ) || response.variations[0];
+          // Find the LARGEST image variation (highest quality)
+          const extractSize = (sizeStr: string): number => {
+            const match = sizeStr.match(/(\d+)x(\d+)/);
+            return match ? Math.max(parseInt(match[1]), parseInt(match[2])) : 0;
+          };
+
+          let largestVariation = response.variations[0];
+          let maxSize = 0;
+
+          for (const variation of response.variations) {
+            const size = extractSize(variation.size);
+            if (size > maxSize) {
+              maxSize = size;
+              largestVariation = variation;
+            }
+          }
 
           // Find a thumbnail variation (using 200x200)
           const thumbnailVariation = response.variations.find((v: ImageVariation) =>

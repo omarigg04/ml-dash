@@ -47,6 +47,9 @@ export class DashboardComponent implements OnInit {
       { headerName: 'Raw Total', field: 'total_amount', valueFormatter: this.formatCurrency, width: 120 },
       { headerName: 'ML Fee', field: 'sale_fee', valueFormatter: this.formatCurrency, width: 120 },
       { headerName: 'SAT Fee', field: 'sat_fee', valueFormatter: this.formatCurrency, width: 120 },
+      { headerName: 'QTY', field: 'qty' },
+      { headerName: 'Status', field: 'status' },
+
     ];
   }
 
@@ -60,7 +63,9 @@ export class DashboardComponent implements OnInit {
           total_amount: order.total_amount,
           sale_fee: order.order_items[0].sale_fee,
           item: order.order_items[0].item.title,
-          sat_fee: order.total_amount * 0.01 + order.total_amount * 0.08
+          sat_fee: order.total_amount * 0.01 + order.total_amount * 0.08,
+          qty: order.order_items[0].quantity,
+          status: order.payments[0].status
         }));
         this.isLoading = false;
       },

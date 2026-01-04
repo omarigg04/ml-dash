@@ -17,9 +17,11 @@
       <p class="stat-label">Ventas Totales</p>
       <mat-spinner *ngIf="totalSumIsLoading" diameter="24" class="stat-spinner"></mat-spinner>
       <h2 *ngIf="!totalSumIsLoading" class="stat-value">{{ totalSum | currency:'MXN':'symbol':'1.0-0' }}</h2>
-      <p class="stat-change positive" *ngIf="!totalSumIsLoading">
-        <mat-icon class="change-icon">trending_up</mat-icon>
-        <span>+12.5% vs mes anterior</span>
+      <p class="stat-change" *ngIf="!totalSumIsLoading" [class.positive]="totalSumChangePercent > 0"
+        [class.negative]="totalSumChangePercent < 0" [class.neutral]="totalSumChangePercent === 0">
+        <mat-icon class="change-icon">{{ totalSumChangeIcon }}</mat-icon>
+        <span>{{ totalSumChangePercent > 0 ? '+' : '' }}{{ totalSumChangePercent | number:'1.1-1' }}% vs período
+          anterior</span>
       </p>
     </div>
   </div>
@@ -69,9 +71,11 @@
       <p class="stat-label">Ganancia Real</p>
       <mat-spinner *ngIf="realSumIsLoading" diameter="24" class="stat-spinner"></mat-spinner>
       <h2 *ngIf="!realSumIsLoading" class="stat-value text-success">{{ realSum | currency:'MXN':'symbol':'1.0-0' }}</h2>
-      <p class="stat-change positive" *ngIf="!realSumIsLoading">
-        <mat-icon class="change-icon">trending_up</mat-icon>
-        <span>+8.3% vs mes anterior</span>
+      <p class="stat-change" *ngIf="!realSumIsLoading" [class.positive]="realSumChangePercent > 0"
+        [class.negative]="realSumChangePercent < 0" [class.neutral]="realSumChangePercent === 0">
+        <mat-icon class="change-icon">{{ realSumChangeIcon }}</mat-icon>
+        <span>{{ realSumChangePercent > 0 ? '+' : '' }}{{ realSumChangePercent | number:'1.1-1' }}% vs período
+          anterior</span>
       </p>
     </div>
   </div>
@@ -85,44 +89,45 @@
       <p class="chart-subtitle">Ventas diarias - Comparación de períodos</p>
     </div>
     <div class="chart-controls">
-      <mat-form-field appearance="outline" class="period-selector">
-        <mat-label>Período</mat-label>
+      <!-- Dropdown de comparación -->
+      <mat-form-field appearance="outline" class="comparison-selector">
+        <mat-label>Comparación</mat-label>
         <mat-select [(value)]="selectedPeriod" (selectionChange)="onPeriodChange($event.value)">
-          <mat-option value="2weeks">Últimas 2 semanas</mat-option>
-          <mat-option value="2months">Últimos 2 meses</mat-option>
-          <mat-option value="2bimesters">Últimos 2 bimestres</mat-option>
-          <mat-option value="2years">Últimos 2 años</mat-option>
-          <mat-option value="custom">Personalizado...</mat-option>
+          <mat-option value="2weeks">2 Semanas</mat-option>
+          <mat-option value="2months">2 Meses</mat-option>
+          <mat-option value="2bimesters">2 Bimestres</mat-option>
         </mat-select>
       </mat-form-field>
 
-      <!-- Custom date picker (shown when "Personalizado" is selected) -->
-      <div *ngIf="selectedPeriod === 'custom'" class="custom-date-picker">
+      <!-- Datepicker personalizado (modo rango único) -->
+      <div class="custom-date-picker">
         <mat-form-field appearance="outline" class="compact-date-field">
           <mat-label>Rango personalizado</mat-label>
-          <mat-date-range-input [rangePicker]="picker" [max]="maxDate">
-            <input matStartDate [(ngModel)]="customStartDate" placeholder="Inicio">
-            <input matEndDate [(ngModel)]="customEndDate" placeholder="Fin">
+          <mat-date-range-input [formGroup]="customRangeForm" [rangePicker]="picker" [max]="maxDate">
+            <input matStartDate formControlName="start" placeholder="Inicio">
+            <input matEndDate formControlName="end" placeholder="Fin">
           </mat-date-range-input>
           <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-          <mat-date-range-picker #picker></mat-date-range-picker>
+          <mat-date-range-picker #picker panelClass="custom-datepicker-panel"></mat-date-range-picker>
         </mat-form-field>
-        <button mat-icon-button
-                class="apply-custom-btn"
-                (click)="applyCustomRange()"
-                matTooltip="Aplicar">
-          <mat-icon>check</mat-icon>
+        <button mat-raised-button color="primary" (click)="applyCustomRange()"
+          [disabled]="!customRangeForm.value.start || !customRangeForm.value.end" class="apply-custom-btn">
+          Aplicar
         </button>
+      </div>
+
+      <!-- Checkbox para órdenes no cumplidas -->
+      <div class="unfulfilled-checkbox">
+        <mat-checkbox [(ngModel)]="showUnfulfilled" (change)="onUnfulfilledToggle()" color="primary">
+          Canceled
+        </mat-checkbox>
       </div>
     </div>
   </div>
 
   <div class="chart-container">
     <mat-spinner *ngIf="isLoading" diameter="50" class="chart-spinner"></mat-spinner>
-    <ag-charts-angular
-      *ngIf="!isLoading"
-      style="height: 400px; width: 100%;"
-      [options]="options">
+    <ag-charts-angular *ngIf="!isLoading" style="height: 400px; width: 100%;" [options]="options">
     </ag-charts-angular>
   </div>
 </div>
