@@ -109,6 +109,77 @@ router.get('/predict', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/categories/:id/attributes
+ * Get attributes for a specific category
+ */
+router.get('/:id/attributes', async (req: Request, res: Response) => {
+    console.log('\n📋 ============================================');
+    console.log('📥 [CATEGORIES/ATTRIBUTES] Request received');
+    console.log('  - Category ID:', req.params.id);
+    console.log('============================================\n');
+
+    try {
+        const categoryId = req.params.id;
+
+        console.log('🔑 Getting ML token...');
+        const token = await mlAuth.getToken();
+        console.log('✅ Token obtained');
+
+        console.log('🔍 Calling ML API for category attributes...');
+        console.log('  - Category ID:', categoryId);
+
+        const response = await axios.get(
+            `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            }
+        );
+
+        const attributes = response.data;
+
+        console.log(`\n✅ ML API Response received`);
+        console.log(`  - Found ${attributes.length} attributes for category ${categoryId}`);
+
+        console.log(`\n📤 Sending ${attributes.length} attributes to client`);
+        console.log('============================================\n');
+
+        res.json(attributes);
+
+    } catch (error: any) {
+        console.error('\n❌ ============================================');
+        console.error('❌ [CATEGORIES/ATTRIBUTES] Error occurred');
+        console.error('  - Error:', error.message);
+        console.error('  - Status:', error.response?.status);
+        console.error('  - Data:', error.response?.data);
+        console.error('============================================\n');
+
+        if (error.response?.status === 401) {
+            res.status(401).json({
+                error: 'Unauthorized',
+                message: 'Access token is invalid or expired. Please re-authorize the app.'
+            });
+            return;
+        }
+
+        if (error.response?.status === 404) {
+            res.status(404).json({
+                error: 'Category not found',
+                message: `Category with ID ${req.params.id} does not exist or has no attributes`
+            });
+            return;
+        }
+
+        res.status(500).json({
+            error: 'Failed to fetch category attributes',
+            message: error.response?.data?.message || error.message,
+            details: error.response?.data
+        });
+    }
+});
+
+/**
  * GET /api/categories/:id
  * Get detailed information about a specific category
  */

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 /**
@@ -24,11 +25,49 @@ export interface CategoryPredictionResponse {
 }
 
 /**
+ * Atributo de categoría retornado por ML
+ */
+export interface CategoryAttribute {
+  id: string;
+  name: string;
+  tags: {
+    required?: boolean;
+    catalog_required?: boolean;
+    hidden?: boolean;
+    read_only?: boolean;
+    multivalued?: boolean;
+    allow_variations?: boolean;
+    fixed?: boolean;
+  };
+  hierarchy: string;
+  relevance: number;
+  value_type: 'string' | 'list' | 'number' | 'number_unit' | 'boolean';
+  value_max_length?: number;
+  values?: Array<{
+    id: string;
+    name: string;
+    metadata?: any;
+  }>;
+  allowed_units?: Array<{
+    id: string;
+    name: string;
+  }>;
+  default_unit?: string;
+  tooltip?: string;
+  hint?: string;
+  attribute_group_id: string;
+  attribute_group_name: string;
+}
+
+/**
  * Servicio para predecir categorías usando el predictor de ML
  */
 @Injectable({ providedIn: 'root' })
 export class CategoryPredictorService {
   private readonly API_URL = `${environment.apiUrl}/categories`;
+
+  // Caché de atributos por category_id
+  private attributesCache = new Map<string, CategoryAttribute[]>();
 
   constructor(private http: HttpClient) {}
 
@@ -58,5 +97,36 @@ export class CategoryPredictorService {
     console.log('[CategoryPredictor] Fetching category details for:', categoryId);
 
     return this.http.get<any>(`${this.API_URL}/${categoryId}`);
+  }
+
+  /**
+   * Obtiene los atributos de una categoría con caché
+   * @param categoryId - ID de la categoría
+   * @returns Observable con array de atributos
+   */
+  getCategoryAttributes(categoryId: string): Observable<CategoryAttribute[]> {
+    console.log('[CategoryPredictor] Fetching attributes for category:', categoryId);
+
+    // Verificar caché primero
+    if (this.attributesCache.has(categoryId)) {
+      console.log('[CategoryPredictor] Returning cached attributes for:', categoryId);
+      return of(this.attributesCache.get(categoryId)!);
+    }
+
+    // Fetch desde API y cachear
+    return this.http.get<CategoryAttribute[]>(`${this.API_URL}/${categoryId}/attributes`).pipe(
+      tap(attributes => {
+        console.log(`[CategoryPredictor] Caching ${attributes.length} attributes for category:`, categoryId);
+        this.attributesCache.set(categoryId, attributes);
+      })
+    );
+  }
+
+  /**
+   * Limpia el caché de atributos
+   */
+  clearAttributesCache(): void {
+    this.attributesCache.clear();
+    console.log('[CategoryPredictor] Attributes cache cleared');
   }
 }

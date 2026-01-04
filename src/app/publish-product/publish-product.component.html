@@ -204,37 +204,106 @@
           </div>
         </div>
 
-        <!-- Attributes Section -->
+        <!-- Attributes Section (Dynamic) -->
         <div class="form-section">
           <div class="form-section-header">
             <mat-icon>edit_note</mat-icon>
-            <h4>Atributos del Transistor</h4>
+            <h4>Atributos del Producto</h4>
+            <span *ngIf="isLoadingAttributes" class="loading-indicator">
+              <mat-spinner diameter="16"></mat-spinner>
+              <span>Cargando atributos...</span>
+            </span>
           </div>
 
           <div class="attributes-container">
-            <div *ngIf="product.attributes && product.attributes.length > 0">
-              <div *ngFor="let attr of product.attributes; let i = index" class="attribute-item">
-                <label class="form-label attribute-name">{{ attr.name }}</label>
+            <!-- Atributos dinámicos de la categoría -->
+            <div *ngIf="categoryAttributes.length > 0">
+              <div *ngFor="let attr of categoryAttributes; let i = index" class="attribute-item dynamic-attribute">
+                <!-- Label del atributo con indicador de requerido -->
+                <label class="form-label attribute-name">
+                  {{ attr.name }}
+                  <span *ngIf="attr.tags.required || attr.tags.catalog_required" class="required-indicator">*</span>
+                  <span *ngIf="attr.tooltip" class="attribute-tooltip" [title]="attr.tooltip">
+                    <mat-icon>info</mat-icon>
+                  </span>
+                </label>
+
+                <!-- Hint/ayuda -->
+                <small *ngIf="attr.hint" class="form-hint attribute-hint">{{ attr.hint }}</small>
+
+                <!-- Renderizado según tipo -->
                 <div class="attribute-value-row">
-                  <input type="text"
+                  <!-- Tipo: string -->
+                  <input *ngIf="attr.value_type === 'string'"
+                         type="text"
                          class="form-input form-input-sm"
-                         [(ngModel)]="attr.value_name"
-                         [name]="'attr_value_' + i"
-                         placeholder="Valor">
-                  <button type="button"
-                          class="btn-icon btn-destructive"
-                          (click)="removeAttribute(i)">
-                    <mat-icon>delete</mat-icon>
-                  </button>
+                         [class.input-error]="attributeErrors[attr.id]"
+                         [(ngModel)]="attributeValues[attr.id]"
+                         [name]="'attr_' + attr.id"
+                         [placeholder]="attr.hint || 'Ingrese ' + attr.name"
+                         [maxlength]="attr.value_max_length || null"
+                         [required]="!!(attr.tags.required || attr.tags.catalog_required)">
+
+                  <!-- Tipo: list (dropdown) -->
+                  <select *ngIf="attr.value_type === 'list'"
+                          class="form-select form-input-sm"
+                          [class.input-error]="attributeErrors[attr.id]"
+                          [(ngModel)]="attributeValues[attr.id]"
+                          [name]="'attr_' + attr.id"
+                          [required]="!!(attr.tags.required || attr.tags.catalog_required)">
+                    <option value="">Seleccione {{ attr.name }}</option>
+                    <option *ngFor="let val of attr.values" [value]="val.id">{{ val.name }}</option>
+                  </select>
+
+                  <!-- Tipo: number -->
+                  <input *ngIf="attr.value_type === 'number'"
+                         type="number"
+                         class="form-input form-input-sm"
+                         [class.input-error]="attributeErrors[attr.id]"
+                         [(ngModel)]="attributeValues[attr.id]"
+                         [name]="'attr_' + attr.id"
+                         [placeholder]="attr.hint || 'Ingrese ' + attr.name"
+                         [required]="!!(attr.tags.required || attr.tags.catalog_required)">
+
+                  <!-- Tipo: number_unit (número + unidad) -->
+                  <div *ngIf="attr.value_type === 'number_unit'" class="number-unit-group">
+                    <input type="number"
+                           class="form-input form-input-sm"
+                           [class.input-error]="attributeErrors[attr.id]"
+                           [(ngModel)]="attributeValues[attr.id + '_number']"
+                           [name]="'attr_' + attr.id + '_number'"
+                           placeholder="Valor"
+                           [required]="!!(attr.tags.required || attr.tags.catalog_required)">
+                    <select class="form-select form-input-sm unit-select"
+                            [class.input-error]="attributeErrors[attr.id]"
+                            [(ngModel)]="attributeValues[attr.id + '_unit']"
+                            [name]="'attr_' + attr.id + '_unit'">
+                      <option *ngFor="let unit of attr.allowed_units" [value]="unit.id">{{ unit.name }}</option>
+                    </select>
+                  </div>
+
+                  <!-- Tipo: boolean (checkbox) -->
+                  <label *ngIf="attr.value_type === 'boolean'" class="checkbox-wrapper">
+                    <input type="checkbox"
+                           [(ngModel)]="attributeValues[attr.id]"
+                           [name]="'attr_' + attr.id">
+                    <span class="checkbox-label">{{ attr.values && attr.values.length > 0 ? attr.values[0].name : 'Sí' }}</span>
+                  </label>
                 </div>
+
+                <!-- Mensaje de error inline -->
+                <small *ngIf="attributeErrors[attr.id]" class="error-message">
+                  <mat-icon>error</mat-icon>
+                  {{ attributeErrors[attr.id] }}
+                </small>
               </div>
             </div>
-            <button type="button"
-                    class="btn-outline"
-                    (click)="addAttribute()">
-              <mat-icon>add</mat-icon>
-              Añadir Atributo
-            </button>
+
+            <!-- Mensaje si no hay atributos cargados -->
+            <div *ngIf="!isLoadingAttributes && categoryAttributes.length === 0" class="no-attributes">
+              <mat-icon>info</mat-icon>
+              <p>Selecciona una categoría para ver sus atributos específicos</p>
+            </div>
           </div>
         </div>
 
