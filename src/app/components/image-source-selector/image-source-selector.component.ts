@@ -148,32 +148,60 @@ export class ImageSourceSelectorComponent implements OnInit {
     this.isLoadingGallery = true;
 
     try {
-      // Cargar imágenes de la galería desde localStorage
-      const storedImages = localStorage.getItem('mlImageGallery');
+      const galleryImagesList: GalleryImage[] = [];
 
+      // 1. Cargar imágenes subidas manualmente (mlImageGallery)
+      const storedImages = localStorage.getItem('mlImageGallery');
       if (storedImages) {
         const images = JSON.parse(storedImages);
-
-        this.galleryImages = images.map((img: any) => ({
-          pictureId: img.id || img.pictureId, // El ID es el picture_id de ML
-          url: img.fullSizeUrl || img.thumbnailUrl || img.url, // URL de alta calidad para validación
-          thumbnailUrl: img.thumbnailUrl || img.url, // Thumbnail para preview en galería
-          title: img.title || img.id || 'Sin título', // Usar ID como título si no hay title
-          width: 200, // Tamaño estándar de thumbnail
+        const manualImages = images.map((img: any) => ({
+          pictureId: img.id || img.pictureId,
+          url: img.fullSizeUrl || img.thumbnailUrl || img.url,
+          thumbnailUrl: img.thumbnailUrl || img.url,
+          title: img.title || img.id || 'Imagen subida',
+          width: 200,
           height: 200,
-          validated: false, // Necesitan validarse para la categoría específica
-          tags: img.tags || []
+          validated: false,
+          tags: ['subida', ...(img.tags || [])]
         }));
+        galleryImagesList.push(...manualImages);
+        console.log(`[ImageSourceSelector] ${manualImages.length} imágenes subidas manualmente`);
+      }
 
-        this.filteredGalleryImages = [...this.galleryImages];
-        this.totalGalleryImages = this.galleryImages.length;
+      // 2. Cargar imágenes del catálogo (mlImageCatalog)
+      const catalogImages = localStorage.getItem('mlImageCatalog');
+      if (catalogImages) {
+        const catalog = JSON.parse(catalogImages);
+        const catalogImagesList = catalog.map((img: any) => ({
+          pictureId: img.picture_id,
+          url: img.full_url,
+          thumbnailUrl: img.thumbnail_url || img.full_url,
+          title: img.source_item?.title || img.picture_id || 'Imagen de publicación',
+          width: 200,
+          height: 200,
+          validated: false,
+          tags: ['catálogo', img.source_item?.status || '']
+        }));
+        galleryImagesList.push(...catalogImagesList);
+        console.log(`[ImageSourceSelector] ${catalogImagesList.length} imágenes del catálogo`);
+      }
 
-        console.log(`[ImageSourceSelector] Galería cargada: ${this.galleryImages.length} imágenes desde localStorage`);
-      } else {
-        console.log('[ImageSourceSelector] No hay imágenes en la galería');
-        this.galleryImages = [];
-        this.filteredGalleryImages = [];
-        this.totalGalleryImages = 0;
+      // Combinar y eliminar duplicados por pictureId
+      const uniqueImages = new Map<string, GalleryImage>();
+      galleryImagesList.forEach(img => {
+        if (!uniqueImages.has(img.pictureId)) {
+          uniqueImages.set(img.pictureId, img);
+        }
+      });
+
+      this.galleryImages = Array.from(uniqueImages.values());
+      this.filteredGalleryImages = [...this.galleryImages];
+      this.totalGalleryImages = this.galleryImages.length;
+
+      console.log(`[ImageSourceSelector] Galería cargada: ${this.galleryImages.length} imágenes únicas (${galleryImagesList.length} total)`);
+
+      if (this.galleryImages.length === 0) {
+        console.log('[ImageSourceSelector] No hay imágenes en la galería. Sube imágenes o sincroniza el catálogo.');
       }
 
     } catch (error) {

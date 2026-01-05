@@ -125,7 +125,8 @@
         <th mat-header-cell *matHeaderCellDef>Estado</th>
         <td mat-cell *matCellDef="let item">
           <span class="status-badge" [ngClass]="'status-' + item.status">
-            {{ getStatusLabel(item.status) }}
+            <span class="status-text">{{ getStatusLabel(item.status) }}</span>
+            <mat-icon class="status-icon">{{ getStatusIcon(item.status) }}</mat-icon>
           </span>
         </td>
       </ng-container>

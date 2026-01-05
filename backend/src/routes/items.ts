@@ -173,10 +173,22 @@ router.post('/', async (req: Request, res: Response) => {
 
         // Add shipping configuration if provided
         if (shipping && typeof shipping === 'object') {
-            itemData.shipping = shipping;
+            // FEATURE: Convert fulfillment to xd_drop_off for duplicating fulfillment items
+            // Fulfillment items cannot be duplicated/modified with fulfillment logistic_type
+            // So we automatically convert to xd_drop_off (self-shipping)
+            if (shipping.logistic_type === 'fulfillment') {
+                console.log('🔄 Converting logistic_type from "fulfillment" to "xd_drop_off"');
+                itemData.shipping = {
+                    ...shipping,
+                    logistic_type: 'xd_drop_off'
+                };
+            } else {
+                itemData.shipping = shipping;
+            }
         }
 
-        console.log('📦 Creating item with data:', JSON.stringify(itemData, null, 2));
+        console.log('📦 Creating item:', itemData.family_name || itemData.title);
+        console.log('🚚 Shipping config:', JSON.stringify(itemData.shipping, null, 2));
 
         // Step 1: Create item on MercadoLibre (WITHOUT description)
         const response = await axios.post(

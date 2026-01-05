@@ -14,10 +14,10 @@ interface Attribute {
   name: string;
   value_id?: string | null;
   value_name: string;
-  value_type: 'string' | 'list' | 'number' | 'number_unit';
+  value_type: 'string' | 'list' | 'number' | 'number_unit' | 'boolean';
   values?: Array<{
     id?: string | null;
-    name: string;
+    name?: string;
     struct?: {
       number?: number;
       unit?: string;
@@ -447,6 +447,7 @@ export class PublishProductComponent implements OnInit {
               value_name: `${numberValue} ${unitValue}`,
               value_type: 'number_unit',
               values: [{
+                name: `${numberValue} ${unitValue}`,
                 struct: {
                   number: Number(numberValue),
                   unit: unitValue
