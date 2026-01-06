@@ -275,6 +275,23 @@
   background-position: right 0.75rem center;
   background-size: 16px;
   padding-right: 2.5rem;
+
+  // Estilos para las opciones del dropdown
+  option {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    padding: 0.5rem;
+    font-weight: 400;
+
+    &:checked {
+      background-color: hsl(var(--primary) / 0.1);
+      color: hsl(var(--primary));
+    }
+
+    &:hover {
+      background-color: hsl(var(--muted));
+    }
+  }
 }
 
 // Checkboxes

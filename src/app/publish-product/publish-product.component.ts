@@ -7,6 +7,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ToastComponent } from '../shared/toast/toast.component';
 import { CategoryPredictorService, CategoryPrediction, CategoryAttribute } from '../services/category-predictor.service';
+import { CachingService } from '../services/caching.service';
 
 // Interfaces para el producto
 interface Attribute {
@@ -128,7 +129,8 @@ export class PublishProductComponent implements OnInit {
     private router: Router,
     private route: ActivatedRoute,
     private snackBar: MatSnackBar,
-    private categoryPredictor: CategoryPredictorService
+    private categoryPredictor: CategoryPredictorService,
+    private cachingService: CachingService
   ) { }
 
   ngOnInit(): void {
@@ -564,6 +566,14 @@ export class PublishProductComponent implements OnInit {
         });
 
         console.log('✅ Product created:', response);
+
+        // Invalidar cache de publicaciones para que se vea el nuevo producto
+        this.cachingService.invalidatePattern(/\/items/i);
+        console.log('🗑️ Cache de items invalidado');
+
+        // Limpiar sessionStorage de duplicado
+        sessionStorage.removeItem('duplicateItem');
+        console.log('🗑️ duplicateItem eliminado de sessionStorage');
 
         // Reset form after 2 seconds
         setTimeout(() => {
