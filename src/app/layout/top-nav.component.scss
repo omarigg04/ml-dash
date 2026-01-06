@@ -12,12 +12,12 @@
   }
 
   .mobile-menu-btn {
-    display: none; // Ocultar por defecto, mostrar en mobile
+    display: none; // Ocultar por defecto, mostrar en mobile/tablet
     background: none;
     border: none;
     color: hsl(var(--foreground));
     margin-right: 16px;
-    @media (max-width: 768px) {
+    @media (max-width: 1322px) {
       display: block;
     }
   }

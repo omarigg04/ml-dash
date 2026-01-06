@@ -525,7 +525,7 @@ tbody tr:hover {
    RESPONSIVE BREAKPOINTS
    ========================================== */
 
-@media (max-width: 768px) {
+@media (max-width: 1322px) {
   .sidebar {
     transform: translateX(-100%);
     z-index: 50; /* Ensure sidebar is on top when it slides in */
@@ -551,7 +551,7 @@ tbody tr:hover {
   }
 }
 
-@media (min-width: 769px) and (max-width: 1024px) {
+@media (min-width: 1323px) and (max-width: 1500px) {
   .grid-cols-4 {
     grid-template-columns: repeat(2, 1fr);
   }

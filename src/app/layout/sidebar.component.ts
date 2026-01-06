@@ -66,7 +66,7 @@ export class SidebarComponent {
     if (route) {
       this.router.navigate([route]);
       // Close mobile sidebar after navigation
-      if (window.innerWidth < 768) {
+      if (window.innerWidth < 1322) {
         this.isMobileOpen = false;
       }
     }

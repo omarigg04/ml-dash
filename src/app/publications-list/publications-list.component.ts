@@ -267,4 +267,16 @@ export class PublicationsListComponent implements OnInit {
     };
     return labels[status] || status;
   }
+
+  // Status icon (para mobile)
+  getStatusIcon(status: string): string {
+    const icons: any = {
+      'active': 'check',           // Palomita para activo
+      'paused': 'pause',           // Símbolo de pausa ||
+      'closed': 'cancel',          // X para cerrado
+      'under_review': 'visibility', // Lentes para en revisión
+      'inactive': 'remove_circle'  // Círculo con línea para inactivo
+    };
+    return icons[status] || 'help_outline';
+  }
 }

@@ -155,8 +155,8 @@
   display: none;
 }
 
-/* Mobile Styles */
-@media (max-width: 768px) {
+/* Mobile & Tablet Styles */
+@media (max-width: 1322px) {
   .sidebar {
     transform: translateX(-100%);
     box-shadow: none;
