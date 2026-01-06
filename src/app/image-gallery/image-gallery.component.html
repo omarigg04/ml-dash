@@ -84,7 +84,7 @@
   </div>
 
   <div class="gallery-grid" *ngIf="images.length > 0">
-    <div *ngFor="let image of images" class="gallery-item">
+    <div *ngFor="let image of images; trackBy: trackByImageId" class="gallery-item">
       <div class="image-container">
         <img [src]="image.thumbnailUrl"
              [alt]="image.id"
@@ -233,8 +233,8 @@
     <div class="card catalog-grid-card">
       <mat-spinner *ngIf="isCatalogLoading" diameter="50" class="catalog-spinner"></mat-spinner>
 
-      <div *ngIf="!isCatalogLoading && filteredCatalogImages.length > 0" class="catalog-grid">
-        <div *ngFor="let image of filteredCatalogImages" class="catalog-item">
+      <div *ngIf="!isCatalogLoading && paginatedCatalogImages.length > 0" class="catalog-grid">
+        <div *ngFor="let image of paginatedCatalogImages; trackBy: trackByCatalogImageId" class="catalog-item">
           <div class="catalog-image-container">
             <img [src]="image.thumbnail_url"
                  [alt]="image.source_item.title"
@@ -276,6 +276,41 @@
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Pagination Controls -->
+      <div *ngIf="!isCatalogLoading && filteredCatalogImages.length > 0" class="pagination-section">
+        <div class="pagination-info">
+          <span>
+            Mostrando {{ (currentPage - 1) * pageSize + 1 }} - {{ Math.min(currentPage * pageSize, filteredCatalogImages.length) }}
+            de {{ filteredCatalogImages.length }} imágenes
+          </span>
+        </div>
+
+        <div class="pagination-controls">
+          <button class="btn-page"
+                  [disabled]="currentPage === 1"
+                  (click)="previousPage()"
+                  matTooltip="Página anterior">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+
+          <div class="page-numbers">
+            <button *ngFor="let page of [].constructor(totalPages); let i = index"
+                    class="btn-page-number"
+                    [class.active]="currentPage === i + 1"
+                    (click)="goToPage(i + 1)">
+              {{ i + 1 }}
+            </button>
+          </div>
+
+          <button class="btn-page"
+                  [disabled]="currentPage === totalPages"
+                  (click)="nextPage()"
+                  matTooltip="Página siguiente">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
         </div>
       </div>
 

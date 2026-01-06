@@ -48,10 +48,17 @@ export class ImageGalleryComponent implements OnInit {
   selectedTabIndex = 0;
   catalogImages: CatalogImage[] = [];
   filteredCatalogImages: CatalogImage[] = [];
+  paginatedCatalogImages: CatalogImage[] = [];
   isCatalogLoading = false;
   catalogSearchQuery = '';
   catalogStatusFilter = '';
   catalogLastRefresh: Date | null = null;
+
+  // Pagination
+  currentPage = 1;
+  pageSize = 50;
+  totalPages = 0;
+  Math = Math; // Expose Math to template
 
   // Filter options
   statusOptions = [
@@ -345,6 +352,58 @@ export class ImageGalleryComponent implements OnInit {
     }
 
     this.filteredCatalogImages = filtered;
+    this.currentPage = 1; // Reset to first page when filters change
+    this.updatePagination();
+  }
+
+  /**
+   * Update pagination based on current page
+   */
+  updatePagination(): void {
+    this.totalPages = Math.ceil(this.filteredCatalogImages.length / this.pageSize);
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    const endIndex = startIndex + this.pageSize;
+    this.paginatedCatalogImages = this.filteredCatalogImages.slice(startIndex, endIndex);
+  }
+
+  /**
+   * Go to next page
+   */
+  nextPage(): void {
+    if (this.currentPage < this.totalPages) {
+      this.currentPage++;
+      this.updatePagination();
+      this.scrollToTop();
+    }
+  }
+
+  /**
+   * Go to previous page
+   */
+  previousPage(): void {
+    if (this.currentPage > 1) {
+      this.currentPage--;
+      this.updatePagination();
+      this.scrollToTop();
+    }
+  }
+
+  /**
+   * Go to specific page
+   */
+  goToPage(page: number): void {
+    if (page >= 1 && page <= this.totalPages) {
+      this.currentPage = page;
+      this.updatePagination();
+      this.scrollToTop();
+    }
+  }
+
+  /**
+   * Scroll to top of catalog
+   */
+  scrollToTop(): void {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   /**
@@ -395,5 +454,19 @@ export class ImageGalleryComponent implements OnInit {
    */
   viewSourceItem(itemId: string): void {
     window.open(`https://articulo.mercadolibre.com.mx/${itemId}`, '_blank');
+  }
+
+  /**
+   * TrackBy function for uploaded images - evita re-renderizado innecesario
+   */
+  trackByImageId(index: number, image: UploadedImage): string {
+    return image.id;
+  }
+
+  /**
+   * TrackBy function for catalog images - evita re-renderizado innecesario
+   */
+  trackByCatalogImageId(index: number, image: CatalogImage): string {
+    return image.picture_id;
   }
 }

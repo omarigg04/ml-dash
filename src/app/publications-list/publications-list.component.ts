@@ -16,6 +16,7 @@ interface Publication {
   date_created: string;
   last_updated: string;
   fullData: any;
+  visits?: number; // Número de visitas del producto
 }
 
 interface PagingInfo {
@@ -30,10 +31,11 @@ interface PagingInfo {
   styleUrls: ['./publications-list.component.scss']
 })
 export class PublicationsListComponent implements OnInit {
-  displayedColumns: string[] = ['thumbnail', 'title', 'price', 'stock', 'status', 'actions'];
+  displayedColumns: string[] = ['thumbnail', 'title', 'price', 'stock', 'visits', 'status', 'actions'];
   dataSource: Publication[] = [];
   isLoading = false;
   isLoadingMore = false;
+  isLoadingVisits = false;
 
   // Filters
   searchQuery = '';
@@ -122,6 +124,9 @@ export class PublicationsListComponent implements OnInit {
 
           this.isLoading = false;
           this.isLoadingMore = false;
+
+          // Load visit counts for the items
+          this.loadVisits(response.items);
         },
         error: (error) => {
           console.error('Error loading publications:', error);
@@ -129,6 +134,58 @@ export class PublicationsListComponent implements OnInit {
           this.isLoadingMore = false;
         }
       });
+  }
+
+  /**
+   * Load visit counts for items
+   */
+  loadVisits(items: Publication[]): void {
+    console.log('🔍 loadVisits called with', items.length, 'items');
+
+    if (!items || items.length === 0) {
+      console.log('⚠️ No items to load visits for');
+      return;
+    }
+
+    this.isLoadingVisits = true;
+
+    // Extract item IDs
+    const itemIds = items.map(item => item.id).join(',');
+    console.log('📋 Item IDs:', itemIds.substring(0, 100) + '...');
+
+    const url = `${environment.apiUrl}/items/visits`;
+    console.log('🌐 Calling URL:', url);
+    console.log('📦 With params:', { ids: itemIds.substring(0, 50) + '...' });
+
+    // Call visits endpoint
+    this.http.get<{[key: string]: number}>(`${environment.apiUrl}/items/visits`, {
+      params: new HttpParams().set('ids', itemIds)
+    }).subscribe({
+      next: (visitsData) => {
+        console.log('✅ Visits data received:', visitsData);
+
+        // Map visits to items
+        this.dataSource = this.dataSource.map(item => ({
+          ...item,
+          visits: visitsData[item.id] || 0
+        }));
+
+        console.log('📊 Data source updated with visits');
+        this.isLoadingVisits = false;
+      },
+      error: (error) => {
+        console.error('❌ Error loading visits:', error);
+        console.error('❌ Error status:', error.status);
+        console.error('❌ Error message:', error.message);
+
+        // Set visits to 0 if error
+        this.dataSource = this.dataSource.map(item => ({
+          ...item,
+          visits: 0
+        }));
+        this.isLoadingVisits = false;
+      }
+    });
   }
 
   /**
@@ -271,12 +328,22 @@ export class PublicationsListComponent implements OnInit {
   // Status icon (para mobile)
   getStatusIcon(status: string): string {
     const icons: any = {
-      'active': 'check',           // Palomita para activo
-      'paused': 'pause',           // Símbolo de pausa ||
-      'closed': 'cancel',          // X para cerrado
-      'under_review': 'visibility', // Lentes para en revisión
-      'inactive': 'remove_circle'  // Círculo con línea para inactivo
+      'active': 'check_circle',      // Palomita en círculo para activo
+      'paused': 'pause_circle',      // Círculo con pausa
+      'closed': 'cancel',            // X para cerrado
+      'under_review': 'find_in_page', // Lupa en página para en revisión
+      'inactive': 'remove_circle'    // Círculo con línea para inactivo
     };
     return icons[status] || 'help_outline';
+  }
+
+  // TrackBy function para evitar re-renderizado innecesario
+  trackByItemId(index: number, item: Publication): string {
+    return item.id;
+  }
+
+  // Handle image load error
+  onImageError(item: Publication): void {
+    item.thumbnail = null;
   }
 }
