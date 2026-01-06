@@ -321,22 +321,16 @@
 
   .title-content {
     .title-text {
-      display: block;
       font-weight: 500;
       color: hsl(var(--foreground));
       line-height: 1.4;
-
-      @media (min-width: 769px) {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      @media (max-width: 768px) {
-        white-space: normal;
-        overflow-wrap: break-word;
-        word-break: break-word;
-      }
+      white-space: normal;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
   }
 }
@@ -367,6 +361,32 @@
   font-size: 0.875rem;
 }
 
+// Visits
+.visits-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  .visits-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: hsl(var(--primary));
+  }
+
+  .visits-value {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: hsl(var(--foreground));
+  }
+
+  .visits-spinner {
+    ::ng-deep .mat-mdc-progress-spinner circle {
+      stroke: hsl(var(--primary));
+    }
+  }
+}
+
 // Status Badge
 .status-badge {
   display: inline-flex;
@@ -388,15 +408,41 @@
   }
 
   &.status-active {
-    background-color: hsl(var(--success) / 0.15);
+    // Solo icono, sin contenedor
+    background-color: transparent;
     color: hsl(var(--success));
-    border: 1px solid hsl(var(--success) / 0.3);
+    border: none;
+    padding: 0;
+
+    .status-text {
+      display: none;
+    }
+
+    .status-icon {
+      display: inline-flex !important;
+      font-size: 30px !important; // Desktop: 30px
+      width: 30px !important;
+      height: 30px !important;
+    }
   }
 
   &.status-paused {
-    background-color: hsl(38 92% 50% / 0.15);
+    // Solo icono, sin contenedor
+    background-color: transparent;
     color: hsl(38 92% 50%);
-    border: 1px solid hsl(38 92% 50% / 0.3);
+    border: none;
+    padding: 0;
+
+    .status-text {
+      display: none;
+    }
+
+    .status-icon {
+      display: inline-flex !important;
+      font-size: 30px !important; // Desktop: 30px
+      width: 30px !important;
+      height: 30px !important;
+    }
   }
 
   &.status-closed {
@@ -405,11 +451,29 @@
     border: 1px solid hsl(var(--destructive) / 0.3);
   }
 
-  &.status-inactive,
-  &.status-under_review {
+  &.status-inactive {
     background-color: hsl(var(--muted));
     color: hsl(var(--muted-foreground));
     border: 1px solid hsl(var(--border));
+  }
+
+  &.status-under_review {
+    // Solo icono, sin contenedor
+    background-color: transparent;
+    color: hsl(var(--muted-foreground));
+    border: none;
+    padding: 0;
+
+    .status-text {
+      display: none;
+    }
+
+    .status-icon {
+      display: inline-flex !important;
+      font-size: 30px !important; // Desktop: 30px
+      width: 30px !important;
+      height: 30px !important;
+    }
   }
 }
 
@@ -424,8 +488,12 @@
 .btn-action {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.875rem;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
   font-size: 0.8125rem;
   font-weight: 500;
   border-radius: 6px;
@@ -436,15 +504,17 @@
   cursor: pointer;
 
   mat-icon {
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
   }
 
   .btn-label {
-    @media (max-width: 1024px) {
-      display: none;
-    }
+    display: none !important; // Siempre ocultar texto, solo mostrar iconos
   }
 
   &:hover:not(:disabled) {
@@ -610,9 +680,34 @@
     padding: 0.25rem 0.5rem;
   }
 
+  .visits-container {
+    gap: 0.375rem;
+
+    .visits-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .visits-value {
+      font-size: 0.75rem;
+    }
+  }
+
   .status-badge {
     font-size: 0.6875rem;
     padding: 0.25rem 0.5rem;
+
+    // Tablet: iconos de 25px para status sin contenedor
+    &.status-active,
+    &.status-paused,
+    &.status-under_review {
+      .status-icon {
+        font-size: 25px !important;
+        width: 25px !important;
+        height: 25px !important;
+      }
+    }
   }
 
   .action-buttons {
@@ -717,227 +812,254 @@
       }
     }
   }
-}
 
-// Precio más compacto
-.price-value {
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.price-currency {
-  display: none; // Ocultar "MXN" en mobile
-}
-
-// Stock más compacto (aunque esté oculto)
-.stock-value {
-  font-size: 0.6875rem;
-  padding: 0.1875rem 0.5rem;
-  min-width: 32px;
-}
-
-// Status badge más compacto - SOLO ICONO EN MOBILE
-.status-badge {
-  font-size: 0.5625rem;
-  padding: 0.25rem 0.35rem;
-  min-width: 32px;
-
-  // Mobile: ocultar texto, mostrar icono
-  .status-text {
-    display: none !important;
+  // Precio más compacto
+  .price-value {
+    font-size: 0.75rem;
+    font-weight: 600;
   }
 
-  .status-icon {
-    display: inline-flex !important;
-    font-size: 18px !important;
-    width: 18px !important;
-    height: 18px !important;
-    line-height: 1 !important;
-    margin: 0 !important;
+  .price-currency {
+    display: none; // Ocultar "MXN" en mobile
   }
-}
 
-// Botones de acción más compactos
-.action-buttons {
-  flex-direction: row;
-  gap: 0.2rem;
-  flex-wrap: nowrap !important; // Forzar que siempre estén en una fila
+  // Stock más compacto (aunque esté oculto)
+  .stock-value {
+    font-size: 0.6875rem;
+    padding: 0.1875rem 0.5rem;
+    min-width: 32px;
+  }
 
-  .btn-action {
-    min-width: 30px !important;
-    width: 30px !important;
-    height: 30px !important;
-    padding: 0 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    overflow: visible !important;
-    flex-shrink: 0 !important; // No permitir que se reduzcan
+  // Visits más compacto en mobile
+  .visits-container {
+    gap: 0.25rem;
 
-    mat-icon {
-      font-size: 18px !important;
-      width: 18px !important;
-      height: 18px !important;
-      line-height: 1 !important;
-      margin: 0 !important;
-      color: white !important;
+    .visits-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
     }
 
-    .btn-label {
-      display: none !important; // Ocultar texto, solo iconos
+    .visits-value {
+      font-size: 0.6875rem;
+      font-weight: 600;
     }
   }
 
-  .btn-icon-action {
-    width: 30px !important;
-    height: 30px !important;
-    min-width: 30px !important;
-    min-height: 30px !important;
-    padding: 0 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    overflow: visible !important;
-    flex-shrink: 0 !important;
+  // Status badge más compacto - SOLO ICONO EN MOBILE
+  .status-badge {
+    font-size: 0.5625rem;
+    padding: 0.25rem 0.35rem;
+    min-width: 32px;
 
-    mat-icon {
+    // Mobile: ocultar texto, mostrar icono
+    .status-text {
+      display: none !important;
+    }
+
+    .status-icon {
+      display: inline-flex !important;
       font-size: 18px !important;
       width: 18px !important;
       height: 18px !important;
       line-height: 1 !important;
       margin: 0 !important;
     }
-  }
-}
 
-// Soporte para pantallas muy pequeñas (390px y menores)
-@media (max-width: 390px) {
+    // Mobile: iconos de 20px para status sin contenedor
+    &.status-active,
+    &.status-paused,
+    &.status-under_review {
+      .status-icon {
+        font-size: 20px !important;
+        width: 20px !important;
+        height: 20px !important;
+      }
+    }
+  }
+
+  // Botones de acción más compactos
   .action-buttons {
-    gap: 0.15rem;
+    flex-direction: row;
+    gap: 0.2rem;
+    flex-wrap: nowrap !important; // Forzar que siempre estén en una fila
 
     .btn-action {
-      min-width: 28px !important;
-      width: 28px !important;
-      height: 28px !important;
+      min-width: 30px !important;
+      width: 30px !important;
+      height: 30px !important;
+      padding: 0 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      overflow: visible !important;
+      flex-shrink: 0 !important; // No permitir que se reduzcan
 
       mat-icon {
-        font-size: 16px !important;
-        width: 16px !important;
-        height: 16px !important;
+        font-size: 18px !important;
+        width: 18px !important;
+        height: 18px !important;
+        line-height: 1 !important;
+        margin: 0 !important;
+        color: white !important;
+      }
+
+      .btn-label {
+        display: none !important; // Ocultar texto, solo iconos
       }
     }
 
     .btn-icon-action {
-      width: 28px !important;
-      height: 28px !important;
-      min-width: 28px !important;
-      min-height: 28px !important;
+      width: 30px !important;
+      height: 30px !important;
+      min-width: 30px !important;
+      min-height: 30px !important;
+      padding: 0 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      overflow: visible !important;
+      flex-shrink: 0 !important;
 
       mat-icon {
-        font-size: 16px !important;
-        width: 16px !important;
-        height: 16px !important;
+        font-size: 18px !important;
+        width: 18px !important;
+        height: 18px !important;
+        line-height: 1 !important;
+        margin: 0 !important;
       }
     }
   }
 
-  // Reducir padding de celdas para pantallas muy pequeñas
-  .publications-table ::ng-deep {
-    .mat-mdc-cell {
-      padding: 0.4rem 0.15rem;
+  // Soporte para pantallas muy pequeñas (390px y menores)
+  @media (max-width: 390px) {
+    .action-buttons {
+      gap: 0.15rem;
+
+      .btn-action {
+        min-width: 28px !important;
+        width: 28px !important;
+        height: 28px !important;
+
+        mat-icon {
+          font-size: 16px !important;
+          width: 16px !important;
+          height: 16px !important;
+        }
+      }
+
+      .btn-icon-action {
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
+
+        mat-icon {
+          font-size: 16px !important;
+          width: 16px !important;
+          height: 16px !important;
+        }
+      }
+    }
+
+    // Reducir padding de celdas para pantallas muy pequeñas
+    .publications-table ::ng-deep {
+      .mat-mdc-cell {
+        padding: 0.4rem 0.15rem;
+      }
+    }
+
+    .filters-card {
+      .filters-row {
+        grid-template-columns: 1fr;
+      }
+
+      .filters-body .search-input-wrapper {
+        flex-wrap: wrap;
+
+        .search-icon {
+          position: absolute;
+          left: 1rem;
+          top: 0.75rem; // Posicionar correctamente en mobile
+          z-index: 1;
+        }
+
+        .search-input {
+          flex: 1 1 100%;
+          margin-bottom: 0.5rem;
+        }
+
+        .btn-clear-search {
+          right: 1rem;
+          top: 0.5rem;
+        }
+
+        .btn-search {
+          flex: 1 1 100%;
+        }
+      }
     }
   }
 
-  .filters-card {
-    .filters-row {
-      grid-template-columns: 1fr;
-    }
 
-    .filters-body .search-input-wrapper {
-      flex-wrap: wrap;
-
-      .search-icon {
-        position: absolute;
-        left: 1rem;
-        top: 0.75rem; // Posicionar correctamente en mobile
-        z-index: 1;
-      }
-
-      .search-input {
-        flex: 1 1 100%;
-        margin-bottom: 0.5rem;
-      }
-
-      .btn-clear-search {
-        right: 1rem;
-        top: 0.5rem;
-      }
-
-      .btn-search {
-        flex: 1 1 100%;
-      }
-    }
-  }
-}
-
-
-// Pagination Section
-.pagination-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 2rem 1rem;
-  border-top: 1px solid hsl(var(--border));
-
-  .btn-load-more {
-    display: inline-flex;
+  // Pagination Section
+  .pagination-section {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.875rem 2rem;
-    background-color: hsl(var(--primary));
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    min-width: 200px;
+    gap: 1rem;
+    padding: 2rem 1rem;
+    border-top: 1px solid hsl(var(--border));
 
-    mat-icon {
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
-    }
+    .btn-load-more {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.875rem 2rem;
+      background-color: hsl(var(--primary));
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 200px;
 
-    .btn-spinner {
-      ::ng-deep circle {
-        stroke: white;
+      mat-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+      }
+
+      .btn-spinner {
+        ::ng-deep circle {
+          stroke: white;
+        }
+      }
+
+      &:hover:not(:disabled) {
+        background-color: hsl(var(--primary) / 0.9);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px hsl(var(--primary) / 0.3);
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
       }
     }
 
-    &:hover:not(:disabled) {
-      background-color: hsl(var(--primary) / 0.9);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 8px hsl(var(--primary) / 0.3);
+    .pagination-info {
+      font-size: 0.875rem;
+      color: hsl(var(--muted-foreground));
+      margin: 0;
+      text-align: center;
     }
-
-    &:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-  }
-
-  .pagination-info {
-    font-size: 0.875rem;
-    color: hsl(var(--muted-foreground));
-    margin: 0;
-    text-align: center;
   }
 }

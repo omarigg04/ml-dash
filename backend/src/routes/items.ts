@@ -612,6 +612,87 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/items/visits
+ * Get visit counts for multiple items
+ * Query params:
+ * - ids: comma-separated list of item IDs (e.g., "MLM123,MLM456,MLM789")
+ *
+ * Note: ML API only allows fetching visits for ONE item at a time,
+ * so we make individual requests and combine the results
+ *
+ * IMPORTANT: This route MUST be before /:id routes to avoid route conflicts
+ */
+router.get('/visits', async (req: Request, res: Response) => {
+    try {
+        const idsParam = req.query['ids'] as string;
+
+        if (!idsParam) {
+            return res.status(400).json({
+                error: 'Missing required parameter: ids'
+            });
+        }
+
+        // Split and validate IDs
+        const ids = idsParam.split(',').map(id => id.trim()).filter(id => id.length > 0);
+
+        if (ids.length === 0) {
+            return res.status(400).json({
+                error: 'No valid item IDs provided'
+            });
+        }
+
+        // Limit to prevent too many requests
+        if (ids.length > 100) {
+            return res.status(400).json({
+                error: 'Too many IDs. Maximum 100 items per request.'
+            });
+        }
+
+        // Get access token for authentication
+        const token = await mlAuth.getToken();
+
+        // Object to store all visit counts
+        const visitsData: { [key: string]: number } = {};
+
+        // Fetch visits for each item individually
+        // ML API only allows one item at a time: /visits/items?ids=MLM123
+        const promises = ids.map(async (itemId) => {
+            try {
+                const response = await axios.get(
+                    `https://api.mercadolibre.com/visits/items?ids=${itemId}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                // Response format: { "MLM123": 42 }
+                const visitCount = response.data[itemId];
+                visitsData[itemId] = visitCount !== undefined ? visitCount : 0;
+            } catch (error: any) {
+                // If fails, set to 0
+                visitsData[itemId] = 0;
+            }
+        });
+
+        // Wait for all requests to complete
+        await Promise.all(promises);
+
+        // Return combined results in same format: { "MLM123": 42, "MLM456": 15, ... }
+        res.json(visitsData);
+
+    } catch (error: any) {
+        console.error('❌ Error fetching visit counts:', error.message);
+        res.status(500).json({
+            error: 'Failed to fetch visit counts',
+            details: error.message
+        });
+    }
+});
+
+/**
  * GET /api/items/:id/description
  * Get description for an item
  */
