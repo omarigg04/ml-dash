@@ -341,4 +341,9 @@ export class PublicationsListComponent implements OnInit {
   trackByItemId(index: number, item: Publication): string {
     return item.id;
   }
+
+  // Handle image load error
+  onImageError(item: Publication): void {
+    item.thumbnail = null;
+  }
 }

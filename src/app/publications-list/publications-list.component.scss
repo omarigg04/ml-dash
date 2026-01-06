@@ -315,6 +315,24 @@
   display: block;
 }
 
+.thumbnail-placeholder {
+  width: 56px;
+  height: 56px;
+  background-color: white;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  mat-icon {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    color: hsl(var(--muted-foreground));
+  }
+}
+
 // Title Cell
 .title-cell {
   max-width: 400px;
@@ -655,6 +673,17 @@
     height: 42px;
   }
 
+  .thumbnail-placeholder {
+    width: 42px;
+    height: 42px;
+
+    mat-icon {
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+    }
+  }
+
   .title-cell {
     max-width: 250px; // Reducir ancho del título
 
@@ -794,6 +823,17 @@
   .thumbnail-image {
     width: 36px;
     height: 36px;
+  }
+
+  .thumbnail-placeholder {
+    width: 36px;
+    height: 36px;
+
+    mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
   }
 
   .title-cell {
