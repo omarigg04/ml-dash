@@ -21,14 +21,9 @@ export class SidebarComponent {
 
   menuItems: MenuItem[] = [
     {
-      label: 'Dashboard',
-      icon: 'dashboard',
-      route: '/grid'
-    },
-    {
-      label: 'Gráfico',
-      icon: 'bar_chart',
-      route: '/chart'
+      label: 'Analytics',
+      icon: 'analytics',
+      route: '/analytics'
     },
     {
       label: 'Publicar',
