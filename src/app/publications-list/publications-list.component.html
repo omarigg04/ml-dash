@@ -125,6 +125,17 @@
         </td>
       </ng-container>
 
+      <!-- Sales Column -->
+      <ng-container matColumnDef="sales">
+        <th mat-header-cell *matHeaderCellDef>Ventas</th>
+        <td mat-cell *matCellDef="let item">
+          <div class="sales-container">
+            <mat-icon class="sales-icon">shopping_cart</mat-icon>
+            <span class="sales-value">{{ item.sold_quantity || 0 }}</span>
+          </div>
+        </td>
+      </ng-container>
+
       <!-- Visits Column -->
       <ng-container matColumnDef="visits">
         <th mat-header-cell *matHeaderCellDef>Vistas</th>

@@ -60,10 +60,6 @@ router.get('/predict', async (req: Request, res: Response) => {
 
         const predictions = response.data;
 
-        console.log(`\n✅ ML API Response received`);
-        console.log(`  - Found ${predictions.length} predictions`);
-        console.log(`  - Data:`, JSON.stringify(predictions, null, 2));
-
         // Format response to include relevant information
         const formattedPredictions = predictions.map((pred: any) => ({
             domain_id: pred.domain_id,
@@ -73,9 +69,10 @@ router.get('/predict', async (req: Request, res: Response) => {
             attributes: pred.attributes || []
         }));
 
-        console.log(`\n📤 Sending response to client`);
-        console.log(`  - Query: ${query}`);
-        console.log(`  - Total predictions: ${formattedPredictions.length}`);
+        console.log(`\n✅ ML API Response received`);
+        console.log(`  - Found ${predictions.length} predictions`);
+        console.log(`  - Categories: ${formattedPredictions.map(p => p.category_name).join(', ')}`);
+        console.log(`  - Attributes modified: Formatted ${formattedPredictions.reduce((acc, p) => acc + p.attributes.length, 0)} total attributes`);
         console.log('============================================\n');
 
         res.json({

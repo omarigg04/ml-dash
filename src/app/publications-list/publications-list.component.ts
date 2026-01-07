@@ -8,6 +8,7 @@ interface Publication {
   title: string;
   price: number;
   available_quantity: number;
+  sold_quantity?: number; // Número de ventas del producto
   status: string;
   thumbnail: string | null;
   listing_type_id: string;
@@ -31,7 +32,7 @@ interface PagingInfo {
   styleUrls: ['./publications-list.component.scss']
 })
 export class PublicationsListComponent implements OnInit {
-  displayedColumns: string[] = ['thumbnail', 'title', 'price', 'stock', 'visits', 'status', 'actions'];
+  displayedColumns: string[] = ['thumbnail', 'title', 'price', 'stock', 'sales', 'visits', 'status', 'actions'];
   dataSource: Publication[] = [];
   isLoading = false;
   isLoadingMore = false;
@@ -75,6 +76,8 @@ export class PublicationsListComponent implements OnInit {
     { value: 'date_asc', label: 'Más antiguos' },
     { value: 'price_asc', label: 'Menor precio' },
     { value: 'price_desc', label: 'Mayor precio' },
+    { value: 'sales_desc', label: 'Más vendidos' },
+    { value: 'sales_asc', label: 'Menos vendidos' },
     { value: 'title_asc', label: 'Título A-Z' },
     { value: 'title_desc', label: 'Título Z-A' },
     { value: 'stock_asc', label: 'Menor stock' },

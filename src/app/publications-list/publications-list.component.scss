@@ -379,6 +379,26 @@
   font-size: 0.875rem;
 }
 
+// Sales
+.sales-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  .sales-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: hsl(var(--success));
+  }
+
+  .sales-value {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: hsl(var(--foreground));
+  }
+}
+
 // Visits
 .visits-container {
   display: flex;
@@ -636,6 +656,67 @@
   }
 }
 
+// Pagination Section
+.pagination-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem 1rem;
+  border-top: 1px solid hsl(var(--border));
+
+  .btn-load-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.875rem 2rem;
+    background-color: hsl(var(--primary));
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 200px;
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    .btn-spinner {
+      ::ng-deep circle {
+        stroke: white;
+      }
+    }
+
+    &:hover:not(:disabled) {
+      background-color: hsl(var(--primary) / 0.9);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px hsl(var(--primary) / 0.3);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  .pagination-info {
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+    margin: 0;
+    text-align: center;
+  }
+}
+
 // Responsive adjustments
 
 // Tablet view (768px - 1322px)
@@ -707,6 +788,20 @@
   .stock-value {
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
+  }
+
+  .sales-container {
+    gap: 0.375rem;
+
+    .sales-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .sales-value {
+      font-size: 0.75rem;
+    }
   }
 
   .visits-container {
@@ -868,6 +963,22 @@
     font-size: 0.6875rem;
     padding: 0.1875rem 0.5rem;
     min-width: 32px;
+  }
+
+  // Sales más compacto en mobile
+  .sales-container {
+    gap: 0.25rem;
+
+    .sales-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
+    .sales-value {
+      font-size: 0.6875rem;
+      font-weight: 600;
+    }
   }
 
   // Visits más compacto en mobile
@@ -1038,68 +1149,6 @@
           flex: 1 1 100%;
         }
       }
-    }
-  }
-
-
-  // Pagination Section
-  .pagination-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    padding: 2rem 1rem;
-    border-top: 1px solid hsl(var(--border));
-
-    .btn-load-more {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 0.875rem 2rem;
-      background-color: hsl(var(--primary));
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 0.9375rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      min-width: 200px;
-
-      mat-icon {
-        font-size: 20px;
-        width: 20px;
-        height: 20px;
-      }
-
-      .btn-spinner {
-        ::ng-deep circle {
-          stroke: white;
-        }
-      }
-
-      &:hover:not(:disabled) {
-        background-color: hsl(var(--primary) / 0.9);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px hsl(var(--primary) / 0.3);
-      }
-
-      &:active:not(:disabled) {
-        transform: translateY(0);
-      }
-
-      &:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-    }
-
-    .pagination-info {
-      font-size: 0.875rem;
-      color: hsl(var(--muted-foreground));
-      margin: 0;
-      text-align: center;
     }
   }
 }

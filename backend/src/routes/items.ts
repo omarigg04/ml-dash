@@ -239,9 +239,20 @@ router.post('/', async (req: Request, res: Response) => {
             message: 'Product published successfully',
         });
     } catch (error: any) {
-        console.error('❌ Error creating item:', error.response?.data || error.message);
+        console.error('❌ Error creating item:', error.response?.data?.message || error.message);
         console.error('📊 Error Status:', error.response?.status);
-        console.error('📋 Full error response:', JSON.stringify(error.response?.data, null, 2));
+
+        // Log validation errors summary
+        if (error.response?.data?.cause) {
+            const errorCount = error.response.data.cause.filter((c: any) => c.type === 'error').length;
+            const warningCount = error.response.data.cause.filter((c: any) => c.type === 'warning').length;
+            console.error(`📋 Validation issues: ${errorCount} errors, ${warningCount} warnings`);
+            error.response.data.cause.forEach((c: any) => {
+                if (c.type === 'error') {
+                    console.error(`  ⚠️  ${c.code}: ${c.message}`);
+                }
+            });
+        }
 
         if (error.message?.includes('No token available')) {
             res.status(401).json({
@@ -343,6 +354,8 @@ router.get('/', async (req: Request, res: Response) => {
                             case 'title_desc': return b.title.localeCompare(a.title);
                             case 'stock_asc': return a.available_quantity - b.available_quantity;
                             case 'stock_desc': return b.available_quantity - a.available_quantity;
+                            case 'sales_asc': return (a.sold_quantity || 0) - (b.sold_quantity || 0);
+                            case 'sales_desc': return (b.sold_quantity || 0) - (a.sold_quantity || 0);
                             default: return 0;
                         }
                     });
@@ -516,6 +529,7 @@ router.get('/', async (req: Request, res: Response) => {
                     title: item.body.title,
                     price: item.body.price,
                     available_quantity: item.body.available_quantity,
+                    sold_quantity: item.body.sold_quantity || 0,
                     status: item.body.status,
                     thumbnail: item.body.thumbnail || item.body.pictures?.[0]?.url || null,
                     listing_type_id: item.body.listing_type_id,
@@ -565,6 +579,10 @@ router.get('/', async (req: Request, res: Response) => {
                         return a.available_quantity - b.available_quantity;
                     case 'stock_desc':
                         return b.available_quantity - a.available_quantity;
+                    case 'sales_asc':
+                        return (a.sold_quantity || 0) - (b.sold_quantity || 0);
+                    case 'sales_desc':
+                        return (b.sold_quantity || 0) - (a.sold_quantity || 0);
                     default:
                         return 0;
                 }
