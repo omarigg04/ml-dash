@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { FormGroup, FormControl } from '@angular/forms';
 import { Order } from '../interfaces/Order.interface';
 import { DatePipe } from '@angular/common';
@@ -90,24 +90,28 @@ export class BarChartComponent implements OnInit {
   loadPublications(): void {
     this.productsLoading = true;
 
-    this.http.get<Publication[]>(`${environment.apiUrl}/items`).subscribe({
-      next: (publications) => {
-        // Filtrar solo publicaciones activas
-        const activePublications = publications.filter(p => p.status === 'active');
+    const mostSoldParams = new HttpParams()
+      .set('sort', 'sales_desc')
+      .set('limit', '4')
+      .set('status', 'active');
 
-        // Últimos publicados: ordenar por ID (asumiendo IDs más altos = más recientes)
-        this.recentProducts = [...activePublications]
-          .sort((a, b) => b.id.localeCompare(a.id))
-          .slice(0, 3);
+    const recentlyCreatedParams = new HttpParams()
+      .set('sort', 'date_desc')
+      .set('limit', '4')
+      .set('status', 'active');
 
-        // Más vendidos: ordenar por sold_quantity
-        this.topSellingProducts = [...activePublications]
-          .filter(p => (p.sold_quantity || 0) > 0)
-          .sort((a, b) => (b.sold_quantity || 0) - (a.sold_quantity || 0))
-          .slice(0, 4);
+    const mostSoldRequest = this.http.get<{items: Publication[]}>(`${environment.apiUrl}/items`, { params: mostSoldParams });
+    const recentlyCreatedRequest = this.http.get<{items: Publication[]}>(`${environment.apiUrl}/items`, { params: recentlyCreatedParams });
 
+    forkJoin({
+      mostSold: mostSoldRequest,
+      recentlyCreated: recentlyCreatedRequest
+    }).subscribe({
+      next: ({ mostSold, recentlyCreated }) => {
+        this.topSellingProducts = mostSold.items.filter(p => (p.sold_quantity || 0) > 0);
+        this.recentProducts = recentlyCreated.items;
         this.productsLoading = false;
-        console.log(`📦 Publicaciones cargadas: ${publications.length} total, ${activePublications.length} activas`);
+        console.log(`📦 Top 4 más vendidos y 4 más recientes cargados.`);
       },
       error: (error) => {
         console.error('Error al cargar publicaciones:', error);

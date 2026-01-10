@@ -1,8 +1,8 @@
 <!-- Page Header -->
-<div class="page-header">
+<!-- <div class="page-header">
   <h1 class="page-title">Dashboard de Ventas</h1>
   <p class="page-description">Resumen de ingresos y estadísticas</p>
-</div>
+</div> -->
 
 <!-- Main Grid: Metrics + Product Lists -->
 <div class="main-grid">
@@ -19,8 +19,7 @@
           <mat-spinner *ngIf="totalSumIsLoading" diameter="20" class="metric-spinner"></mat-spinner>
           <h3 *ngIf="!totalSumIsLoading" class="metric-value">{{ totalSum | currency:'MXN':'symbol':'1.0-0' }}</h3>
           <p class="metric-change" *ngIf="!totalSumIsLoading && isComparisonMode"
-            [class.positive]="totalSumChangePercent > 0"
-            [class.negative]="totalSumChangePercent < 0"
+            [class.positive]="totalSumChangePercent > 0" [class.negative]="totalSumChangePercent < 0"
             [class.neutral]="totalSumChangePercent === 0">
             {{ totalSumChangePercent > 0 ? '+' : '' }}{{ totalSumChangePercent | number:'1.1-1' }}% vs período anterior
           </p>
@@ -62,10 +61,10 @@
         <div class="metric-content">
           <p class="metric-label">Ganancia Real</p>
           <mat-spinner *ngIf="realSumIsLoading" diameter="20" class="metric-spinner"></mat-spinner>
-          <h3 *ngIf="!realSumIsLoading" class="metric-value metric-value-success">{{ realSum | currency:'MXN':'symbol':'1.0-0' }}</h3>
+          <h3 *ngIf="!realSumIsLoading" class="metric-value metric-value-success">{{ realSum |
+            currency:'MXN':'symbol':'1.0-0' }}</h3>
           <p class="metric-change" *ngIf="!realSumIsLoading && isComparisonMode"
-            [class.positive]="realSumChangePercent > 0"
-            [class.negative]="realSumChangePercent < 0"
+            [class.positive]="realSumChangePercent > 0" [class.negative]="realSumChangePercent < 0"
             [class.neutral]="realSumChangePercent === 0">
             {{ realSumChangePercent > 0 ? '+' : '' }}{{ realSumChangePercent | number:'1.1-1' }}% vs período anterior
           </p>
@@ -91,7 +90,10 @@
         <div *ngIf="!productsLoading && recentProducts.length > 0" class="products-list">
           <div *ngFor="let product of recentProducts" class="product-item">
             <div class="product-info">
-              <p class="product-title">{{ product.title }}</p>
+              <div class="product-title-row">
+                <p class="product-title">{{ product.title }}</p>
+                <p class="product-id">{{ product.id }}</p>
+              </div>
               <div class="product-meta">
                 <span class="product-price">{{ product.price | currency:'MXN':'symbol':'1.0-0' }}</span>
                 <span class="product-status" [class.status-active]="product.status === 'active'"
@@ -120,10 +122,14 @@
           <div *ngFor="let product of topSellingProducts; let i = index" class="product-item">
             <span class="product-rank">{{ i + 1 }}</span>
             <div class="product-info">
-              <p class="product-title">{{ product.title }}</p>
+              <div class="product-title-row">
+                <p class="product-title">{{ product.title }}</p>
+                <p class="product-id">{{ product.id }}</p>
+              </div>
               <div class="product-meta">
                 <span class="product-sales">{{ product.sold_quantity || 0 }} ventas</span>
-                <span class="product-revenue">{{ (product.price * (product.sold_quantity || 0)) | currency:'MXN':'symbol':'1.0-0' }}</span>
+                <span class="product-revenue">{{ (product.price * (product.sold_quantity || 0)) |
+                  currency:'MXN':'symbol':'1.0-0' }}</span>
               </div>
             </div>
           </div>

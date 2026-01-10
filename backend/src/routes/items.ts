@@ -337,7 +337,8 @@ router.get('/', async (req: Request, res: Response) => {
                 // Apply search filter
                 if (searchQuery) {
                     filteredItems = cachedItems.filter(item =>
-                        item.title.toLowerCase().includes(searchQuery)
+                        item.title.toLowerCase().includes(searchQuery) ||
+                        item.id.toLowerCase().includes(searchQuery)
                     );
                     console.log(`  - Filtered to ${filteredItems.length} items matching search query`);
                 }
@@ -554,7 +555,8 @@ router.get('/', async (req: Request, res: Response) => {
 
         if (searchQuery) {
             filteredItems = allItems.filter(item =>
-                item.title.toLowerCase().includes(searchQuery)
+                item.title.toLowerCase().includes(searchQuery) ||
+                item.id.toLowerCase().includes(searchQuery)
             );
             console.log(`  - Filtered to ${filteredItems.length} items matching search query`);
         }
