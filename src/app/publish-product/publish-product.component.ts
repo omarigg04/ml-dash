@@ -124,6 +124,14 @@ export class PublishProductComponent implements OnInit {
   attributeValues: { [key: string]: any } = {};
   attributeErrors: { [key: string]: string } = {}; // Errores de validación por atributo
 
+  // Atributos fijos que siempre se envían
+  fixedAttributes = {
+    seller_package_height: '',
+    seller_package_width: '',
+    seller_package_length: '',
+    seller_package_weight: ''
+  };
+
   constructor(
     private http: HttpClient,
     private router: Router,
@@ -244,6 +252,16 @@ export class PublishProductComponent implements OnInit {
       console.log('✅ Product form loaded with:', this.product);
       console.log('📸 Pictures text:', this.picturesText);
 
+      // Pre-cargar atributos fijos desde el producto original si existen
+      if (item.attributes && Array.isArray(item.attributes)) {
+        item.attributes.forEach((attr: any) => {
+          if (attr.id && attr.id in this.fixedAttributes) {
+            (this.fixedAttributes as any)[attr.id] = attr.value_name;
+            console.log(`✅ Pre-loaded fixed attribute ${attr.id}: ${attr.value_name}`);
+          }
+        });
+      }
+
       // Cargar atributos dinámicos de la categoría y pre-llenar con valores del item duplicado
       // Esto implementa la "Opción Híbrida" del plan de atributos dinámicos
       console.log('🔄 Loading dynamic attributes for duplicated item category:', item.category_id);
@@ -304,6 +322,34 @@ export class PublishProductComponent implements OnInit {
     let isValid = true;
 
     console.log('[PublishProduct] Validating attributes...');
+
+    // Validar atributos fijos requeridos
+    const requiredFixedAttrs = ['seller_package_height', 'seller_package_width', 'seller_package_length', 'seller_package_weight'];
+    requiredFixedAttrs.forEach(attrId => {
+      const value = this.fixedAttributes[attrId as keyof typeof this.fixedAttributes];
+      if (value === undefined || value === null || value === '') {
+        this.attributeErrors[attrId] = 'Este campo es requerido';
+        isValid = false;
+        console.log(`[PublishProduct] Fixed attribute ${attrId} is missing`);
+      } else if (isNaN(Number(value))) {
+        this.attributeErrors[attrId] = 'Debe ser un número válido';
+        isValid = false;
+      } else if (Number(value) <= 0) {
+        this.attributeErrors[attrId] = 'Debe ser mayor que 0';
+        isValid = false;
+      }
+      // Validación adicional para peso: si está en kg, debe ser decimal; si es grande, asumimos que está en g
+      if (attrId === 'seller_package_weight' && value && !isNaN(Number(value))) {
+        const numValue = Number(value);
+        if (numValue < 0.001) {
+          this.attributeErrors[attrId] = 'El peso es muy pequeño. Mínimo 0.001 kg (1 g)';
+          isValid = false;
+        } else if (numValue > 100000) {
+          this.attributeErrors[attrId] = 'El peso es demasiado grande (máximo 100000 kg)';
+          isValid = false;
+        }
+      }
+    });
 
     // Validar cada atributo de la categoría
     this.categoryAttributes.forEach(catAttr => {
@@ -401,6 +447,37 @@ export class PublishProductComponent implements OnInit {
     console.log('[PublishProduct] Building attributes from values...');
     console.log('  - Category attributes:', this.categoryAttributes.length);
     console.log('  - Attribute values:', this.attributeValues);
+    console.log('  - Fixed attributes:', this.fixedAttributes);
+
+    // Primero, agregar atributos fijos que tengan valor
+    Object.entries(this.fixedAttributes).forEach(([attrId, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        // Formato especial para MercadoLibre: dimensiones en cm, peso en g, solo enteros
+        let formattedValue = String(value);
+
+        // Dimensiones: agregar " cm"
+        if (['seller_package_height', 'seller_package_width', 'seller_package_length'].includes(attrId)) {
+          const intValue = Math.floor(Number(value));
+          formattedValue = `${intValue} cm`;
+        }
+        // Peso: convertir a gramos y agregar " g"
+        else if (attrId === 'seller_package_weight') {
+          const numValue = Number(value);
+          // Si el valor está en kg, convertir a g
+          const grams = numValue > 1000 ? numValue : numValue * 1000;
+          const intValue = Math.floor(grams);
+          formattedValue = `${intValue} g`;
+        }
+
+        attributes.push({
+          id: attrId,
+          name: attrId.replace(/_/g, ' '),
+          value_name: formattedValue,
+          value_type: 'string'
+        });
+        console.log(`[PublishProduct] Added fixed attribute: ${attrId} = ${formattedValue}`);
+      }
+    });
 
     // Iterar sobre los atributos de la categoría y construir el array
     this.categoryAttributes.forEach(catAttr => {
@@ -608,6 +685,13 @@ export class PublishProductComponent implements OnInit {
   resetForm(): void {
     // Recargar el template de la categoría seleccionada
     this.loadCategoryTemplate(this.selectedCategoryId);
+    // Limpiar atributos fijos
+    this.fixedAttributes = {
+      seller_package_height: '',
+      seller_package_width: '',
+      seller_package_length: '',
+      seller_package_weight: ''
+    };
     this.successMessage = '';
     this.errorMessage = '';
   }
@@ -735,10 +819,16 @@ export class PublishProductComponent implements OnInit {
       next: (attributes) => {
         console.log(`[PublishProduct] Loaded ${attributes.length} attributes`);
 
-        // Filtrar atributos ocultos y de solo lectura
-        this.categoryAttributes = attributes.filter(attr =>
-          !attr.tags.hidden && !attr.tags.read_only
-        );
+        // Filtrar atributos ocultos y de solo lectura, PERO SIEMPRE mostrar atributos requeridos
+        // (Los atributos requeridos podrían tener otros tags que normalmente ocultaríamos)
+        this.categoryAttributes = attributes.filter(attr => {
+          const isRequired = attr.tags.required || attr.tags.catalog_required;
+          const isHidden = attr.tags.hidden;
+          const isReadOnly = attr.tags.read_only;
+
+          // Mostrar si: es requerido, O no está oculto/solo-lectura
+          return isRequired || (!isHidden && !isReadOnly);
+        });
 
         // Ordenar: requeridos primero, luego por relevancia
         this.categoryAttributes.sort((a, b) => {

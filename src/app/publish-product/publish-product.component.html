@@ -204,6 +204,100 @@
           </div>
         </div>
 
+        <!-- Fixed Attributes Section (Packaging Dimensions) -->
+        <div class="form-section">
+          <div class="form-section-header">
+            <mat-icon>inventory_2</mat-icon>
+            <h4>Dimensiones del Paquete (Obligatorio)</h4>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="seller_package_height" class="form-label">
+                Alto (cm) *
+              </label>
+              <input type="number"
+                     class="form-input"
+                     [class.input-error]="attributeErrors['seller_package_height']"
+                     id="seller_package_height"
+                     name="seller_package_height"
+                     [(ngModel)]="fixedAttributes.seller_package_height"
+                     placeholder="Ej: 10"
+                     min="1"
+                     step="1">
+              <small class="form-hint">Ingresa un número entero en centímetros (cm)</small>
+              <small *ngIf="attributeErrors['seller_package_height']" class="error-message">
+                <mat-icon>error</mat-icon>
+                {{ attributeErrors['seller_package_height'] }}
+              </small>
+            </div>
+            <div class="form-group">
+              <label for="seller_package_width" class="form-label">
+                Ancho (cm) *
+              </label>
+              <input type="number"
+                     class="form-input"
+                     [class.input-error]="attributeErrors['seller_package_width']"
+                     id="seller_package_width"
+                     name="seller_package_width"
+                     [(ngModel)]="fixedAttributes.seller_package_width"
+                     placeholder="Ej: 15"
+                     min="1"
+                     step="1">
+              <small class="form-hint">Ingresa un número entero en centímetros (cm)</small>
+              <small *ngIf="attributeErrors['seller_package_width']" class="error-message">
+                <mat-icon>error</mat-icon>
+                {{ attributeErrors['seller_package_width'] }}
+              </small>
+            </div>
+            <div class="form-group">
+              <label for="seller_package_length" class="form-label">
+                Largo (cm) *
+              </label>
+              <input type="number"
+                     class="form-input"
+                     [class.input-error]="attributeErrors['seller_package_length']"
+                     id="seller_package_length"
+                     name="seller_package_length"
+                     [(ngModel)]="fixedAttributes.seller_package_length"
+                     placeholder="Ej: 20"
+                     min="1"
+                     step="1">
+              <small class="form-hint">Ingresa un número entero en centímetros (cm)</small>
+              <small *ngIf="attributeErrors['seller_package_length']" class="error-message">
+                <mat-icon>error</mat-icon>
+                {{ attributeErrors['seller_package_length'] }}
+              </small>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="seller_package_weight" class="form-label">
+                Peso (kg o g) *
+              </label>
+              <input type="number"
+                     class="form-input"
+                     [class.input-error]="attributeErrors['seller_package_weight']"
+                     id="seller_package_weight"
+                     name="seller_package_weight"
+                     [(ngModel)]="fixedAttributes.seller_package_weight"
+                     placeholder="Ej: 0.5 o 500"
+                     min="0.001"
+                     step="0.01">
+              <small class="form-hint">Ingresa en kg (ej: 0.5) o en gramos (ej: 500). Se convertirá automáticamente a gramos.</small>
+              <small *ngIf="attributeErrors['seller_package_weight']" class="error-message">
+                <mat-icon>error</mat-icon>
+                {{ attributeErrors['seller_package_weight'] }}
+              </small>
+            </div>
+          </div>
+
+          <small class="form-hint">
+            <strong>Estos valores son requeridos por MercadoLibre.</strong> Se enviarán automáticamente en cada publicación con el formato correcto (cm para dimensiones, g para peso).
+          </small>
+        </div>
+
         <!-- Attributes Section (Dynamic) -->
         <div class="form-section">
           <div class="form-section-header">
