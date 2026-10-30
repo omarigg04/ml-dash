@@ -38,7 +38,7 @@ app.use((req, res, next) => {
   if (!process.env['VERCEL'] || PUBLIC_PATHS.includes(req.path) || getSession(req)) {
     return next();
   }
-  res.status(401).json({ error: 'Unauthorized', message: 'Please log in with MercadoLibre' });
+  res.status(401).json({ error: 'Unauthorized', code: 'SESSION_REQUIRED', message: 'Please log in with MercadoLibre' });
 });
 
 // Health check endpoint
