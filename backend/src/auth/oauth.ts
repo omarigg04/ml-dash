@@ -43,6 +43,12 @@ const kvRestApi = async (method: string, params: any[] = []) => {
     }
 };
 
+export class UserNotAllowedError extends Error {
+    constructor(public userId: number) {
+        super(`MercadoLibre user ${userId} is not allowed (ALLOWED_ML_USER_ID)`);
+    }
+}
+
 export class MercadoLibreAuth {
     // Removed cached properties to force dynamic lookup
     // private appId: string;
@@ -113,6 +119,13 @@ export class MercadoLibreAuth {
             });
             if (codeVerifier) params.append('code_verifier', codeVerifier);
             const response = await axios.post('https://api.mercadolibre.com/oauth/token', params);
+
+            // Only the store owner may log in: otherwise any ML user could
+            // replace the stored token with their own account
+            const allowedUserId = process.env['ALLOWED_ML_USER_ID'];
+            if (String(response.data.user_id) !== allowedUserId) {
+                throw new UserNotAllowedError(response.data.user_id);
+            }
 
             this.tokenData = {
                 ...response.data,

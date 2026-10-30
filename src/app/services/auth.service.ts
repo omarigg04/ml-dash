@@ -1,74 +1,50 @@
 import { Injectable } from '@angular/core';
-import { Client, Account } from 'appwrite';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { CachingService } from './caching.service';
 
+export interface AuthStatus {
+  authenticated: boolean;
+  userId: number | null;
+  connected: boolean;
+}
+
+/**
+ * Sesión basada en el login de MercadoLibre (OAuth en el backend).
+ * La sesión vive en una cookie httpOnly; aquí solo consultamos su estado.
+ */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private client: Client;
-  private account: Account;
-  private currentUserSubject: BehaviorSubject<any>;
-  public currentUser$: Observable<any>;
+  private currentUserSubject = new BehaviorSubject<AuthStatus | null>(null);
+  public currentUser$: Observable<AuthStatus | null> = this.currentUserSubject.asObservable();
 
-  // Cache para JWT
-  private cachedJWT: string | null = null;
-  private jwtExpiry: number = 0;
-
-  constructor(private cachingService: CachingService) {
-    // Inicializar cliente de Appwrite
-    this.client = new Client()
-      .setEndpoint(environment.appwrite.endpoint)
-      .setProject(environment.appwrite.projectId);
-
-    this.account = new Account(this.client);
-
-    // Verificar si hay sesión guardada
-    const savedSession = localStorage.getItem('appwrite_session');
-    this.currentUserSubject = new BehaviorSubject<any>(
-      savedSession ? JSON.parse(savedSession) : null
-    );
-    this.currentUser$ = this.currentUserSubject.asObservable();
-
-    // Verificar sesión al iniciar
-    this.checkSession();
-  }
+  constructor(
+    private http: HttpClient,
+    private cachingService: CachingService
+  ) {}
 
   /**
-   * Verifica si hay una sesión activa
+   * Consulta al backend si hay una sesión activa
    */
-  private async checkSession(): Promise<void> {
+  async checkSession(): Promise<boolean> {
     try {
-      const user = await this.account.get();
-      this.currentUserSubject.next(user);
-      localStorage.setItem('appwrite_session', JSON.stringify(user));
+      const status = await firstValueFrom(
+        this.http.get<AuthStatus>(`${environment.apiUrl}/auth/status`)
+      );
+      this.currentUserSubject.next(status.authenticated ? status : null);
+      return status.authenticated;
     } catch (error) {
-      // No hay sesión activa
       this.currentUserSubject.next(null);
-      localStorage.removeItem('appwrite_session');
+      return false;
     }
   }
 
   /**
-   * Login con email y password
+   * Inicia el login con MercadoLibre (redirige a la pantalla de autorización de ML)
    */
-  async login(email: string, password: string): Promise<any> {
-    try {
-      // Crear sesión
-      await this.account.createEmailPasswordSession(email, password);
-
-      // Obtener datos del usuario
-      const user = await this.account.get();
-
-      // Guardar sesión
-      localStorage.setItem('appwrite_session', JSON.stringify(user));
-      this.currentUserSubject.next(user);
-
-      return user;
-    } catch (error: any) {
-      console.error('Login error:', error);
-      throw new Error(error.message || 'Error al iniciar sesión');
-    }
+  login(returnUrl: string = '/'): void {
+    window.location.href = `${environment.apiUrl}/auth?returnUrl=${encodeURIComponent(returnUrl)}`;
   }
 
   /**
@@ -76,62 +52,27 @@ export class AuthService {
    */
   async logout(): Promise<void> {
     try {
-      await this.account.deleteSession('current');
+      await firstValueFrom(this.http.post(`${environment.apiUrl}/auth/logout`, {}));
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Limpiar caché de JWT
-      this.cachedJWT = null;
-      this.jwtExpiry = 0;
-
       // Invalidar TODO el caché de la aplicación
       this.cachingService.invalidateAll();
-
-      localStorage.removeItem('appwrite_session');
       this.currentUserSubject.next(null);
     }
   }
 
   /**
-   * Verifica si el usuario está autenticado
+   * Verifica si el usuario está autenticado (según la última consulta)
    */
   isAuthenticated(): boolean {
     return !!this.currentUserSubject.value;
   }
 
   /**
-   * Obtiene el token JWT para hacer requests al backend
-   * Cachea el JWT por 10 minutos para evitar rate limiting
-   */
-  async getJWT(): Promise<string> {
-    try {
-      // Verificar si hay un JWT cacheado y aún válido
-      const now = Date.now();
-      if (this.cachedJWT && now < this.jwtExpiry) {
-        return this.cachedJWT;
-      }
-
-      // Generar nuevo JWT
-      const jwt = await this.account.createJWT();
-
-      // Cachear el JWT por 10 minutos (600 segundos)
-      // Los JWTs de Appwrite duran 15 minutos, usamos 10 para tener margen
-      this.cachedJWT = jwt.jwt;
-      this.jwtExpiry = now + (10 * 60 * 1000);
-
-      return jwt.jwt;
-    } catch (error) {
-      // Si falla, limpiar caché
-      this.cachedJWT = null;
-      this.jwtExpiry = 0;
-      throw new Error('Failed to get JWT token');
-    }
-  }
-
-  /**
    * Obtiene el usuario actual
    */
-  getCurrentUser(): any {
+  getCurrentUser(): AuthStatus | null {
     return this.currentUserSubject.value;
   }
 }

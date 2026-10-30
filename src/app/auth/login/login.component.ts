@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { Router, ActivatedRoute } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -8,37 +8,37 @@ import { AuthService } from '../../services/auth.service';
   styleUrls: ['./login.component.scss']
 })
 export class LoginComponent {
-  email = '';
-  password = '';
   isLoading = false;
   errorMessage = '';
-  returnUrl = '/chart';
+  returnUrl = '/';
 
   constructor(
     private authService: AuthService,
-    private router: Router,
     private route: ActivatedRoute
   ) {
+    const params = this.route.snapshot.queryParams;
     // Obtener URL de retorno si existe
-    this.returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/chart';
+    this.returnUrl = params['returnUrl'] || '/';
+    this.errorMessage = this.getErrorMessage(params['error'], params['uid']);
   }
 
-  async onSubmit() {
-    if (!this.email || !this.password) {
-      this.errorMessage = 'Por favor ingresa email y contraseña';
-      return;
-    }
-
+  onLogin(): void {
     this.isLoading = true;
-    this.errorMessage = '';
+    this.authService.login(this.returnUrl);
+  }
 
-    try {
-      await this.authService.login(this.email, this.password);
-      this.router.navigate([this.returnUrl]);
-    } catch (error: any) {
-      this.errorMessage = error.message || 'Error al iniciar sesión';
-    } finally {
-      this.isLoading = false;
+  // Errores que el backend manda en /login?error=... desde el callback de OAuth
+  private getErrorMessage(error?: string, uid?: string): string {
+    switch (error) {
+      case undefined:
+        return '';
+      case 'not_allowed':
+        return `La cuenta de MercadoLibre (user_id ${uid}) no tiene acceso a este dashboard. ` +
+          'Si es tu cuenta, configura ALLOWED_ML_USER_ID con ese valor en Vercel.';
+      case 'invalid_state':
+        return 'La sesión de autorización expiró. Intenta de nuevo.';
+      default:
+        return 'No se pudo iniciar sesión con MercadoLibre. Intenta de nuevo.';
     }
   }
 }
