@@ -1,4 +1,5 @@
 import axios from 'axios';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TokenData } from '../types';
@@ -69,7 +70,7 @@ export class MercadoLibreAuth {
      * Generate authorization URL for OAuth 2.0 flow
      * Includes scopes for: offline access, read data, and write/publish items
      */
-    getAuthorizationUrl(): string {
+    getAuthorizationUrl(state?: string, codeChallenge?: string): string {
         // MercadoLibre only supports 3 scopes:
         // offline_access: to get refresh tokens
         // read: allows GET operations (read orders, items, shipments, etc.)
@@ -81,22 +82,37 @@ export class MercadoLibreAuth {
         ].join(' ');
         const encodedScopes = encodeURIComponent(scopes);
         const encodedRedirectUri = encodeURIComponent(this.redirectUri);
-        return `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${this.appId}&redirect_uri=${encodedRedirectUri}&scope=${encodedScopes}`;
+        let url = `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${this.appId}&redirect_uri=${encodedRedirectUri}&scope=${encodedScopes}`;
+        if (state) url += `&state=${encodeURIComponent(state)}`;
+        if (codeChallenge) url += `&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
+        return url;
+    }
+
+    /**
+     * Generate a PKCE verifier/challenge pair and a random state
+     */
+    createPkce(): { state: string; verifier: string; challenge: string } {
+        const verifier = crypto.randomBytes(32).toString('base64url');
+        const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+        const state = crypto.randomBytes(16).toString('base64url');
+        return { state, verifier, challenge };
     }
 
     /**
      * Exchange authorization code for access token
      */
-    async getAccessToken(code: string): Promise<TokenData> {
+    async getAccessToken(code: string, codeVerifier?: string): Promise<TokenData> {
         try {
             console.log('[DEBUG] getting access token with ID:', this.appId ? 'FOUND' : 'MISSING');
-            const response = await axios.post('https://api.mercadolibre.com/oauth/token', {
+            const params = new URLSearchParams({
                 grant_type: 'authorization_code',
                 client_id: this.appId,
                 client_secret: this.appSecret,
                 code: code,
                 redirect_uri: this.redirectUri,
             });
+            if (codeVerifier) params.append('code_verifier', codeVerifier);
+            const response = await axios.post('https://api.mercadolibre.com/oauth/token', params);
 
             this.tokenData = {
                 ...response.data,
@@ -117,17 +133,36 @@ export class MercadoLibreAuth {
      * Refresh the access token using refresh token
      */
     async refreshAccessToken(): Promise<TokenData> {
+        // MercadoLibre refresh tokens are single-use: share one in-flight refresh
+        // so concurrent requests don't burn the token twice.
+        if (!this.refreshPromise) {
+            this.refreshPromise = this.doRefresh().finally(() => {
+                this.refreshPromise = null;
+            });
+        }
+        return this.refreshPromise;
+    }
+
+    private refreshPromise: Promise<TokenData> | null = null;
+
+    private async doRefresh(): Promise<TokenData> {
+        // Another serverless instance may have already rotated the token
+        await this.loadTokensAsync();
+        if (this.tokenData && !this.isTokenExpired()) {
+            return this.tokenData;
+        }
+
         if (!this.tokenData?.refresh_token) {
             throw new Error('No refresh token available');
         }
 
         try {
-            const response = await axios.post('https://api.mercadolibre.com/oauth/token', {
+            const response = await axios.post('https://api.mercadolibre.com/oauth/token', new URLSearchParams({
                 grant_type: 'refresh_token',
                 client_id: this.appId,
                 client_secret: this.appSecret,
                 refresh_token: this.tokenData.refresh_token,
-            });
+            }));
 
             this.tokenData = {
                 ...response.data,
@@ -139,6 +174,11 @@ export class MercadoLibreAuth {
             return this.tokenData!;
         } catch (error: any) {
             console.error('Error refreshing token:', error.response?.data || error.message);
+            if (error.response?.data?.error === 'invalid_grant') {
+                // Refresh token revoked or expired: the user must re-authorize
+                await this.clearTokens();
+                throw new Error('Authorization expired. Please re-authorize the app.');
+            }
             throw error;
         }
     }
@@ -182,6 +222,16 @@ export class MercadoLibreAuth {
      */
     hasValidToken(): boolean {
         return this.tokenData !== null && !this.isTokenExpired();
+    }
+
+    /**
+     * Whether a token (possibly expired but refreshable) is stored
+     */
+    async isConnected(): Promise<boolean> {
+        if (!this.tokenData) {
+            await this.loadTokensAsync();
+        }
+        return !!this.tokenData?.refresh_token;
     }
 
     /**

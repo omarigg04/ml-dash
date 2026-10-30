@@ -27,10 +27,7 @@ export class TopNavComponent {
 
   loginWithMercadoLibre(): void {
     // Abrir OAuth de MercadoLibre en una nueva ventana popup
-    // En producción: /api/auth, En desarrollo: http://localhost:3000/auth
-    const authUrl = environment.production
-      ? '/api/auth'  // Producción (Vercel)
-      : 'http://localhost:3000/auth';  // Desarrollo local
+    const authUrl = `${environment.apiUrl}/auth`;
 
     // Abrir popup centrado
     const width = 600;
@@ -49,8 +46,8 @@ export class TopNavComponent {
       const checkClosed = setInterval(() => {
         if (popup.closed) {
           clearInterval(checkClosed);
-          console.log('✅ Autorización de MercadoLibre completada');
-          // Opcional: recargar datos si es necesario
+          // Recargar para que los componentes pidan datos con el token nuevo
+          window.location.reload();
         }
       }, 500);
     }
