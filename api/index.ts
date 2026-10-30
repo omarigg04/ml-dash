@@ -31,8 +31,22 @@ app.get('/api', (req, res) => {
   });
 });
 
+// Token-handling admin endpoints: always allowed locally, require
+// the x-admin-secret header (ADMIN_SECRET env var) on Vercel
+const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!process.env['VERCEL']) return next();
+  const secret = process.env['ADMIN_SECRET'];
+  if (secret && req.header('x-admin-secret') === secret) return next();
+  res.status(403).json({ error: 'Forbidden' });
+};
+
+// Connection status for the frontend (never exposes tokens)
+app.get('/api/auth/status', async (req, res) => {
+  res.json({ connected: await mlAuth.isConnected() });
+});
+
 // Debug endpoint to get current token
-app.get('/api/debug/token', async (req, res) => {
+app.get('/api/debug/token', requireAdmin, async (req, res) => {
   try {
     await (mlAuth as any).loadTokensAsync?.() || Promise.resolve();
     const tokenData = (mlAuth as any).tokenData;
@@ -45,12 +59,6 @@ app.get('/api/debug/token', async (req, res) => {
     }
 
     const scopesArray = tokenData.scope?.split(' ') || [];
-
-    console.log('🔑 Token Debug Info (from /api/debug/token):');
-    console.log('  - Token length:', tokenData.access_token?.length || 0);
-    console.log('  - Full TOKEN:', tokenData.access_token);
-    console.log('  - Refresh Token:', tokenData.refresh_token);
-    console.log('  - Scopes granted:', tokenData.scope || 'NO SCOPES');
 
     res.json({
       hasToken: true,
@@ -78,7 +86,6 @@ app.get('/api/debug/token', async (req, res) => {
 app.get('/api/user/status', async (req, res) => {
   try {
     const token = await mlAuth.getToken();
-    console.log(token)
     // Get user info
     const userResponse = await axios.get('https://api.mercadolibre.com/users/me', {
       headers: { Authorization: `Bearer ${token}` }
@@ -113,22 +120,46 @@ app.get('/api/user/status', async (req, res) => {
 });
 
 // OAuth authorization endpoint
+// PKCE verifier + state travel in a short-lived httpOnly cookie between /auth and /callback
+const OAUTH_COOKIE = 'ml_oauth';
+
 app.get('/api/auth', (req, res) => {
-  const authUrl = mlAuth.getAuthorizationUrl();
-  res.redirect(authUrl);
+  const { state, verifier, challenge } = mlAuth.createPkce();
+  res.cookie(OAUTH_COOKIE, JSON.stringify({ state, verifier }), {
+    httpOnly: true,
+    secure: !!process.env['VERCEL'],
+    sameSite: 'lax',
+    maxAge: 10 * 60 * 1000,
+  });
+  res.redirect(mlAuth.getAuthorizationUrl(state, challenge));
 });
 
 // OAuth callback endpoint
 app.get('/api/callback', async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
 
   if (!code || typeof code !== 'string') {
     res.status(400).send('Authorization code not found');
     return;
   }
 
+  const rawCookie = (req.headers.cookie || '')
+    .split(';')
+    .map(c => c.trim())
+    .find(c => c.startsWith(`${OAUTH_COOKIE}=`));
+  let saved: { state?: string; verifier?: string } = {};
   try {
-    await mlAuth.getAccessToken(code);
+    saved = rawCookie ? JSON.parse(decodeURIComponent(rawCookie.slice(OAUTH_COOKIE.length + 1))) : {};
+  } catch { /* malformed cookie: treated as missing */ }
+  res.clearCookie(OAUTH_COOKIE);
+
+  if (!saved.state || saved.state !== state) {
+    res.status(400).send('Invalid OAuth state. Please start again from /api/auth');
+    return;
+  }
+
+  try {
+    await mlAuth.getAccessToken(code, saved.verifier);
     res.send(`
       <html>
         <head>
@@ -168,8 +199,12 @@ app.get('/api/callback', async (req, res) => {
             <div class="success">✅</div>
             <h1>¡Autorización exitosa!</h1>
             <p>Tu app ha sido autorizada correctamente.</p>
-            <a href="/">Ir al Dashboard</a>
+            <a href="${process.env['FRONTEND_URL'] || '/'}">Ir al Dashboard</a>
           </div>
+          <script>
+            // Opened as a popup from the dashboard: close it so the app reloads
+            if (window.opener) window.close();
+          </script>
         </body>
       </html>
     `);
@@ -213,7 +248,7 @@ app.get('/api/callback', async (req, res) => {
 });
 
 // Inject token endpoint (for local development testing)
-app.post('/api/auth/inject-token', async (req, res) => {
+app.post('/api/auth/inject-token', requireAdmin, async (req, res) => {
   try {
     const { access_token, refresh_token, expires_in, scope } = req.body;
 
