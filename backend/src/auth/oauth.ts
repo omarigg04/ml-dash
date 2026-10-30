@@ -188,6 +188,15 @@ export class MercadoLibreAuth {
         } catch (error: any) {
             console.error('Error refreshing token:', error.response?.data || error.message);
             if (error.response?.data?.error === 'invalid_grant') {
+                // Another instance may have rotated the token (new login or a
+                // concurrent refresh): use the stored one instead of wiping it
+                const usedRefreshToken = this.tokenData.refresh_token;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await this.loadTokensAsync();
+                if (this.tokenData && this.tokenData.refresh_token !== usedRefreshToken) {
+                    return this.tokenData;
+                }
+
                 // Refresh token revoked or expired: the user must re-authorize
                 await this.clearTokens();
                 throw new Error('Authorization expired. Please re-authorize the app.');
@@ -215,6 +224,13 @@ export class MercadoLibreAuth {
     async getToken(): Promise<string> {
         // Ensure tokens are loaded
         if (!this.tokenData) {
+            await this.loadTokensAsync();
+        }
+
+        // A token just saved by another serverless instance (e.g. right after
+        // login) may take a moment to be readable from KV: retry once
+        if (!this.tokenData && process.env['KV_REST_API_URL']) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
             await this.loadTokensAsync();
         }
 

@@ -320,6 +320,12 @@
             }
           }
 
+          &.btn-download {
+            &:hover {
+              color: hsl(var(--success));
+            }
+          }
+
           &.btn-delete {
             &:hover {
               background-color: hsl(var(--destructive));
@@ -828,6 +834,12 @@
             }
           }
 
+          &.btn-download {
+            &:hover {
+              color: hsl(var(--success));
+            }
+          }
+
           &.btn-view-item {
             &:hover {
               color: hsl(var(--success));
@@ -905,6 +917,9 @@
       }
 
       .catalog-actions {
+        display: flex;
+        gap: 0.5rem;
+
         .action-btn {
           width: 100%;
           display: flex;
