@@ -242,6 +242,33 @@ export class ImageGalleryComponent implements OnInit {
   }
 
   /**
+   * Download image file (ML CDN allows CORS, so we fetch it as a blob;
+   * a plain <a download> is ignored for cross-origin URLs)
+   */
+  async downloadImage(url: string, fileName: string): Promise<void> {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const extension = blob.type.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `${fileName}.${extension}`;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+
+      this.successMessage = 'Imagen descargada';
+      setTimeout(() => this.successMessage = '', 2000);
+    } catch (err) {
+      console.error('Error downloading image:', err);
+      // Fallback: abrir la imagen para guardarla manualmente
+      window.open(url, '_blank');
+    }
+  }
+
+  /**
    * Delete image from gallery
    */
   deleteImage(imageId: string): void {

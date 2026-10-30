@@ -101,6 +101,11 @@
                   matTooltip="Copiar URL miniatura">
             <mat-icon>photo_size_select_small</mat-icon>
           </button>
+          <button class="overlay-btn btn-download"
+                  (click)="downloadImage(image.fullSizeUrl, image.id)"
+                  matTooltip="Descargar imagen">
+            <mat-icon>download</mat-icon>
+          </button>
           <button class="overlay-btn btn-delete"
                   (click)="deleteImage(image.id)"
                   matTooltip="Eliminar de galería">
@@ -123,6 +128,10 @@
           <button class="url-btn" (click)="copyUrl(image.thumbnailUrl, 'thumbnail')">
             <mat-icon>content_copy</mat-icon>
             <span>Miniatura</span>
+          </button>
+          <button class="url-btn" (click)="downloadImage(image.fullSizeUrl, image.id)">
+            <mat-icon>download</mat-icon>
+            <span>Descargar</span>
           </button>
         </div>
       </div>
@@ -251,6 +260,11 @@
                       matTooltip="Copiar URL miniatura">
                 <mat-icon>photo_size_select_small</mat-icon>
               </button>
+              <button class="overlay-btn btn-download"
+                      (click)="downloadImage(image.full_url, image.source_item.id + '-' + image.picture_id)"
+                      matTooltip="Descargar imagen">
+                <mat-icon>download</mat-icon>
+              </button>
               <button class="overlay-btn btn-view-item"
                       (click)="viewSourceItem(image.source_item.id)"
                       matTooltip="Ver publicación">
@@ -273,6 +287,10 @@
               <button class="action-btn" (click)="copyCatalogUrl(image.full_url, 'full')">
                 <mat-icon>content_copy</mat-icon>
                 <span>Copiar URL</span>
+              </button>
+              <button class="action-btn" (click)="downloadImage(image.full_url, image.source_item.id + '-' + image.picture_id)">
+                <mat-icon>download</mat-icon>
+                <span>Descargar</span>
               </button>
             </div>
           </div>
