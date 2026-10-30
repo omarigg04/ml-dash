@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
-import { mlAuth } from '../backend/src/auth/oauth';
+import { mlAuth, UserNotAllowedError } from '../backend/src/auth/oauth';
+import { createSession, getSession, clearSession, getCookie } from '../backend/src/auth/session';
 import ordersRouter from '../backend/src/routes/orders';
 import shipmentsRouter from '../backend/src/routes/shipments';
 import itemsRouter from '../backend/src/routes/items';
@@ -22,6 +23,24 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Session auth for /api/*. Skipped locally (OAuth needs a public HTTPS
+// callback, so local dev can't obtain a session cookie)
+const PUBLIC_PATHS = [
+  '/api',
+  '/api/auth',
+  '/api/callback',
+  '/api/auth/status',
+  '/api/auth/logout',
+  '/api/debug/token',        // protected by requireAdmin
+  '/api/auth/inject-token',  // protected by requireAdmin
+];
+app.use((req, res, next) => {
+  if (!process.env['VERCEL'] || PUBLIC_PATHS.includes(req.path) || getSession(req)) {
+    return next();
+  }
+  res.status(401).json({ error: 'Unauthorized', message: 'Please log in with MercadoLibre' });
+});
+
 // Health check endpoint
 app.get('/api', (req, res) => {
   res.json({
@@ -40,9 +59,19 @@ const requireAdmin = (req: express.Request, res: express.Response, next: express
   res.status(403).json({ error: 'Forbidden' });
 };
 
-// Connection status for the frontend (never exposes tokens)
+// Session + store connection status for the frontend (never exposes tokens)
 app.get('/api/auth/status', async (req, res) => {
-  res.json({ connected: await mlAuth.isConnected() });
+  const session = getSession(req);
+  res.json({
+    authenticated: !process.env['VERCEL'] || !!session,
+    userId: session?.uid ?? null,
+    connected: await mlAuth.isConnected(),
+  });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSession(res);
+  res.json({ success: true });
 });
 
 // Debug endpoint to get current token
@@ -119,13 +148,18 @@ app.get('/api/user/status', async (req, res) => {
 
 });
 
-// OAuth authorization endpoint
-// PKCE verifier + state travel in a short-lived httpOnly cookie between /auth and /callback
+// OAuth login: ML authorization doubles as the dashboard login.
+// PKCE verifier, state and returnUrl travel in a short-lived httpOnly cookie
 const OAUTH_COOKIE = 'ml_oauth';
+const frontendUrl = (path: string) => `${process.env['FRONTEND_URL'] || ''}${path}`;
 
 app.get('/api/auth', (req, res) => {
+  const requested = typeof req.query['returnUrl'] === 'string' ? req.query['returnUrl'] : '/';
+  // Only same-site relative paths, to avoid open redirects
+  const returnUrl = requested.startsWith('/') && !requested.startsWith('//') ? requested : '/';
+
   const { state, verifier, challenge } = mlAuth.createPkce();
-  res.cookie(OAUTH_COOKIE, JSON.stringify({ state, verifier }), {
+  res.cookie(OAUTH_COOKIE, JSON.stringify({ state, verifier, returnUrl }), {
     httpOnly: true,
     secure: !!process.env['VERCEL'],
     sameSite: 'lax',
@@ -138,112 +172,33 @@ app.get('/api/auth', (req, res) => {
 app.get('/api/callback', async (req, res) => {
   const { code, state } = req.query;
 
-  if (!code || typeof code !== 'string') {
-    res.status(400).send('Authorization code not found');
-    return;
-  }
-
-  const rawCookie = (req.headers.cookie || '')
-    .split(';')
-    .map(c => c.trim())
-    .find(c => c.startsWith(`${OAUTH_COOKIE}=`));
-  let saved: { state?: string; verifier?: string } = {};
+  let saved: { state?: string; verifier?: string; returnUrl?: string } = {};
   try {
-    saved = rawCookie ? JSON.parse(decodeURIComponent(rawCookie.slice(OAUTH_COOKIE.length + 1))) : {};
+    saved = JSON.parse(getCookie(req, OAUTH_COOKIE) || '{}');
   } catch { /* malformed cookie: treated as missing */ }
   res.clearCookie(OAUTH_COOKIE);
 
+  if (!code || typeof code !== 'string') {
+    res.redirect(frontendUrl('/login?error=no_code'));
+    return;
+  }
+
   if (!saved.state || saved.state !== state) {
-    res.status(400).send('Invalid OAuth state. Please start again from /api/auth');
+    res.redirect(frontendUrl('/login?error=invalid_state'));
     return;
   }
 
   try {
-    await mlAuth.getAccessToken(code, saved.verifier);
-    res.send(`
-      <html>
-        <head>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              height: 100vh;
-              margin: 0;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            }
-            .container {
-              background: white;
-              padding: 40px;
-              border-radius: 10px;
-              box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-              text-align: center;
-            }
-            h1 { color: #333; margin-bottom: 10px; }
-            p { color: #666; margin-bottom: 20px; }
-            .success { color: #4CAF50; font-size: 48px; margin-bottom: 20px; }
-            a {
-              display: inline-block;
-              background: #667eea;
-              color: white;
-              text-decoration: none;
-              padding: 12px 24px;
-              border-radius: 6px;
-              margin-top: 15px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="success">✅</div>
-            <h1>¡Autorización exitosa!</h1>
-            <p>Tu app ha sido autorizada correctamente.</p>
-            <a href="${process.env['FRONTEND_URL'] || '/'}">Ir al Dashboard</a>
-          </div>
-          <script>
-            // Opened as a popup from the dashboard: close it so the app reloads
-            if (window.opener) window.close();
-          </script>
-        </body>
-      </html>
-    `);
+    const tokenData = await mlAuth.getAccessToken(code, saved.verifier);
+    createSession(res, tokenData.user_id);
+    res.redirect(frontendUrl(saved.returnUrl || '/'));
   } catch (error) {
     console.error('Error in callback:', error);
-    res.status(500).send(`
-      <html>
-        <head>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              height: 100vh;
-              margin: 0;
-              background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            }
-            .container {
-              background: white;
-              padding: 40px;
-              border-radius: 10px;
-              box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-              text-align: center;
-            }
-            h1 { color: #333; margin-bottom: 10px; }
-            p { color: #666; }
-            .error { color: #f5576c; font-size: 48px; margin-bottom: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="error">❌</div>
-            <h1>Error en la autorización</h1>
-            <p>Hubo un problema al autorizar la app. Por favor intenta de nuevo.</p>
-          </div>
-        </body>
-      </html>
-    `);
+    if (error instanceof UserNotAllowedError) {
+      res.redirect(frontendUrl(`/login?error=not_allowed&uid=${error.userId}`));
+      return;
+    }
+    res.redirect(frontendUrl('/login?error=auth_failed'));
   }
 });
 

@@ -1,18 +1,25 @@
 import { Injectable } from '@angular/core';
-import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { AuthService } from '../services/auth.service';
+import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent, HttpErrorResponse } from '@angular/common/http';
+import { Router } from '@angular/router';
+import { Observable, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
-  constructor(private authService: AuthService) {}
+  constructor(private router: Router) {}
 
   intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    // TEMPORALMENTE SIMPLIFICADO:
-    // Como el authMiddleware del backend está deshabilitado,
-    // no necesitamos enviar credenciales por ahora
-
-    // Simplemente pasar el request sin modificaciones
-    return next.handle(req);
+    // La sesión viaja en una cookie httpOnly (mismo dominio en producción),
+    // así que solo hay que reaccionar cuando expira
+    return next.handle(req).pipe(
+      catchError((error: HttpErrorResponse) => {
+        if (error.status === 401 && !this.router.url.startsWith('/login')) {
+          this.router.navigate(['/login'], {
+            queryParams: { returnUrl: this.router.url }
+          });
+        }
+        return throwError(() => error);
+      })
+    );
   }
 }
