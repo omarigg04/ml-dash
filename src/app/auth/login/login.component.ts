@@ -35,6 +35,9 @@ export class LoginComponent {
       case 'not_allowed':
         return `La cuenta de MercadoLibre (user_id ${uid}) no tiene acceso a este dashboard. ` +
           'Si es tu cuenta, configura ALLOWED_ML_USER_ID con ese valor en Vercel.';
+      case 'storage_failed':
+        return 'Iniciaste sesión, pero no se pudo guardar el token de MercadoLibre ' +
+          '(almacenamiento KV/Upstash no disponible). Revisa la base de datos en Vercel → Storage.';
       case 'invalid_state':
         return 'La sesión de autorización expiró. Intenta de nuevo.';
       default:

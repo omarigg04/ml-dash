@@ -14,32 +14,41 @@ const kvRestApi = async (method: string, params: any[] = []) => {
     const token = process.env['KV_REST_API_TOKEN'];
 
     if (!url || !token) {
-        console.log('[DEBUG] KV Env Vars missing');
-        return null;
+        throw new Error('KV env vars missing (KV_REST_API_URL / KV_REST_API_TOKEN)');
     }
 
+    // Upstash/Vercel KV REST API: POST / with the command as a JSON array.
+    // Errors are thrown (not swallowed) so a broken store is visible instead
+    // of tokens silently living only in one instance's memory
+    const response = await fetch(`${url}/`, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        throw new Error(`KV REST API Error: ${response.status} ${response.statusText} ${body}`);
+    }
+
+    const data = await response.json() as any;
+    return data.result;
+};
+
+/**
+ * Check that the token store (KV) is reachable
+ */
+export const checkTokenStorage = async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!process.env['KV_REST_API_URL']) {
+        return { ok: false, error: 'KV_REST_API_URL not set' };
+    }
     try {
-        // Append command to URL for Upstash/Vercel KV REST API
-        // e.g. https://.../mget/key1/key2 or just set/get
-        // For simple commands: POST /
-        const response = await fetch(`${url}/`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(params),
-        });
-
-        if (!response.ok) {
-            console.log(`[DEBUG] KV REST API Error: ${response.status} ${response.statusText}`);
-            return null;
-        }
-
-        const data = await response.json() as any;
-        return data.result;
-    } catch (error) {
-        console.log('[DEBUG] KV Fetch Error:', error);
-        return null;
+        await kvRestApi('POST', ['PING']);
+        return { ok: true };
+    } catch (error: any) {
+        return { ok: false, error: error.message };
     }
 };
 
@@ -48,6 +57,8 @@ export class UserNotAllowedError extends Error {
         super(`MercadoLibre user ${userId} is not allowed (ALLOWED_ML_USER_ID)`);
     }
 }
+
+export class TokenStorageError extends Error {}
 
 export class MercadoLibreAuth {
     // Removed cached properties to force dynamic lookup
@@ -327,7 +338,11 @@ export class MercadoLibreAuth {
                 return;
             } catch (error) {
                 console.error('Error saving tokens to Vercel KV:', error);
+                // On serverless there is no fallback: the token would be lost
+                if (this.isServerless()) throw new TokenStorageError((error as Error).message);
             }
+        } else if (this.isServerless()) {
+            throw new TokenStorageError('No token storage configured (KV_REST_API_URL missing)');
         }
 
         // Fallback to file storage for local development

@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
-import { mlAuth, UserNotAllowedError } from '../backend/src/auth/oauth';
+import { mlAuth, UserNotAllowedError, TokenStorageError, checkTokenStorage } from '../backend/src/auth/oauth';
 import { createSession, getSession, clearSession, getCookie } from '../backend/src/auth/session';
 import ordersRouter from '../backend/src/routes/orders';
 import shipmentsRouter from '../backend/src/routes/shipments';
@@ -66,6 +66,7 @@ app.get('/api/auth/status', async (req, res) => {
     authenticated: !process.env['VERCEL'] || !!session,
     userId: session?.uid ?? null,
     connected: await mlAuth.isConnected(),
+    storage: await checkTokenStorage(),
   });
 });
 
@@ -196,6 +197,10 @@ app.get('/api/callback', async (req, res) => {
     console.error('Error in callback:', error);
     if (error instanceof UserNotAllowedError) {
       res.redirect(frontendUrl(`/login?error=not_allowed&uid=${error.userId}`));
+      return;
+    }
+    if (error instanceof TokenStorageError) {
+      res.redirect(frontendUrl('/login?error=storage_failed'));
       return;
     }
     res.redirect(frontendUrl('/login?error=auth_failed'));
