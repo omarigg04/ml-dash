@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import fs from 'fs';
+import https from 'https';
 import { mlAuth, UserNotAllowedError, TokenStorageError, checkTokenStorage } from '../backend/src/auth/oauth';
 import { createSession, getSession, clearSession, getCookie } from '../backend/src/auth/session';
 import ordersRouter from '../backend/src/routes/orders';
@@ -255,12 +257,25 @@ app.use((err: any, req: any, res: any, next: any) => {
 
 // Start server for local development only (not in Vercel)
 if (!process.env['VERCEL']) {
-  const PORT = process.env['PORT'] || 3000;
-  app.listen(PORT, () => {
-    console.log('\n🚀 MercadoLibre Dashboard Backend (Local)');
-    console.log(`📡 Server running on http://localhost:${PORT}`);
-    console.log(`🔐 CORS enabled for all origins\n`);
-  });
+  const PORT = Number(process.env['PORT'] || 3000);
+  // Loopback only: the local backend holds the owner's ML token
+  const HOST = '127.0.0.1';
+  const certPath = process.env['LOCAL_HTTPS_CERT'];
+  const keyPath = process.env['LOCAL_HTTPS_KEY'];
+
+  // ML rejects plain-http and "localhost" redirect URIs, so local OAuth
+  // uses https://127.0.0.1:<PORT>/api/callback with a self-signed cert
+  if (certPath && keyPath) {
+    https
+      .createServer({ cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) }, app)
+      .listen(PORT, HOST, () => {
+        console.log(`\n🚀 MercadoLibre Dashboard Backend (Local) on https://${HOST}:${PORT}\n`);
+      });
+  } else {
+    app.listen(PORT, HOST, () => {
+      console.log(`\n🚀 MercadoLibre Dashboard Backend (Local) on http://${HOST}:${PORT}\n`);
+    });
+  }
 }
 
 // Export for Vercel serverless

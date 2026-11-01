@@ -70,7 +70,8 @@
         },
         "serve": {
           "options": {
-            "proxyConfig": "proxy.conf.json"
+            "proxyConfig": "proxy.conf.json",
+            "host": "127.0.0.1"
           },
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {

@@ -12,6 +12,9 @@ dist/
 # Tokens
 tokens.json
 
+# Local HTTPS certificates
+certs/
+
 # IDE
 .vscode/
 .idea/

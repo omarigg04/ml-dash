@@ -53,3 +53,7 @@ docs/
 /README_DEPLOY.md
 /DEPLOYMENT.md
 /backend/README.md
+
+# Local QA artifacts
+.screenshots/
+.playwright-mcp/
