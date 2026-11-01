@@ -1,5 +1,4 @@
-import { Component, ViewChild } from '@angular/core';
-import { SidebarComponent } from './sidebar.component';
+import { Component, HostListener } from '@angular/core';
 
 @Component({
   selector: 'app-layout',
@@ -7,11 +6,24 @@ import { SidebarComponent } from './sidebar.component';
   styleUrls: ['./layout.component.scss']
 })
 export class LayoutComponent {
-  @ViewChild(SidebarComponent) sidebar!: SidebarComponent;
+  /** Menú lateral abierto (solo aplica en móvil/tablet; en escritorio siempre está visible). */
+  navOpen = false;
 
-  onMenuToggle() {
-    if (this.sidebar) {
-      this.sidebar.toggleMobileSidebar();
-    }
+  toggleNav(): void {
+    this.navOpen = !this.navOpen;
+  }
+
+  closeNav(): void {
+    this.navOpen = false;
+  }
+
+  @HostListener('window:resize')
+  onResize(): void {
+    if (window.innerWidth > 920) this.navOpen = false;
+  }
+
+  focusMain(event: Event): void {
+    event.preventDefault();
+    document.getElementById('contenido')?.focus();
   }
 }

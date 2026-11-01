@@ -1,42 +1,180 @@
 /* ==========================================
-   CMS FULLFORM DASHBOARD - STYLES
-   Adapted from cms-full-form-admin-dashboard
+   MlDash - Sistema de diseño "Operativo" (Dirección B)
+   Fuente: docs/auditoria/ui-propuestas/index.html (pestaña B)
+   Tokens claro en :root, oscuro en body.dark-theme (lo aplica ThemeService).
+   Los tokens shadcn (--background, --card, --primary...) son triplets HSL y se
+   usan como hsl(var(--x)); los --ds-* son valores directos.
    ========================================== */
 
-// Import AG Grid styles
+@use "styles/material-theme";
+
 @import "ag-grid-community/styles/ag-grid.css";
-@import "ag-grid-community/styles/ag-theme-alpine.css";
+@import "ag-grid-community/styles/ag-theme-quartz.css";
+
+:root {
+  /* Superficies y texto */
+  --background: 0 0% 100%;                    /* input-bg / superficie #FFFFFF */
+  --foreground: 222.9 11.9% 11.6%;            /* #1A1C21 */
+  --card: 0 0% 100%;                          /* #FFFFFF */
+  --card-foreground: 222.9 11.9% 11.6%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.9 11.9% 11.6%;
+  --secondary: 220 20% 97.1%;                 /* surface-2 #F6F7F9 */
+  --secondary-foreground: 222.9 11.9% 11.6%;
+  --muted: 220 20% 97.1%;
+  --muted-foreground: 219 9.8% 40%;           /* #5C6370 */
+  --accent: 220 13.6% 91.4%;                  /* hover #E6E8EC */
+  --accent-foreground: 222.9 11.9% 11.6%;
+  --border: 217.5 12.9% 87.8%;                /* #DCDFE4 */
+  --input: 219 9.3% 58%;                      /* borde de input #8A919E */
+  --ring: 243.4 75.4% 58.6%;                  /* #4F46E5 */
+
+  /* Marca y estados */
+  --primary: 243.4 75.4% 58.6%;               /* #4F46E5 */
+  --primary-foreground: 0 0% 100%;
+  --destructive: 4.2 76.5% 40%;               /* #B42318 */
+  --destructive-foreground: 0 0% 100%;
+  --success: 152.8 78.3% 27.1%;               /* #0F7B4A */
+  --success-light: 150 47.4% 92.5%;           /* #E3F5EC */
+  --warning: 36.1 100% 27.1%;                 /* #8A5300 */
+  --warning-light: 39.5 100% 92%;             /* #FFF1D6 */
+  --info: 225.5 58.4% 44.3%;                  /* #2F4FB3 */
+  --info-light: 222.9 72.4% 94.3%;            /* #E6ECFB */
+
+  /* Series de gráficas (las lee ChartThemeService) */
+  --chart-1: 243.4 75.4% 58.6%;               /* #4F46E5 */
+  --chart-2: 174.7 83.9% 31.6%;               /* #0D9488 */
+  --chart-3: 225.5 58.4% 44.3%;
+  --chart-4: 36.1 100% 27.1%;
+  --chart-5: 4.2 76.5% 40%;
+
+  /* Tokens B sin equivalente shadcn */
+  --ds-bg: #F1F2F4;                           /* fondo de página */
+  --ds-border-strong: #C5CAD3;
+  --ds-grid: #EEF0F3;
+  --ds-off-bg: #ECEEF1;
+  --ds-off-fg: #4B5260;
+  --ds-tip-bg: #1A1C21;
+  --ds-tip-fg: #F1F2F4;
+  --ds-focus: #4F46E5;
+  --ds-shadow: 0 1px 0 rgba(16, 24, 40, .04);
+
+  /* Tipografía */
+  --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --fs: 13px;
+
+  /* Layout y densidad (B) */
+  --sidebar-width: 212px;
+  --header-height: 48px;
+  --page-pad: 20px;
+  --gap: 12px;
+  --card-pad: 14px;
+  --ctl-h: 30px;
+
+  /* Radios */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+body.dark-theme {
+  --background: 222.9 14.9% 9.2%;             /* #14161B */
+  --foreground: 220 15% 92.2%;                /* #E8EAEE */
+  --card: 222 15.2% 12.9%;                    /* #1C1F26 */
+  --card-foreground: 220 15% 92.2%;
+  --popover: 222 15.2% 12.9%;
+  --popover-foreground: 220 15% 92.2%;
+  --secondary: 220 15% 15.7%;                 /* #22262E */
+  --secondary-foreground: 220 15% 92.2%;
+  --muted: 220 15% 15.7%;
+  --muted-foreground: 219 11% 64.3%;          /* #9AA1AE */
+  --accent: 221.5 14.6% 17.5%;                /* #262A33 */
+  --accent-foreground: 220 15% 92.2%;
+  --border: 220 14.6% 20.2%;                  /* #2C313B */
+  --input: 220 8.9% 46.1%;                    /* #6B7280 */
+  --ring: 243 100% 76.1%;                     /* #8B85FF */
+
+  --primary: 243 100% 76.1%;                  /* #8B85FF */
+  --primary-foreground: 222.9 14.9% 9.2%;
+  --destructive: 4.5 100% 79%;                /* #FF9C94 */
+  --destructive-foreground: 4.7 48.7% 15.3%;
+  --success: 150.5 56.9% 60%;                 /* #5FD39A */
+  --success-light: 153.8 47.1% 13.3%;         /* #123224 */
+  --warning: 37.8 87.3% 69%;                  /* #F5C26B */
+  --warning-light: 40 61.9% 12.4%;
+  --info: 225.9 100% 80.8%;                   /* #9DB4FF */
+  --info-light: 225.3 46.4% 19%;
+
+  --chart-1: 243 82.1% 67.1%;                 /* #6D66F0 */
+  --chart-2: 173.3 82.7% 33.9%;               /* #0F9E8E */
+  --chart-3: 225.9 100% 80.8%;
+  --chart-4: 37.8 87.3% 69%;
+  --chart-5: 4.5 100% 79%;
+
+  --ds-bg: #14161B;
+  --ds-border-strong: #3A404C;
+  --ds-grid: #262A33;
+  --ds-off-bg: #262A33;
+  --ds-off-fg: #C4C9D2;
+  --ds-tip-bg: #E8EAEE;
+  --ds-tip-fg: #14161B;
+  --ds-focus: #8B85FF;
+  --ds-shadow: none;
+}
 
 /* ==========================================
-   AG GRID THEME CUSTOMIZATION
+   AG GRID (Quartz) - un solo lugar para todas las tablas
+   Densidad compacta de B: filas de 40px, 13px, IBM Plex.
    ========================================== */
 
-/* Modo claro - texto negro y legible */
-.ag-theme-alpine {
-  --ag-background-color: #ffffff;
-  --ag-foreground-color: #000000;
-  --ag-border-color: #e0e0e0;
-  --ag-header-background-color: #f5f5f5;
-  --ag-header-foreground-color: #000000;
-  --ag-odd-row-background-color: #ffffff;
-  --ag-even-row-background-color: #fafafa;
-  --ag-row-hover-color: rgba(0, 0, 0, 0.04);
-  --ag-selected-row-background-color: rgba(33, 150, 243, 0.08);
+.ag-theme-quartz {
+  --ag-font-family: var(--font);
+  --ag-font-size: 13px;
+  --ag-grid-size: 6px;
+  --ag-row-height: 40px;
+  --ag-header-height: 36px;
+  --ag-list-item-height: 30px;
+  --ag-border-radius: 6px;
+  --ag-wrapper-border-radius: 8px;
+  --ag-background-color: hsl(var(--card));
+  --ag-foreground-color: hsl(var(--foreground));
+  --ag-secondary-foreground-color: hsl(var(--muted-foreground));
+  --ag-border-color: hsl(var(--border));
+  --ag-secondary-border-color: hsl(var(--border));
+  --ag-row-border-color: hsl(var(--border));
+  --ag-header-background-color: hsl(var(--secondary));
+  --ag-header-foreground-color: hsl(var(--muted-foreground));
+  --ag-header-cell-hover-background-color: hsl(var(--accent));
+  --ag-odd-row-background-color: hsl(var(--card));
+  --ag-row-hover-color: hsl(var(--secondary));
+  --ag-selected-row-background-color: hsl(var(--primary) / 0.08);
+  --ag-range-selection-border-color: hsl(var(--primary));
+  --ag-input-focus-border-color: hsl(var(--primary));
+  --ag-input-border-color: hsl(var(--input));
+  --ag-checkbox-checked-color: hsl(var(--primary));
+  --ag-control-panel-background-color: hsl(var(--card));
+  --ag-modal-overlay-background-color: hsl(var(--background) / 0.6);
+  --ag-header-column-resize-handle-color: hsl(var(--border));
   --ag-browser-color-scheme: light;
 }
 
-/* Modo oscuro - tabla oscura siguiendo el tema de la app */
-body.dark-theme .ag-theme-alpine {
-  --ag-background-color: hsl(222.2 84% 4.9%);
-  --ag-foreground-color: hsl(210 40% 98%);
-  --ag-border-color: hsl(217.2 32.6% 17.5%);
-  --ag-header-background-color: hsl(217.2 32.6% 12%);
-  --ag-header-foreground-color: hsl(210 40% 98%);
-  --ag-odd-row-background-color: hsl(222.2 84% 4.9%);
-  --ag-even-row-background-color: hsl(217.2 32.6% 8%);
-  --ag-row-hover-color: hsl(217.2 32.6% 17.5% / 0.3);
-  --ag-selected-row-background-color: hsl(217 91% 60% / 0.15);
+body.dark-theme .ag-theme-quartz {
   --ag-browser-color-scheme: dark;
+}
+
+.ag-theme-quartz .ag-header-cell,
+.ag-theme-quartz .ag-header-group-cell {
+  font-weight: 500;
+}
+
+/* Cifras en mono, alineadas a la derecha (clase de columna: cellClass: 'ds-num') */
+.ag-theme-quartz .ds-num {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 /* Ocultar overlay de carga que estaba cubriendo la tabla */
@@ -44,167 +182,7 @@ body.dark-theme .ag-theme-alpine {
   display: none !important;
 }
 
-/* ==========================================
-   CSS VARIABLES - COLOR PALETTE
-   ========================================== */
 
-:root {
-  /* Background Colors */
-  --background: 0 0% 100%;                    /* White */
-  --foreground: 222.2 84% 4.9%;              /* Dark gray text */
-
-  /* Primary Colors */
-  --primary: 222.2 47.4% 11.2%;              /* Navy blue */
-  --primary-foreground: 210 40% 98%;         /* Light text on primary */
-
-  /* Secondary Colors */
-  --secondary: 210 40% 96.1%;                /* Very light gray */
-  --secondary-foreground: 222.2 47.4% 11.2%; /* Dark text */
-
-  /* Accent Colors */
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-
-  /* Muted Colors */
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-
-  /* Destructive/Error */
-  --destructive: 0 84.2% 60.2%;              /* Red */
-  --destructive-foreground: 210 40% 98%;
-
-  /* Border & Ring */
-  --border: 214.3 31.8% 91.4%;               /* Light gray border */
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
-
-  /* Card */
-  --card: 0 0% 100%;                         /* White card background */
-  --card-foreground: 222.2 84% 4.9%;
-
-  /* Popover */
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-
-  /* Chart Colors (from CMS) */
-  --chart-1: 12 76% 61%;                     /* Orange */
-  --chart-2: 173 58% 39%;                    /* Teal */
-  --chart-3: 197 37% 24%;                    /* Blue-gray */
-  --chart-4: 43 74% 66%;                     /* Yellow */
-  --chart-5: 27 87% 67%;                     /* Orange-red */
-
-  /* Success/Positive */
-  --success: 142 76% 36%;                    /* Green */
-  --success-light: 142 76% 96%;
-
-  /* Warning */
-  --warning: 38 92% 50%;                     /* Orange */
-  --warning-light: 38 92% 95%;
-
-  /* Info */
-  --info: 217 91% 60%;                       /* Blue */
-  --info-light: 217 91% 95%;
-
-  /* Layout */
-  --sidebar-width: 256px;
-  --sidebar-collapsed-width: 64px;
-  --header-height: 64px;
-
-  /* Border Radius */
-  --radius-sm: 0.375rem;    /* 6px */
-  --radius-md: 0.5rem;      /* 8px */
-  --radius-lg: 0.75rem;     /* 12px */
-  --radius-xl: 1rem;        /* 16px */
-}
-
-/* ==========================================
-   DARK MODE THEME
-   ========================================== */
-
-body.dark-theme {
-  /* Background Colors */
-  --background: 222.2 84% 4.9%;              /* Dark background */
-  --foreground: 210 40% 98%;                 /* Light text */
-
-  /* Primary Colors */
-  --primary: 217 91% 60%;                    /* Brighter blue for dark mode */
-  --primary-foreground: 222.2 47.4% 11.2%;  /* Dark text on primary */
-
-  /* Secondary Colors */
-  --secondary: 217.2 32.6% 17.5%;            /* Dark gray */
-  --secondary-foreground: 210 40% 98%;       /* Light text */
-
-  /* Accent Colors */
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-
-  /* Muted Colors */
-  --muted: 217.2 32.6% 17.5%;                /* Dark muted background */
-  --muted-foreground: 215 20.2% 65.1%;      /* Lighter muted text */
-
-  /* Destructive/Error */
-  --destructive: 0 62.8% 30.6%;              /* Darker red */
-  --destructive-foreground: 210 40% 98%;
-
-  /* Border & Ring */
-  --border: 217.2 32.6% 17.5%;               /* Dark border */
-  --input: 217.2 32.6% 17.5%;
-  --ring: 212.7 26.8% 83.9%;
-
-  /* Card */
-  --card: 222.2 84% 4.9%;                    /* Dark card background */
-  --card-foreground: 210 40% 98%;
-
-  /* Popover */
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-
-  /* Success/Positive */
-  --success: 142 76% 36%;                    /* Keep same green */
-  --success-light: 142 76% 15%;              /* Darker success background */
-
-  /* Warning */
-  --warning: 38 92% 50%;                     /* Keep same orange */
-  --warning-light: 38 92% 15%;               /* Darker warning background */
-
-  /* Info */
-  --info: 217 91% 60%;                       /* Keep same blue */
-  --info-light: 217 91% 15%;                 /* Darker info background */
-}
-
-/* ==========================================
-   DARK MODE VARIABLES
-   ========================================== */
-
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-
-  --primary: 210 40% 98%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 212.7 26.8% 83.9%;
-
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-}
 
 /* ==========================================
    GLOBAL RESET & BASE STYLES
@@ -223,74 +201,27 @@ html, body {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: hsl(var(--background));
+  font-family: var(--font);
+  font-size: var(--fs);
+  background-color: var(--ds-bg);
   color: hsl(var(--foreground));
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ==========================================
-   LAYOUT STRUCTURE
-   ========================================== */
+/* Reemplazo del reset de Bootstrap 4 (ya no se carga por CDN) */
+a { color: hsl(var(--primary)); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1, h2, h3, h4, h5, h6 { font-weight: 600; line-height: 1.25; }
+img, svg { vertical-align: middle; }
+label { display: inline-block; }
+button, input, select, textarea { font-family: inherit; }
+table { border-collapse: collapse; }
+:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
 
-.app-container {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-}
-
-.sidebar {
-  width: var(--sidebar-width);
-  height: 100vh;
-  background-color: hsl(var(--card));
-  border-right: 1px solid hsl(var(--border));
-  transition: width 0.3s ease;
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 40;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.sidebar.collapsed {
-  width: var(--sidebar-collapsed-width);
-}
-
-.main-content {
-  flex: 1;
-  margin-left: var(--sidebar-width);
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  transition: margin-left 0.3s ease;
-  min-width: 0; /* Prevents wide content from breaking the flexbox layout */
-}
-
-.main-content.sidebar-collapsed {
-  margin-left: var(--sidebar-collapsed-width);
-}
-
-.top-header {
-  height: var(--header-height);
-  background-color: hsl(var(--card));
-  border-bottom: 1px solid hsl(var(--border));
-  display: flex;
-  align-items: center;
-  padding: 0 1.5rem;
-  position: sticky;
-  top: 0;
-  z-index: 30;
-}
-
-.content-area {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: auto; // Allow horizontal scroll for wide content like tables/charts
-  padding: 1.5rem;
-  background-color: hsl(var(--secondary));
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 
 /* ==========================================
@@ -302,13 +233,7 @@ body {
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius-lg);
   padding: 1.5rem;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-  transition: all 0.2s ease;
-}
-
-.card:hover {
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  transform: translateY(-2px);
+  box-shadow: var(--ds-shadow);
 }
 
 .card-header {
@@ -319,8 +244,6 @@ body {
   font-size: 0.875rem;
   font-weight: 500;
   color: hsl(var(--muted-foreground));
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .card-value {
@@ -372,7 +295,6 @@ body {
 
 .btn-primary:hover {
   opacity: 0.9;
-  transform: translateY(-1px);
 }
 
 .btn-secondary {
@@ -455,10 +377,8 @@ th {
   padding: 0.75rem 1rem;
   text-align: left;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   color: hsl(var(--muted-foreground));
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 td {
@@ -482,9 +402,7 @@ tbody tr:hover {
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 600;
-  border-radius: var(--radius-md);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  border-radius: 999px;
 }
 
 .badge-success {
@@ -498,7 +416,7 @@ tbody tr:hover {
 }
 
 .badge-error {
-  background-color: rgb(254 226 226);
+  background-color: hsl(var(--destructive) / 0.12);
   color: hsl(var(--destructive));
 }
 
@@ -526,24 +444,6 @@ tbody tr:hover {
    ========================================== */
 
 @media (max-width: 1322px) {
-  .sidebar {
-    transform: translateX(-100%);
-    z-index: 50; /* Ensure sidebar is on top when it slides in */
-    transition: transform 0.3s ease-in-out;
-  }
-
-  .sidebar.mobile-open {
-    transform: translateX(0);
-  }
-
-  .main-content {
-    margin-left: 0;
-  }
-
-  .content-area {
-    padding: 1rem;
-  }
-
   .grid-cols-2,
   .grid-cols-3,
   .grid-cols-4 {

@@ -1,4 +1,6 @@
-import { NgModule } from '@angular/core';
+import { LOCALE_ID, DEFAULT_CURRENCY_CODE, NgModule } from '@angular/core';
+import { registerLocaleData } from '@angular/common';
+import localeEsMx from '@angular/common/locales/es-MX';
 import { BrowserModule } from '@angular/platform-browser';
 
 import { AppRoutingModule } from './app-routing.module';
@@ -44,6 +46,8 @@ import { ToastComponent } from './shared/toast/toast.component';
 import { SettingsComponent } from './settings/settings.component';
 import { AnalyticsComponent } from './analytics/analytics.component';
 import { NotFoundComponent } from './not-found/not-found.component';
+
+registerLocaleData(localeEsMx, 'es-MX');
 
 @NgModule({
   declarations: [
@@ -94,6 +98,8 @@ import { NotFoundComponent } from './not-found/not-found.component';
   ],
   providers: [
     DatePipe,
+    { provide: LOCALE_ID, useValue: 'es-MX' },
+    { provide: DEFAULT_CURRENCY_CODE, useValue: 'MXN' },
     // IMPORTANTE: CachingInterceptor DEBE ir ANTES que AuthInterceptor
     // para que las respuestas cacheadas no pasen por autenticación
     {

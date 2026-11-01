@@ -1,0 +1,104 @@
+// Tema de Angular Material 16 (M2) generado desde los tokens de la Dirección B "Operativo".
+// Los valores salen de src/styles.scss (:root = claro, body.dark-theme = oscuro).
+// Si cambias un token de marca allí, cambia también la paleta correspondiente aquí.
+@use 'sass:map';
+@use '@angular/material' as mat;
+
+$ds-font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+$ds-typography: mat.define-typography-config(
+  $font-family: $ds-font,
+  $body-1: mat.define-typography-level(13px, 20px, 400),
+  $body-2: mat.define-typography-level(13px, 20px, 400),
+  $subtitle-1: mat.define-typography-level(14px, 22px, 500),
+  $subtitle-2: mat.define-typography-level(13px, 20px, 500),
+  $button: mat.define-typography-level(13px, 20px, 500),
+  $caption: mat.define-typography-level(12px, 18px, 400),
+  $headline-6: mat.define-typography-level(16px, 24px, 600),
+);
+
+$ds-contrast-light: (
+  50: #1a1c21, 100: #1a1c21, 200: #1a1c21, 300: #1a1c21, 400: #1a1c21,
+  500: #ffffff, 600: #ffffff, 700: #ffffff, 800: #ffffff, 900: #ffffff,
+  A100: #1a1c21, A200: #1a1c21, A400: #ffffff, A700: #ffffff,
+);
+$ds-contrast-dark: (
+  50: #14161b, 100: #14161b, 200: #14161b, 300: #14161b, 400: #14161b,
+  500: #14161b, 600: #14161b, 700: #ffffff, 800: #ffffff, 900: #ffffff,
+  A100: #14161b, A200: #14161b, A400: #14161b, A700: #14161b,
+);
+
+// Primario: #4F46E5 (claro) / #8B85FF (oscuro)
+$ds-primary-light: mat.define-palette((
+  50: #eef2ff, 100: #e0e7ff, 200: #c7d2fe, 300: #a5b4fc, 400: #818cf8,
+  500: #4f46e5, 600: #4338ca, 700: #3730a3, 800: #312e81, 900: #272566,
+  A100: #c7d2fe, A200: #a5b4fc, A400: #6d66f0, A700: #4338ca,
+  contrast: $ds-contrast-light,
+), 500, 200, 700);
+$ds-primary-dark: mat.define-palette((
+  50: #f1f0ff, 100: #dedcff, 200: #c4c1ff, 300: #a9a5ff, 400: #9a95ff,
+  500: #8b85ff, 600: #6d66f0, 700: #5a53d8, 800: #4a44b8, 900: #3a3590,
+  A100: #dedcff, A200: #c4c1ff, A400: #8b85ff, A700: #6d66f0,
+  contrast: $ds-contrast-dark,
+), 500, 200, 700);
+
+// Acento: serie 2 (#0D9488 claro / #0F9E8E oscuro)
+$ds-accent-light: mat.define-palette((
+  50: #f0fdfa, 100: #ccfbf1, 200: #99f6e4, 300: #5eead4, 400: #2dd4bf,
+  500: #0d9488, 600: #0f766e, 700: #115e59, 800: #134e4a, 900: #0f3d3a,
+  A100: #99f6e4, A200: #5eead4, A400: #2dd4bf, A700: #0f766e,
+  contrast: $ds-contrast-light,
+), 500, 200, 700);
+$ds-accent-dark: mat.define-palette((
+  50: #e6fbf7, 100: #c2f4ec, 200: #8ee6d9, 300: #5bd3c3, 400: #2ebcab,
+  500: #0f9e8e, 600: #0c8577, 700: #0a6c61, 800: #08544c, 900: #063d37,
+  A100: #8ee6d9, A200: #5bd3c3, A400: #2ebcab, A700: #0c8577,
+  contrast: $ds-contrast-dark,
+), 500, 200, 700);
+
+// Error: #B42318 claro / #FF9C94 oscuro
+$ds-warn-light: mat.define-palette((
+  50: #fdecea, 100: #fbd3cf, 200: #f5a8a1, 300: #ed7b70, 400: #dd4f41,
+  500: #b42318, 600: #a01f15, 700: #8a1a12, 800: #74150e, 900: #5c100b,
+  A100: #f5a8a1, A200: #ed7b70, A400: #dd4f41, A700: #8a1a12,
+  contrast: $ds-contrast-light,
+), 500, 200, 700);
+$ds-warn-dark: mat.define-palette((
+  50: #fff1f0, 100: #ffdcd8, 200: #ffc0ba, 300: #ffaaa3, 400: #ffa098,
+  500: #ff9c94, 600: #f27f76, 700: #d9635a, 800: #b84a42, 900: #8f352f,
+  A100: #ffdcd8, A200: #ffc0ba, A400: #ff9c94, A700: #f27f76,
+  contrast: $ds-contrast-dark,
+), 500, 200, 700);
+
+$ds-theme-light: mat.define-light-theme((
+  color: (primary: $ds-primary-light, accent: $ds-accent-light, warn: $ds-warn-light),
+  typography: $ds-typography,
+  density: -1,
+));
+$ds-theme-dark: mat.define-dark-theme((
+  color: (primary: $ds-primary-dark, accent: $ds-accent-dark, warn: $ds-warn-dark),
+  typography: $ds-typography,
+  density: -1,
+));
+
+// Superficies y texto del tema oscuro con los valores de B (por defecto Material usa #303030).
+$ds-dark-color: map.get($ds-theme-dark, color);
+$ds-dark-bg: map.merge(map.get($ds-dark-color, background), (
+  background: #14161b, card: #1c1f26, dialog: #1c1f26, app-bar: #1c1f26,
+  hover: rgba(232, 234, 238, 0.06), status-bar: #14161b,
+));
+$ds-dark-fg: map.merge(map.get($ds-dark-color, foreground), (
+  text: #e8eaee, base: #e8eaee, secondary-text: #9aa1ae, hint-text: #9aa1ae,
+  divider: #2c313b, dividers: #2c313b,
+));
+$ds-theme-dark: map.merge($ds-theme-dark, (
+  color: map.merge($ds-dark-color, (background: $ds-dark-bg, foreground: $ds-dark-fg)),
+));
+
+@include mat.core();
+@include mat.all-component-themes($ds-theme-light);
+
+// Oscuro: solo colores (la tipografía y la densidad ya vienen del tema claro).
+body.dark-theme {
+  @include mat.all-component-colors($ds-theme-dark);
+}

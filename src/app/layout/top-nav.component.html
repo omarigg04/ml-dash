@@ -1,20 +1,43 @@
-<header class="top-header">
-  <!-- Mobile Menu Toggle -->
-  <button class="mobile-menu-btn" (click)="onMenuToggle()">
-    <mat-icon>menu</mat-icon>
+<header class="gtop">
+  <button
+    class="icon-btn menu-btn"
+    type="button"
+    aria-label="Abrir menú de navegación"
+    aria-controls="contenido"
+    [attr.aria-expanded]="navOpen"
+    (click)="onMenuToggle()"
+  >
+    <mat-icon aria-hidden="true">{{ navOpen ? 'close' : 'menu' }}</mat-icon>
   </button>
 
-  <!-- Right Section -->
-  <div class="header-actions">
-    <!-- Notifications -->
-    <button class="icon-btn" [matTooltip]="'Notificaciones'">
-      <mat-icon [matBadge]="3" matBadgeColor="warn" matBadgeSize="small">notifications</mat-icon>
-    </button>
+  <a class="brand" routerLink="/analytics" aria-label="MlDash, ir al inicio">
+    <i aria-hidden="true"></i><span class="brand-name">MlDash</span>
+  </a>
 
-    <!-- Logout Button -->
-    <button class="logout-btn" (click)="logout()">
-      <mat-icon>logout</mat-icon>
-      Cerrar Sesión
-    </button>
-  </div>
+  <form class="gsearch" role="search" (submit)="onSearch($event)">
+    <mat-icon aria-hidden="true">search</mat-icon>
+    <input
+      type="search"
+      name="q"
+      [(ngModel)]="query"
+      placeholder="Buscar publicaciones…"
+      aria-label="Buscar publicaciones"
+      autocomplete="off"
+    />
+  </form>
+
+  <button
+    class="icon-btn"
+    type="button"
+    (click)="toggleTheme()"
+    [attr.aria-label]="isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+    [matTooltip]="isDark ? 'Modo claro' : 'Modo oscuro'"
+  >
+    <mat-icon aria-hidden="true">{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
+  </button>
+
+  <button class="logout-btn" type="button" (click)="logout()" aria-label="Cerrar sesión">
+    <mat-icon aria-hidden="true">logout</mat-icon>
+    <span class="logout-text">Cerrar sesión</span>
+  </button>
 </header>

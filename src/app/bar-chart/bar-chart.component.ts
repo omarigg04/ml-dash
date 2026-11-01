@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { ChartThemeService } from '../services/chart-theme.service';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { FormGroup, FormControl } from '@angular/forms';
 import { Order } from '../interfaces/Order.interface';
@@ -25,7 +26,8 @@ interface Publication {
   templateUrl: './bar-chart.component.html',
   styleUrls: ['./bar-chart.component.scss'],
 })
-export class BarChartComponent implements OnInit {
+export class BarChartComponent implements OnInit, OnDestroy {
+  private offChartTheme?: () => void;
   isLoading: boolean = true;
   totalSumIsLoading: boolean = true;
   enviosIsLoading: boolean = true;
@@ -64,7 +66,12 @@ export class BarChartComponent implements OnInit {
   topSellingProducts: Publication[] = [];
   productsLoading: boolean = true;
 
-  constructor(private http: HttpClient, private datePipe: DatePipe) {
+  constructor(private http: HttpClient, private datePipe: DatePipe, private chartTheme: ChartThemeService) {
+    // Re-aplica el tema de la gráfica cuando cambia claro/oscuro
+    this.offChartTheme = this.chartTheme.onChange(theme => {
+      this.options = { ...this.options, theme };
+    });
+
     this.dateRangeForm = new FormGroup({
       start: new FormControl(),
       end: new FormControl(),
@@ -797,6 +804,7 @@ export class BarChartComponent implements OnInit {
 
       this.options = {
         data: chartData,
+        theme: this.chartTheme.current,
         background: {
           fill: 'transparent'
         },
@@ -810,36 +818,16 @@ export class BarChartComponent implements OnInit {
             xKey: 'day',
             yKey: 'period1',
             yName: period1Name,
-            stroke: '#2EC291',  // Green
-            strokeWidth: 2.5,
-            marker: {
-              enabled: true,
-              size: 5,
-              fill: '#2EC291',
-              stroke: '#ffffff',
-              strokeWidth: 2
-            },
-            interpolation: {
-              type: 'smooth'
-            }
+            strokeWidth: 2,
+            marker: { enabled: false }
           },
           {
             type: 'line',
             xKey: 'day',
             yKey: 'period2',
             yName: period2Name,
-            stroke: '#3B82F6',  // Blue
-            strokeWidth: 2.5,
-            marker: {
-              enabled: true,
-              size: 5,
-              fill: '#3B82F6',
-              stroke: '#ffffff',
-              strokeWidth: 2
-            },
-            interpolation: {
-              type: 'smooth'
-            }
+            strokeWidth: 2,
+            marker: { enabled: false }
           }
         ],
       axes: [
@@ -878,10 +866,7 @@ export class BarChartComponent implements OnInit {
             shape: 'circle',
             size: 10
           },
-          label: {
-            fontSize: 14,
-            fontWeight: '500'
-          }
+          label: {}
         }
       },
       padding: {
@@ -903,6 +888,7 @@ export class BarChartComponent implements OnInit {
 
       this.options = {
         data: chartData,
+        theme: this.chartTheme.current,
         background: {
           fill: 'transparent'
         },
@@ -916,9 +902,7 @@ export class BarChartComponent implements OnInit {
             xKey: 'day',
             yKey: 'sales',
             yName: 'Ventas',
-            fill: '#3B82F6',
             strokeWidth: 0,
-            fillOpacity: 0.85,
             cornerRadius: 4
           }
         ],
@@ -964,5 +948,9 @@ export class BarChartComponent implements OnInit {
         }
       };
     }
+  }
+
+  ngOnDestroy(): void {
+    this.offChartTheme?.();
   }
 }

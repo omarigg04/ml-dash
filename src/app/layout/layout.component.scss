@@ -1,2 +1,85 @@
-// Layout styles are defined globally in styles.scss
-// This file is kept for component-specific overrides if needed
+// Shell de la Dirección B: barra superior global + barra lateral + contenido.
+// Móvil/tablet (<= 920px): la barra lateral se vuelve un panel que se abre con el botón de menú.
+:host {
+  display: block;
+}
+
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 200;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-weight: 500;
+
+  &:focus {
+    top: 8px;
+    text-decoration: none;
+  }
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: 'top top' 'sb main';
+  height: 100vh;
+  height: 100dvh;
+  background: var(--ds-bg);
+  color: hsl(var(--foreground));
+  position: relative;
+}
+
+.shell-top { grid-area: top; position: relative; z-index: 60; }
+.shell-sb { grid-area: sb; min-height: 0; }
+
+.shell-main {
+  grid-area: main;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--page-pad);
+
+  &:focus { outline: none; }
+}
+
+.shell-scrim { display: none; }
+
+@media (max-width: 920px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'top' 'main';
+  }
+
+  .shell-main { padding: 12px; }
+
+  .shell-sb {
+    position: fixed;
+    top: var(--header-height);
+    bottom: 0;
+    left: 0;
+    width: 264px;
+    max-width: 85vw;
+    z-index: 55;
+    transform: translateX(-105%);
+    visibility: hidden;   // fuera de pantalla no recibe foco con Tab
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    box-shadow: 12px 0 32px -12px rgba(0, 0, 0, 0.35);
+  }
+
+  .nav-open .shell-sb {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
+  }
+
+  .shell-scrim {
+    display: block;
+    position: fixed;
+    inset: var(--header-height) 0 0 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 50;
+  }
+}

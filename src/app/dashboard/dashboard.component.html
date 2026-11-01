@@ -15,7 +15,7 @@
 
   <div class="grid-container">
     <mat-spinner *ngIf="isLoading" diameter="50" class="grid-spinner"></mat-spinner>
-    <ag-grid-angular *ngIf="!isLoading" class="ag-theme-alpine grid-table" [rowData]="rowData" [columnDefs]="columnDefs"
+    <ag-grid-angular *ngIf="!isLoading" class="ag-theme-quartz grid-table" [rowData]="rowData" [columnDefs]="columnDefs"
       [defaultColDef]="defaultColDef" [pagination]="true" [paginationPageSize]="100" [animateRows]="true"
       [rowStyle]="{ cursor: 'pointer' }"
       (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)">
