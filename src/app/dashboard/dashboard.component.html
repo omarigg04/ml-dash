@@ -9,7 +9,7 @@
   <div class="grid-header">
     <div>
       <h3 class="grid-title">Tabla de Órdenes</h3>
-      <p class="grid-subtitle">Visualiza y filtra todos tus pedidos</p>
+      <p class="grid-subtitle">Visualiza y filtra todos tus pedidos · Haz clic en una orden para ver su detalle</p>
     </div>
   </div>
 
@@ -17,7 +17,104 @@
     <mat-spinner *ngIf="isLoading" diameter="50" class="grid-spinner"></mat-spinner>
     <ag-grid-angular *ngIf="!isLoading" class="ag-theme-alpine grid-table" [rowData]="rowData" [columnDefs]="columnDefs"
       [defaultColDef]="defaultColDef" [pagination]="true" [paginationPageSize]="100" [animateRows]="true"
-      (gridReady)="onGridReady($event)">
+      [rowStyle]="{ cursor: 'pointer' }"
+      (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)">
     </ag-grid-angular>
   </div>
 </div>
+
+<!-- Order Detail Panel -->
+<div *ngIf="selectedOrder as order" class="detail-backdrop" (click)="closeOrderDetail()"></div>
+
+<aside *ngIf="selectedOrder as order" class="detail-panel">
+  <div class="detail-header">
+    <div>
+      <p class="detail-label">Orden</p>
+      <h3 class="detail-title">#{{ order.id }}</h3>
+      <p class="detail-date">{{ order.date_created | date:'dd/MM/yyyy, HH:mm' }}</p>
+    </div>
+    <button type="button" class="detail-close" (click)="closeOrderDetail()" aria-label="Cerrar detalle">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="detail-body">
+    <!-- Estado -->
+    <div class="detail-tags">
+      <span class="detail-tag">{{ order.status }}</span>
+      <span *ngIf="order.payments[0]" class="detail-tag">Pago: {{ order.payments[0].status }}</span>
+      <span *ngIf="selectedShipment" class="detail-tag">Envío: {{ selectedShipment.status }}</span>
+    </div>
+
+    <!-- Comprador -->
+    <section class="detail-section">
+      <h4 class="detail-section-title"><mat-icon>person</mat-icon> Comprador</h4>
+      <p class="detail-text">{{ buyerNickname || '—' }}</p>
+    </section>
+
+    <!-- Artículos -->
+    <section class="detail-section">
+      <h4 class="detail-section-title"><mat-icon>inventory_2</mat-icon> Artículos</h4>
+      <div *ngFor="let orderItem of order.order_items" class="detail-item">
+        <a class="detail-item-title" [href]="'https://articulo.mercadolibre.com.mx/' + orderItem.item.id.replace('MLM', 'MLM-')"
+           target="_blank" rel="noopener">
+          {{ orderItem.item.title }}
+        </a>
+        <div class="detail-row">
+          <span>{{ orderItem.quantity }} × {{ orderItem.unit_price | currency }}</span>
+          <span>{{ orderItem.quantity * orderItem.unit_price | currency }}</span>
+        </div>
+        <div class="detail-row detail-muted">
+          <span>{{ orderItem.item.id }} · {{ orderItem.listing_type_id }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pago -->
+    <section *ngIf="order.payments.length" class="detail-section">
+      <h4 class="detail-section-title"><mat-icon>payments</mat-icon> Pago</h4>
+      <div *ngFor="let payment of order.payments" class="detail-item">
+        <div class="detail-row">
+          <span>{{ payment.payment_method_id }} ({{ payment.payment_type }})</span>
+          <span>{{ payment.total_paid_amount | currency }}</span>
+        </div>
+        <div class="detail-row detail-muted">
+          <span>{{ payment.installments }} {{ payment.installments === 1 ? 'pago' : 'meses' }}</span>
+          <span *ngIf="payment.date_approved">Aprobado {{ payment.date_approved | date:'dd/MM/yyyy, HH:mm' }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Desglose -->
+    <section class="detail-section">
+      <h4 class="detail-section-title"><mat-icon>receipt_long</mat-icon> Desglose</h4>
+      <div class="detail-row">
+        <span>Total de la venta</span>
+        <span>{{ order.total_amount | currency }}</span>
+      </div>
+      <div class="detail-row detail-negative">
+        <span>Comisión ML</span>
+        <span>−{{ getTotalSaleFee(order) | currency }}</span>
+      </div>
+      <div class="detail-row detail-negative">
+        <span>Retenciones SAT (1% ISR + 8% IVA)</span>
+        <span>−{{ getSatFee(order) | currency }}</span>
+      </div>
+      <div class="detail-row detail-negative">
+        <span>Costo de envío</span>
+        <span *ngIf="isShipmentLoading">Cargando...</span>
+        <span *ngIf="!isShipmentLoading && selectedShipment">−{{ selectedShipment.listCost | currency }}</span>
+        <span *ngIf="!isShipmentLoading && !selectedShipment">—</span>
+      </div>
+      <div class="detail-row detail-total">
+        <span>Ganancia neta</span>
+        <span>{{ getNetAmount(order) | currency }}</span>
+      </div>
+    </section>
+
+    <a class="detail-ml-link" [href]="mlOrderUrl" target="_blank" rel="noopener">
+      <mat-icon>open_in_new</mat-icon>
+      Ver en Mercado Libre
+    </a>
+  </div>
+</aside>
