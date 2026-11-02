@@ -68,223 +68,274 @@ function clearItemsCache(sellerId?: string): void {
     }
 }
 
-/**
- * POST /api/items
- * Create a new product listing on MercadoLibre
- */
-router.post('/', async (req: Request, res: Response) => {
-    try {
-        const {
-            title,
-            category_id,
-            price,
-            currency_id = 'MXN',
-            available_quantity,
-            buying_mode = 'buy_it_now',
-            condition,
-            pictures,
-            description,
-            listing_type_id = 'free', // Default to free listing to avoid permission issues
-            warranty_type,
-            warranty_time,
-            sale_terms, // Términos de venta completos (incluye warranty y otros)
-            attributes,
-            family_name, // Required for User Products model
-            shipping // Configuración de envío
-        } = req.body;
+// ============================================
+// HELPERS (validación de ids y errores de ML)
+// ============================================
 
-        // Validate required fields (family_name OR title required)
-        if (!category_id || !price || !available_quantity || !condition) {
-            res.status(400).json({
-                error: 'Missing required fields',
-                required: ['category_id', 'price', 'available_quantity', 'condition', 'family_name OR title']
-            });
-            return;
-        }
+const ITEM_ID_RE = /^MLM\d+$/;
+const CATEGORY_ID_RE = /^MLM\d+$/;
+const ML_API = 'https://api.mercadolibre.com';
 
-        // Validate that either family_name or title is provided
-        if (!family_name && !title) {
-            res.status(400).json({
-                error: 'Missing required field',
-                message: 'Either family_name (User Products) or title (Legacy) is required'
-            });
-            return;
-        }
+interface ErrorCause {
+    code: string;
+    message: string;
+    type?: string;
+}
 
-        // Get valid access token
-        const token = await mlAuth.getToken();
-        const tokenData = (mlAuth as any).tokenData;
-
-        console.log('🔑 Token Debug Info:');
-        console.log('  - Token length:', token.length);
-        console.log('  - Full TOKEN:', token);
-        console.log('  - Scopes granted:', tokenData?.scope || 'NO SCOPES');
-        console.log('  - Has write scope:', tokenData?.scope?.includes('write') || false);
-
-        // Prepare item data for MercadoLibre API (WITHOUT description initially)
-        const itemData: any = {
-            category_id,
-            price: parseFloat(price),
-            currency_id,
-            available_quantity: parseInt(available_quantity),
-            buying_mode,
-            condition,
-            listing_type_id, // free, bronze, silver, gold_special, gold_premium
+/** Normaliza el error de axios/ML a { error, status, causes[] } conservando el status de ML. */
+function mlErrorResponse(error: any, fallback: string): { status: number; body: any } {
+    if (error?.message?.includes('No token available')) {
+        return {
+            status: 401,
+            body: { error: 'No autorizado: autoriza la app con MercadoLibre primero', status: 401, causes: [] }
         };
+    }
+    const status: number = error?.response?.status || 500;
+    const data = error?.response?.data;
+    const causes: ErrorCause[] = Array.isArray(data?.cause)
+        ? data.cause.map((c: any) => ({
+            code: String(c?.code ?? c?.type ?? 'error'),
+            message: String(c?.message ?? c?.code ?? ''),
+            type: c?.type
+        }))
+        : [];
+    const message = data?.message || data?.error || error?.message || fallback;
+    return { status, body: { error: message, status, causes } };
+}
 
-        // User Products model: Use family_name instead of title
-        // When family_name is present, DO NOT send title (ML auto-generates it)
-        if (family_name) {
-            itemData.family_name = family_name;
-        } else {
-            // Legacy model: Use title
-            itemData.title = title.substring(0, 60); // ML limit is 60 chars
+/** Construye el body de ML a partir de lo que manda el formulario. Solo copia campos conocidos. */
+function buildItemData(input: any): any {
+    const {
+        title, category_id, price, currency_id = 'MXN', available_quantity,
+        buying_mode = 'buy_it_now', condition, pictures, listing_type_id = 'gold_special',
+        sale_terms, attributes, family_name, shipping
+    } = input;
+
+    const itemData: any = {
+        category_id,
+        price: parseFloat(price),
+        currency_id,
+        available_quantity: parseInt(available_quantity),
+        buying_mode,
+        condition,
+        listing_type_id,
+    };
+
+    // Vendedores User Products: solo family_name (ML genera el título). Legacy: title.
+    if (family_name) {
+        itemData.family_name = String(family_name);
+    } else if (title) {
+        itemData.title = String(title).substring(0, 60);
+    }
+
+    // Fotos: { id } (ya alojadas en ML) o { source } (URL). El límite por categoría lo valida ML.
+    if (Array.isArray(pictures) && pictures.length > 0) {
+        itemData.pictures = pictures
+            .map((p: any) => (p?.id ? { id: p.id } : p?.source ? { source: p.source } : null))
+            .filter(Boolean);
+    }
+
+    if (Array.isArray(sale_terms) && sale_terms.length > 0) {
+        itemData.sale_terms = sale_terms;
+    }
+
+    if (Array.isArray(attributes) && attributes.length > 0) {
+        itemData.attributes = attributes;
+    }
+
+    // Envío: solo los campos que ML acepta del vendedor. logistic_type/tags/methods los asigna ML.
+    if (shipping && typeof shipping === 'object') {
+        const s: any = {};
+        if (shipping.mode) s.mode = shipping.mode;
+        if (typeof shipping.local_pick_up === 'boolean') s.local_pick_up = shipping.local_pick_up;
+        if (typeof shipping.free_shipping === 'boolean') s.free_shipping = shipping.free_shipping;
+        if (Object.keys(s).length > 0) itemData.shipping = s;
+    }
+
+    return itemData;
+}
+
+function validateBasicFields(body: any): string | null {
+    if (!body?.category_id || !body?.price || !body?.condition) {
+        return 'Faltan campos obligatorios: category_id, price, condition';
+    }
+    if (body.available_quantity === undefined || body.available_quantity === null || Number(body.available_quantity) < 1) {
+        return 'La cantidad disponible debe ser al menos 1';
+    }
+    if (!body.family_name && !body.title) {
+        return 'Se requiere family_name (User Products) o title (legacy)';
+    }
+    return null;
+}
+
+async function postDescription(token: string, itemId: string, text: string): Promise<void> {
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    try {
+        await axios.post(`${ML_API}/items/${itemId}/description`, { plain_text: text }, { headers });
+    } catch (err: any) {
+        // Si ya existe una descripción, ML responde 400: se reemplaza con PUT.
+        if (err.response?.status === 400) {
+            await axios.put(`${ML_API}/items/${itemId}/description?api_version=2`, { plain_text: text }, { headers });
+            return;
         }
+        throw err;
+    }
+}
 
-        // Add pictures if provided (max 6)
-        // Frontend sends { source: "url" } objects
-        if (pictures && Array.isArray(pictures) && pictures.length > 0) {
-            itemData.pictures = pictures.slice(0, 6);
-        }
-
-        // Add sale_terms (warranty + otros términos de venta)
-        // Si viene sale_terms completo del frontend, usarlo directamente
-        if (sale_terms && Array.isArray(sale_terms) && sale_terms.length > 0) {
-            itemData.sale_terms = sale_terms;
-        }
-        // Si no viene sale_terms pero sí warranty_type y warranty_time (legacy), construirlos
-        else if (warranty_type && warranty_time) {
-            itemData.sale_terms = [
-                {
-                    id: 'WARRANTY_TYPE',
-                    value_name: warranty_type // 'Garantía del vendedor' or 'Sin garantía'
-                },
-                {
-                    id: 'WARRANTY_TIME',
-                    value_name: warranty_time // '90 días', '6 meses', '1 año', etc.
-                }
-            ];
-        }
-
-        // Add attributes if provided (brand, model, etc.)
-        if (attributes && Array.isArray(attributes) && attributes.length > 0) {
-            itemData.attributes = attributes;
-        }
-
-        // Add shipping configuration if provided
-        if (shipping && typeof shipping === 'object') {
-            // FEATURE: Convert fulfillment to xd_drop_off for duplicating fulfillment items
-            // Fulfillment items cannot be duplicated/modified with fulfillment logistic_type
-            // So we automatically convert to xd_drop_off (self-shipping)
-            if (shipping.logistic_type === 'fulfillment') {
-                console.log('🔄 Converting logistic_type from "fulfillment" to "xd_drop_off"');
-                itemData.shipping = {
-                    ...shipping,
-                    logistic_type: 'xd_drop_off'
-                };
-            } else {
-                itemData.shipping = shipping;
-            }
-        }
-
-        console.log('📦 Creating item:', itemData.family_name || itemData.title);
-        console.log('🚚 Shipping config:', JSON.stringify(itemData.shipping, null, 2));
-
-        // Step 1: Create item on MercadoLibre (WITHOUT description)
-        const response = await axios.post(
-            'https://api.mercadolibre.com/items',
-            itemData,
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            }
-        );
-
-        const itemId = response.data.id;
-        console.log('✅ Item created successfully with ID:', itemId);
-
-        // Clear cache for this seller (new item invalidates cache)
-        const userResponse = await axios.get('https://api.mercadolibre.com/users/me', {
-            headers: { Authorization: `Bearer ${token}` }
+/**
+ * POST /api/items/validate
+ * Valida el payload contra ML (/items/validate) SIN publicar.
+ * Responde 200 con { valid, status, errors[], warnings[] } cuando ML contesta;
+ * valid = ML no devolvió ninguna causa de tipo error (204 o solo advertencias).
+ */
+router.post('/validate', async (req: Request, res: Response) => {
+    const basic = validateBasicFields(req.body);
+    if (basic) {
+        res.status(400).json({ error: basic, status: 400, causes: [{ code: 'missing_fields', message: basic }] });
+        return;
+    }
+    try {
+        const token = await mlAuth.getToken();
+        const itemData = buildItemData(req.body);
+        const response = await axios.post(`${ML_API}/items/validate`, itemData, {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            validateStatus: () => true
         });
-        clearItemsCache(userResponse.data.id);
-
-        // Step 2: Add description AFTER item creation (if provided)
-        if (description && description.trim()) {
-            try {
-                await axios.post(
-                    `https://api.mercadolibre.com/items/${itemId}/description`,
-                    {
-                        plain_text: description
-                    },
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                    }
-                );
-                console.log('✅ Description added successfully');
-            } catch (descError: any) {
-                console.error('⚠️  Error adding description:', descError.response?.data);
-                // Don't fail the whole request if description fails
-            }
+        const data = response.data;
+        if (response.status === 401 || response.status === 403) {
+            res.status(response.status).json({ error: data?.message || 'No autorizado', status: response.status, causes: [] });
+            return;
         }
-
-        res.status(201).json({
-            success: true,
-            item: response.data,
-            message: 'Product published successfully',
+        const causes: ErrorCause[] = Array.isArray(data?.cause)
+            ? data.cause.map((c: any) => ({ code: String(c?.code ?? ''), message: String(c?.message ?? ''), type: c?.type }))
+            : [];
+        let errors = causes.filter(c => c.type !== 'warning');
+        if (response.status >= 400 && causes.length === 0) {
+            errors = [{ code: String(data?.error ?? 'validation_error'), message: String(data?.message ?? 'ML rechazó el payload'), type: 'error' }];
+        }
+        res.json({
+            valid: errors.length === 0,
+            status: response.status,
+            errors,
+            warnings: causes.filter(c => c.type === 'warning')
         });
     } catch (error: any) {
-        console.error('❌ Error creating item:', error.response?.data?.message || error.message);
-        console.error('📊 Error Status:', error.response?.status);
+        const { status, body } = mlErrorResponse(error, 'No se pudo validar la publicación');
+        console.error('Error validating item:', body.error);
+        res.status(status).json(body);
+    }
+});
 
-        // Log validation errors summary
-        if (error.response?.data?.cause) {
-            const errorCount = error.response.data.cause.filter((c: any) => c.type === 'error').length;
-            const warningCount = error.response.data.cause.filter((c: any) => c.type === 'warning').length;
-            console.error(`📋 Validation issues: ${errorCount} errors, ${warningCount} warnings`);
-            error.response.data.cause.forEach((c: any) => {
-                if (c.type === 'error') {
-                    console.error(`  ⚠️  ${c.code}: ${c.message}`);
-                }
-            });
-        }
-
-        if (error.message?.includes('No token available')) {
-            res.status(401).json({
-                error: 'Not authorized',
-                message: 'Please authorize the app first by visiting /api/auth',
-            });
-            return;
-        }
-
-        // Check for scope errors
-        if (error.response?.data?.message?.includes('scopes') ||
-            error.response?.data?.error?.includes('scopes')) {
-            res.status(403).json({
-                error: 'Unauthorized scopes',
-                message: 'Your app does not have permission to create items. Please re-authorize by visiting /api/auth',
-                details: error.response.data,
-            });
-            return;
-        }
-
-        if (error.response?.status === 400) {
-            res.status(400).json({
-                error: 'Invalid item data',
-                details: error.response.data,
-            });
-            return;
-        }
-
-        res.status(500).json({
-            error: 'Failed to create item',
-            message: error.response?.data?.message || error.message,
+/**
+ * GET /api/items/listing-prices?price=&category_id=
+ * Comisión por tipo de publicación (proxy de /sites/MLM/listing_prices).
+ */
+router.get('/listing-prices', async (req: Request, res: Response) => {
+    const price = parseFloat(String(req.query['price'] ?? ''));
+    const categoryId = String(req.query['category_id'] ?? '');
+    if (!(price > 0) || !CATEGORY_ID_RE.test(categoryId)) {
+        res.status(400).json({ error: 'price y category_id (MLM...) son obligatorios', status: 400, causes: [] });
+        return;
+    }
+    try {
+        const token = await mlAuth.getToken();
+        const response = await axios.get(`${ML_API}/sites/MLM/listing_prices`, {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { price, category_id: categoryId }
         });
+        const list = (Array.isArray(response.data) ? response.data : [])
+            .filter((p: any) => p.listing_type_id === 'gold_special' || p.listing_type_id === 'gold_pro')
+            .map((p: any) => ({
+                listing_type_id: p.listing_type_id,
+                listing_type_name: p.listing_type_id === 'gold_pro' ? 'Premium' : 'Clásica',
+                sale_fee_amount: p.sale_fee_amount,
+                percentage_fee: p.sale_fee_details?.percentage_fee ?? null,
+                fixed_fee: p.sale_fee_details?.fixed_fee ?? 0
+            }));
+        res.json(list);
+    } catch (error: any) {
+        const { status, body } = mlErrorResponse(error, 'No se pudieron obtener las comisiones');
+        res.status(status).json(body);
+    }
+});
+
+/**
+ * POST /api/items
+ * Create a new product listing on MercadoLibre.
+ * Devuelve { success, item, description: { ok, error? } }. Si el item se creó pero la descripción
+ * falló, responde 201 con description.ok = false (el cliente NO debe reintentar la creación).
+ */
+router.post('/', async (req: Request, res: Response) => {
+    const basic = validateBasicFields(req.body);
+    if (basic) {
+        res.status(400).json({ error: basic, status: 400, causes: [{ code: 'missing_fields', message: basic }] });
+        return;
+    }
+
+    let token: string;
+    let response: any;
+    try {
+        token = await mlAuth.getToken();
+        const itemData = buildItemData(req.body);
+        console.log('Creating item:', itemData.family_name || itemData.title);
+        response = await axios.post(`${ML_API}/items`, itemData, {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        });
+    } catch (error: any) {
+        const { status, body } = mlErrorResponse(error, 'No se pudo crear la publicación');
+        console.error('Error creating item:', status, body.error, body.causes.map((c: ErrorCause) => c.code).join(','));
+        res.status(status).json(body);
+        return;
+    }
+
+    const itemId = response.data.id;
+    console.log('Item created:', itemId);
+
+    // El item ya existe: todo lo que falle desde aquí NO debe provocar un reintento del POST.
+    clearItemsCache();
+
+    const description = (req.body.description || '').toString();
+    let descriptionResult: { ok: boolean; error?: string } = { ok: true };
+    if (description.trim()) {
+        try {
+            await postDescription(token, itemId, description);
+        } catch (descError: any) {
+            const { body } = mlErrorResponse(descError, 'No se pudo guardar la descripción');
+            console.error('Error adding description to', itemId, body.error);
+            descriptionResult = { ok: false, error: body.causes[0]?.message || body.error };
+        }
+    }
+
+    res.status(201).json({
+        success: true,
+        item: response.data,
+        description: descriptionResult,
+        message: 'Product published successfully',
+    });
+});
+
+/**
+ * POST /api/items/:id/description
+ * Reintento del paso "descripción" de un item ya creado (POST, o PUT si ya existía).
+ */
+router.post('/:id/description', async (req: Request, res: Response) => {
+    const id = req.params['id'];
+    if (!ITEM_ID_RE.test(id)) {
+        res.status(400).json({ error: 'ID de publicación inválido', status: 400, causes: [] });
+        return;
+    }
+    const text = (req.body?.plain_text || req.body?.description || '').toString();
+    if (!text.trim()) {
+        res.status(400).json({ error: 'La descripción está vacía', status: 400, causes: [] });
+        return;
+    }
+    try {
+        const token = await mlAuth.getToken();
+        await postDescription(token, id, text);
+        res.json({ success: true });
+    } catch (error: any) {
+        const { status, body } = mlErrorResponse(error, 'No se pudo guardar la descripción');
+        res.status(status).json(body);
     }
 });
 
@@ -719,12 +770,14 @@ router.get('/visits', async (req: Request, res: Response) => {
 router.get('/:id/description', async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        if (!ITEM_ID_RE.test(id)) {
+            res.status(400).json({ error: 'ID de publicación inválido', status: 400, causes: [] });
+            return;
+        }
         const token = await mlAuth.getToken();
 
-        console.log(`📄 Fetching description for item ${id}`);
-
         const response = await axios.get(
-            `https://api.mercadolibre.com/items/${id}/description`,
+            `https://api.mercadolibre.com/items/${encodeURIComponent(id)}/description`,
             {
                 headers: {
                     Authorization: `Bearer ${token}`
@@ -761,6 +814,9 @@ router.get('/:id/description', async (req: Request, res: Response) => {
 router.post('/:id/relist', async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        if (!ITEM_ID_RE.test(id)) {
+            return res.status(400).json({ error: 'ID de publicación inválido' });
+        }
         const { price, quantity, listing_type_id } = req.body;
 
         if (!price || !quantity || !listing_type_id) {
@@ -774,7 +830,7 @@ router.post('/:id/relist', async (req: Request, res: Response) => {
         console.log(`🔄 Relisting item ${id} with price: ${price}, quantity: ${quantity}`);
 
         const response = await axios.post(
-            `https://api.mercadolibre.com/items/${id}/relist`,
+            `https://api.mercadolibre.com/items/${encodeURIComponent(id)}/relist`,
             {
                 price: parseFloat(price),
                 quantity: parseInt(quantity),
@@ -802,6 +858,28 @@ router.post('/:id/relist', async (req: Request, res: Response) => {
             error: 'Failed to relist item',
             details: error.response?.data || error.message
         });
+    }
+});
+
+/**
+ * GET /api/items/:id
+ * Item fresco desde ML (para duplicar sin depender del estado viejo de la lista).
+ */
+router.get('/:id', async (req: Request, res: Response) => {
+    const id = req.params['id'];
+    if (!ITEM_ID_RE.test(id)) {
+        res.status(400).json({ error: 'ID de publicación inválido', status: 400, causes: [] });
+        return;
+    }
+    try {
+        const token = await mlAuth.getToken();
+        const response = await axios.get(`${ML_API}/items/${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        res.json(response.data);
+    } catch (error: any) {
+        const { status, body } = mlErrorResponse(error, 'No se pudo obtener la publicación');
+        res.status(status).json(body);
     }
 });
 

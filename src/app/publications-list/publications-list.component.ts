@@ -44,9 +44,6 @@ const ITEM_STATUS: Record<string, { label: string; tone: Tone }> = {
 const LISTING_TYPES: Record<string, string> = {
   gold_special: 'Clásica',
   gold_pro: 'Premium',
-  gold_premium: 'Oro Premium',
-  silver: 'Plata',
-  bronze: 'Bronce',
   free: 'Gratuita',
 };
 
@@ -107,9 +104,6 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
     { value: '', label: 'Todos los tipos' },
     { value: 'gold_special', label: 'Clásica' },
     { value: 'gold_pro', label: 'Premium' },
-    { value: 'gold_premium', label: 'Oro Premium' },
-    { value: 'silver', label: 'Plata' },
-    { value: 'bronze', label: 'Bronce' },
     { value: 'free', label: 'Gratuita' }
   ];
 
@@ -391,9 +385,8 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
   // ---- Acciones ----
   // Duplicate: Navigate to publish form with pre-filled data (sin cambios)
   onDuplicate(item: Publication): void {
-    sessionStorage.setItem('duplicateItem', JSON.stringify(item.fullData));
     this.router.navigate(['/publish'], {
-      queryParams: { mode: 'duplicate' }
+      queryParams: { mode: 'duplicate', from: item.id }
     });
   }
 
