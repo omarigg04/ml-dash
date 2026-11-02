@@ -5,6 +5,7 @@ import { Subscription } from 'rxjs';
 import { CellClickedEvent, ColDef, GetRowIdParams, ICellRendererParams } from 'ag-grid-community';
 import { environment } from '../../environments/environment';
 import { UserPreferencesService, PublicationFilters } from '../services/user-preferences.service';
+import { CachingService } from '../services/caching.service';
 import { GRID_LOCALE_ES } from '../shared/grid-locale';
 
 interface Publication {
@@ -23,6 +24,20 @@ interface Publication {
   fullData: any;
   visits?: number; // Número de visitas del producto
 }
+
+interface EditableItem {
+  id: string;
+  title: string;
+  status: string;
+  price: number;
+  available_quantity: number;
+  variations: { id: number; label: string; available_quantity: number; price: number }[];
+  description: string;
+  locks: { price?: string; stock?: string; description?: string };
+  notes: string[];
+}
+
+interface EditChange { label: string; before: string; after: string; }
 
 interface PagingInfo {
   total: number;
@@ -74,6 +89,19 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
   relistPrice = '';
   relistQty = '';
   isRelisting = false;
+
+  // Editar (panel lateral)
+  editTarget: Publication | null = null;
+  editData: EditableItem | null = null;
+  editLoading = false;
+  editLoadError = '';
+  editPrice: string | number = '';
+  editQty: string | number = '';
+  editVarQty: Record<string, string | number> = {};
+  editDesc = '';
+  editStep: 'form' | 'review' = 'form';
+  isSaving = false;
+  editErrors: string[] = [];
 
   readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7];
   readonly localeText = { ...GRID_LOCALE_ES, noRowsToShow: 'Sin publicaciones para mostrar' };
@@ -134,7 +162,8 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
     private http: HttpClient,
     private router: Router,
     private route: ActivatedRoute,
-    private userPreferencesService: UserPreferencesService
+    private userPreferencesService: UserPreferencesService,
+    private cachingService: CachingService
   ) {
     const num: ColDef = { cellClass: 'ds-num', headerClass: 'ag-right-aligned-header', type: 'rightAligned' };
     this.columnDefs = [
@@ -192,12 +221,14 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
       {
         headerName: 'Acciones',
         colId: 'actions',
-        width: 175,
+        width: 235,
         sortable: false,
         cellRenderer: (p: ICellRendererParams) => {
           const relist = p.data.status === 'closed'
             ? `<button type="button" class="ds-btn row-btn" data-action="relist">Republicar</button>` : '';
-          return `<span class="row-actions"><button type="button" class="ds-btn row-btn" data-action="duplicate">Duplicar</button>${relist}</span>`;
+          const edit = p.data.status !== 'closed'
+            ? `<button type="button" class="ds-btn row-btn" data-action="edit">Editar</button>` : '';
+          return `<span class="row-actions">${edit}<button type="button" class="ds-btn row-btn" data-action="duplicate">Duplicar</button>${relist}</span>`;
         },
       },
     ];
@@ -395,6 +426,190 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
     if (!btn) return;
     if (btn.dataset['action'] === 'duplicate') this.onDuplicate(event.data);
     if (btn.dataset['action'] === 'relist') this.openRelist(event.data);
+    if (btn.dataset['action'] === 'edit') this.openEdit(event.data);
+  }
+
+  // ---- Editar: precio, stock y descripción ----
+  openEdit(item: Publication): void {
+    this.editTarget = item;
+    this.editData = null;
+    this.editLoadError = '';
+    this.editErrors = [];
+    this.editStep = 'form';
+    this.isSaving = false;
+    this.editLoading = true;
+    this.http.get<EditableItem>(`${environment.apiUrl}/items/${item.id}/editable`).subscribe({
+      next: data => {
+        if (this.editTarget?.id !== item.id) return;
+        this.editData = data;
+        this.editPrice = String(data.price ?? '');
+        this.editQty = String(data.available_quantity ?? '');
+        this.editVarQty = {};
+        data.variations.forEach(v => (this.editVarQty[v.id] = String(v.available_quantity ?? 0)));
+        this.editDesc = data.description ?? '';
+        this.editLoading = false;
+      },
+      error: err => {
+        this.editLoading = false;
+        this.editLoadError = err.error?.error || 'No se pudo cargar la publicación desde Mercado Libre.';
+      }
+    });
+  }
+
+  closeEdit(): void {
+    if (this.isSaving) return;
+    this.editTarget = null;
+    this.editData = null;
+  }
+
+  get editHasVars(): boolean {
+    return !!this.editData && this.editData.variations.length > 0;
+  }
+
+  get editAllLocked(): boolean {
+    const l = this.editData?.locks;
+    return !!l && !!l.price && !!l.stock && !!l.description;
+  }
+
+  private parsePrice(): number { return this.num(this.editPrice); }
+  private num(v: unknown): number { return v == null || String(v).trim() === '' ? NaN : Number(v); }
+  private parseQty(v: unknown): number { return this.num(v); }
+
+  /** Errores de validación por campo (solo de campos editables) */
+  get editFieldErrors(): { price?: string; qty?: string; vars: Record<string, string> } {
+    const out: { price?: string; qty?: string; vars: Record<string, string> } = { vars: {} };
+    const d = this.editData;
+    if (!d) return out;
+    const p = this.parsePrice();
+    if (!d.locks.price && !(Number.isFinite(p) && p >= 0.01 && p <= 99999999)) out.price = 'Ingresa un precio entre $0.01 y $99,999,999.';
+    if (!d.locks.stock) {
+      if (this.editHasVars) {
+        d.variations.forEach(v => {
+          const q = this.parseQty(this.editVarQty[v.id]);
+          if (!(Number.isInteger(q) && q >= 0 && q <= 99999)) out.vars[v.id] = 'Entero entre 0 y 99,999.';
+        });
+      } else {
+        const q = this.parseQty(this.editQty);
+        if (!(Number.isInteger(q) && q >= 0 && q <= 99999)) out.qty = 'Ingresa un entero entre 0 y 99,999.';
+      }
+    }
+    return out;
+  }
+
+  get editHasFieldErrors(): boolean {
+    const e = this.editFieldErrors;
+    return !!e.price || !!e.qty || Object.keys(e.vars).length > 0;
+  }
+
+  /** Diferencias entre lo cargado y lo editado */
+  get editChanges(): EditChange[] {
+    const d = this.editData;
+    if (!d) return [];
+    const out: EditChange[] = [];
+    if (!d.locks.price && this.parsePrice() !== d.price) {
+      out.push({ label: 'Precio', before: this.money(d.price), after: this.money(this.parsePrice()) });
+    }
+    if (!d.locks.stock) {
+      if (this.editHasVars) {
+        d.variations.forEach(v => {
+          const q = this.parseQty(this.editVarQty[v.id]);
+          if (q !== v.available_quantity) out.push({ label: `Stock · ${v.label}`, before: this.int(v.available_quantity), after: this.int(q) });
+        });
+      } else if (this.parseQty(this.editQty) !== d.available_quantity) {
+        out.push({ label: 'Stock', before: this.int(d.available_quantity), after: this.int(this.parseQty(this.editQty)) });
+      }
+    }
+    if (!d.locks.description && this.editDesc !== d.description) {
+      out.push({ label: 'Descripción', before: d.description || '(vacía)', after: this.editDesc || '(vacía)' });
+    }
+    return out;
+  }
+
+  reviewEdit(): void {
+    this.editErrors = [];
+    if (this.editHasFieldErrors || this.editChanges.length === 0) return;
+    this.editStep = 'review';
+  }
+
+  backToForm(): void {
+    if (this.isSaving) return;
+    this.editStep = 'form';
+    this.editErrors = [];
+  }
+
+  confirmEdit(): void {
+    const d = this.editData;
+    const item = this.editTarget;
+    if (!d || !item || this.isSaving || this.editHasFieldErrors) return;
+    const body: any = {};
+    if (!d.locks.price && this.parsePrice() !== d.price) body.price = this.parsePrice();
+    if (!d.locks.stock) {
+      if (this.editHasVars) {
+        const vars = d.variations
+          .filter(v => this.parseQty(this.editVarQty[v.id]) !== v.available_quantity)
+          .map(v => ({ id: v.id, available_quantity: this.parseQty(this.editVarQty[v.id]) }));
+        if (vars.length) body.variations = vars;
+      } else if (this.parseQty(this.editQty) !== d.available_quantity) {
+        body.available_quantity = this.parseQty(this.editQty);
+      }
+    }
+    if (!d.locks.description && this.editDesc !== d.description) body.description = this.editDesc;
+    if (Object.keys(body).length === 0) return;
+
+    this.isSaving = true;
+    this.editErrors = [];
+    this.http.put<any>(`${environment.apiUrl}/items/${item.id}`, body).subscribe({
+      next: res => {
+        this.isSaving = false;
+        this.cachingService.invalidatePattern(/\/items(\?|$)/);
+        this.applyUpdated(item.id, res?.updated);
+        this.editTarget = null;
+        this.editData = null;
+        this.notice = { kind: 'ok', text: `Cambios guardados en ${item.id}.` };
+      },
+      error: err => {
+        this.isSaving = false;
+        const e = err.error;
+        this.editStep = 'form';
+        if (err.status === 207 && e) {
+          // El item se guardó pero la descripción falló
+          this.editErrors = ['Se guardaron precio/stock, pero la descripción no se pudo guardar.', ...this.errorLines(e.description)];
+          this.refreshEditBase(item);
+          return;
+        }
+        this.editErrors = this.errorLines(e);
+      }
+    });
+  }
+
+  private errorLines(e: any): string[] {
+    if (!e) return ['No se pudo guardar. Inténtalo de nuevo.'];
+    const causes: string[] = (e.causes || []).map((c: any) => c.message || c.code).filter(Boolean);
+    return causes.length ? causes : [e.error || 'No se pudo guardar. Inténtalo de nuevo.'];
+  }
+
+  /** Tras un guardado parcial, vuelve a cargar los valores base del panel */
+  private refreshEditBase(item: Publication): void {
+    this.http.get<EditableItem>(`${environment.apiUrl}/items/${item.id}/editable`).subscribe({
+      next: data => {
+        if (this.editTarget?.id !== item.id) return;
+        this.editData = data;
+        this.editPrice = String(data.price ?? '');
+        this.editQty = String(data.available_quantity ?? '');
+        this.applyUpdated(item.id, { price: data.price, available_quantity: data.available_quantity });
+      }
+    });
+  }
+
+  private applyUpdated(id: string, u?: { price?: number; available_quantity?: number; status?: string; last_updated?: string }): void {
+    if (!u) return;
+    this.dataSource = this.dataSource.map(it => it.id === id ? {
+      ...it,
+      price: u.price ?? it.price,
+      available_quantity: u.available_quantity ?? it.available_quantity,
+      status: u.status ?? it.status,
+      last_updated: u.last_updated ?? it.last_updated
+    } : it);
   }
 
   // Relist: solo publicaciones finalizadas, con confirmación

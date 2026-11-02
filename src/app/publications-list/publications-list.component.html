@@ -108,6 +108,7 @@
         <div class="pc-actions">
           <span class="pc-type">{{ listingLabel(item.listing_type_id) }}</span>
           <span class="pc-btns">
+            <button type="button" class="ds-btn row-btn" *ngIf="item.status !== 'closed'" (click)="openEdit(item)">Editar</button>
             <button type="button" class="ds-btn row-btn" (click)="onDuplicate(item)">Duplicar</button>
             <button type="button" class="ds-btn row-btn" *ngIf="item.status === 'closed'" (click)="openRelist(item)">Republicar</button>
           </span>
@@ -147,4 +148,105 @@
       </button>
     </div>
   </div>
+</ng-container>
+
+
+<!-- Panel lateral: Editar precio, stock y descripción -->
+<ng-container *ngIf="editTarget as t">
+  <div class="drawer-backdrop" (click)="closeEdit()"></div>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="edit-title" (keydown.escape)="closeEdit()">
+    <header class="drawer-head">
+      <div>
+        <h2 id="edit-title">{{ editStep === 'review' ? 'Revisar cambios' : 'Editar publicación' }}</h2>
+        <p class="drawer-sub">{{ t.title }} · <span class="pub-id">{{ t.id }}</span></p>
+      </div>
+      <button type="button" class="drawer-x" (click)="closeEdit()" [disabled]="isSaving" aria-label="Cerrar panel">
+        <mat-icon>close</mat-icon>
+      </button>
+    </header>
+
+    <div class="drawer-body">
+      <div *ngIf="editLoading" class="drawer-loading" role="status">Cargando datos desde Mercado Libre…</div>
+
+      <div *ngIf="!editLoading && editLoadError" class="edit-errors" role="alert">
+        <strong>No se pudo abrir la edición</strong>
+        <span>{{ editLoadError }}</span>
+        <button type="button" class="ds-btn" (click)="openEdit(t)">Reintentar</button>
+      </div>
+
+      <ng-container *ngIf="editData as d">
+        <div class="edit-errors" *ngIf="editErrors.length" role="alert">
+          <strong>Mercado Libre no aceptó los cambios</strong>
+          <ul><li *ngFor="let m of editErrors">{{ m }}</li></ul>
+        </div>
+
+        <!-- Paso 1: formulario -->
+        <ng-container *ngIf="editStep === 'form'">
+          <p class="edit-lock-note" *ngIf="editAllLocked">{{ d.locks.price }}</p>
+          <p class="edit-note" *ngFor="let n of d.notes">{{ n }}</p>
+
+          <label class="field">
+            <span>Precio (MXN)</span>
+            <input type="number" min="0.01" step="0.01" inputmode="decimal" name="editPrice" [(ngModel)]="editPrice"
+              [disabled]="!!d.locks.price" [attr.aria-invalid]="!!editFieldErrors.price">
+            <small class="field-error" *ngIf="editFieldErrors.price">{{ editFieldErrors.price }}</small>
+            <small class="field-lock" *ngIf="d.locks.price && !editAllLocked">{{ d.locks.price }}</small>
+          </label>
+
+          <ng-container *ngIf="!editHasVars">
+            <label class="field">
+              <span>Stock disponible</span>
+              <input type="number" min="0" step="1" inputmode="numeric" name="editQty" [(ngModel)]="editQty"
+                [disabled]="!!d.locks.stock" [attr.aria-invalid]="!!editFieldErrors.qty">
+              <small class="field-error" *ngIf="editFieldErrors.qty">{{ editFieldErrors.qty }}</small>
+              <small class="field-lock" *ngIf="d.locks.stock && !editAllLocked">{{ d.locks.stock }}</small>
+            </label>
+          </ng-container>
+          <ng-container *ngIf="editHasVars">
+            <fieldset class="field-group">
+              <legend>Stock por variante</legend>
+              <label class="field" *ngFor="let v of d.variations">
+                <span>{{ v.label }}</span>
+                <input type="number" min="0" step="1" inputmode="numeric" [name]="'var' + v.id" [(ngModel)]="editVarQty[v.id]"
+                  [disabled]="!!d.locks.stock" [attr.aria-invalid]="!!editFieldErrors.vars[v.id]">
+                <small class="field-error" *ngIf="editFieldErrors.vars[v.id]">{{ editFieldErrors.vars[v.id] }}</small>
+              </label>
+              <small class="field-lock" *ngIf="d.locks.stock && !editAllLocked">{{ d.locks.stock }}</small>
+            </fieldset>
+          </ng-container>
+
+          <label class="field">
+            <span>Descripción</span>
+            <textarea rows="9" name="editDesc" [(ngModel)]="editDesc" [disabled]="!!d.locks.description" maxlength="50000"></textarea>
+            <small class="field-hint" *ngIf="!d.locks.description">{{ editDesc.length | number }} caracteres · texto plano</small>
+            <small class="field-lock" *ngIf="d.locks.description && !editAllLocked">{{ d.locks.description }}</small>
+          </label>
+        </ng-container>
+
+        <!-- Paso 2: diff antes → después -->
+        <ng-container *ngIf="editStep === 'review'">
+          <p class="modal-note">Se enviarán a Mercado Libre solo estos cambios.</p>
+          <div class="diff" *ngFor="let c of editChanges">
+            <span class="diff-label">{{ c.label }}</span>
+            <div class="diff-row"><span class="diff-tag">Antes</span><pre class="diff-before">{{ c.before }}</pre></div>
+            <div class="diff-row"><span class="diff-tag">Después</span><pre class="diff-after">{{ c.after }}</pre></div>
+          </div>
+        </ng-container>
+      </ng-container>
+    </div>
+
+    <footer class="drawer-foot" *ngIf="editData">
+      <ng-container *ngIf="editStep === 'form'">
+        <button type="button" class="ds-btn" (click)="closeEdit()">Cancelar</button>
+        <button type="button" class="ds-btn primary" (click)="reviewEdit()"
+          [disabled]="editAllLocked || editHasFieldErrors || editChanges.length === 0">Revisar cambios</button>
+      </ng-container>
+      <ng-container *ngIf="editStep === 'review'">
+        <button type="button" class="ds-btn" (click)="backToForm()" [disabled]="isSaving">Volver</button>
+        <button type="button" class="ds-btn primary" (click)="confirmEdit()" [disabled]="isSaving">
+          {{ isSaving ? 'Guardando…' : 'Confirmar y guardar' }}
+        </button>
+      </ng-container>
+    </footer>
+  </aside>
 </ng-container>

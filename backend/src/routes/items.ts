@@ -861,6 +861,256 @@ router.post('/:id/relist', async (req: Request, res: Response) => {
     }
 });
 
+// ============================================
+// EDITAR (precio, stock, descripción)
+// ============================================
+
+interface EditLocks { price?: string; stock?: string; description?: string; }
+
+function authHeaders(token: string) {
+    return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+}
+
+async function fetchDescriptionText(token: string, id: string): Promise<string> {
+    try {
+        const r = await axios.get(`${ML_API}/items/${id}/description`, { headers: authHeaders(token) });
+        return String(r.data?.plain_text ?? r.data?.text ?? '');
+    } catch (e: any) {
+        if (e?.response?.status === 404) return '';
+        throw e;
+    }
+}
+
+function variationLabel(v: any): string {
+    const parts = (v?.attribute_combinations || []).map((a: any) => a?.value_name).filter(Boolean);
+    return parts.length ? parts.join(' / ') : `Variante ${v?.id}`;
+}
+
+function computeLocks(item: any): { locks: EditLocks; notes: string[] } {
+    const locks: EditLocks = {};
+    const notes: string[] = [];
+    if (['closed', 'under_review', 'inactive'].includes(item.status)) {
+        const why = item.status === 'closed'
+            ? 'Finalizada: usa Republicar.'
+            : item.status === 'under_review' ? 'En revisión: no se puede editar.' : 'Inactiva: no se puede editar.';
+        return { locks: { price: why, stock: why, description: why }, notes };
+    }
+    if (item.shipping?.logistic_type === 'fulfillment') {
+        locks.stock = 'Stock administrado por Full: se gestiona desde Mercado Libre.';
+    }
+    if (Array.isArray(item.deal_ids) && item.deal_ids.length > 0) {
+        locks.price = 'La publicación participa en una promoción o campaña; el precio se gestiona allí.';
+    }
+    if (item.catalog_listing) {
+        notes.push('Publicación de catálogo: el precio puede estar sujeto a competir por la Buy Box.');
+    }
+    return { locks, notes };
+}
+
+/**
+ * GET /api/items/:id/editable
+ * Datos frescos de ML para el panel "Editar", con bloqueos por campo.
+ */
+router.get('/:id/editable', async (req: Request, res: Response) => {
+    const id = req.params['id'];
+    if (!ITEM_ID_RE.test(id)) {
+        res.status(400).json({ error: 'ID de publicación inválido', status: 400, causes: [] });
+        return;
+    }
+    try {
+        const token = await mlAuth.getToken();
+        const [itemRes, description] = await Promise.all([
+            axios.get(`${ML_API}/items/${id}`, { headers: authHeaders(token) }),
+            fetchDescriptionText(token, id)
+        ]);
+        const item = itemRes.data;
+        const { locks, notes } = computeLocks(item);
+        res.json({
+            id: item.id,
+            title: item.title,
+            status: item.status,
+            listing_type_id: item.listing_type_id,
+            price: item.price,
+            available_quantity: item.available_quantity,
+            variations: (item.variations || []).map((v: any) => ({
+                id: v.id,
+                label: variationLabel(v),
+                available_quantity: v.available_quantity,
+                price: v.price
+            })),
+            description,
+            locks,
+            notes
+        });
+    } catch (error: any) {
+        const { status, body } = mlErrorResponse(error, 'No se pudo cargar la publicación');
+        res.status(status).json(body);
+    }
+});
+
+/** Stock para items de User Products: ML pide el endpoint de stock por user_product_id. */
+async function putUserProductStock(token: string, item: any, quantity: number): Promise<void> {
+    const url = `${ML_API}/user-products/${item.user_product_id}/stock`;
+    const cur = await axios.get(url, { headers: authHeaders(token) });
+    const version = cur.headers['x-version'];
+    await axios.put(`${url}/type/seller_warehouse`, { quantity }, {
+        headers: { ...authHeaders(token), ...(version ? { 'If-Match': String(version) } : {}) }
+    });
+}
+
+/**
+ * PUT /api/items/:id
+ * Body: { price?, available_quantity?, variations?: [{id, available_quantity?, price?}], description? }
+ * Solo envía a ML lo que cambió. Si falla el item no toca la descripción; si falla la
+ * descripción responde 207 con el resultado parcial.
+ */
+router.put('/:id', async (req: Request, res: Response) => {
+    const id = req.params['id'];
+    if (!ITEM_ID_RE.test(id)) {
+        res.status(400).json({ error: 'ID de publicación inválido', status: 400, causes: [] });
+        return;
+    }
+    const body = req.body || {};
+    const bad = (message: string, code = 'invalid_field') =>
+        res.status(400).json({ error: message, status: 400, causes: [{ code, message }] });
+    const okPrice = (p: any) => typeof p === 'number' && Number.isFinite(p) && p >= 0.01 && p <= 99999999;
+    const okQty = (q: any) => Number.isInteger(q) && q >= 0 && q <= 99999;
+
+    const hasPrice = body.price !== undefined && body.price !== null;
+    const hasStock = body.available_quantity !== undefined && body.available_quantity !== null;
+    const hasVars = Array.isArray(body.variations) && body.variations.length > 0;
+    const hasDesc = typeof body.description === 'string';
+
+    if (hasPrice && !okPrice(body.price)) {
+        return void bad('El precio debe ser un número entre 0.01 y 99,999,999', 'invalid_price');
+    }
+    if (hasStock && !okQty(body.available_quantity)) {
+        return void bad('El stock debe ser un entero entre 0 y 99,999', 'invalid_stock');
+    }
+    if (hasVars) {
+        for (const v of body.variations) {
+            if (!v || !/^\d+$/.test(String(v.id))) return void bad('Id de variante inválido', 'invalid_variation');
+            if (v.available_quantity !== undefined && !okQty(v.available_quantity)) {
+                return void bad('El stock de la variante debe ser un entero entre 0 y 99,999', 'invalid_stock');
+            }
+            if (v.price !== undefined && !okPrice(v.price)) {
+                return void bad('El precio de la variante debe ser un número entre 0.01 y 99,999,999', 'invalid_price');
+            }
+        }
+    }
+    if (hasDesc && body.description.length > 50000) {
+        return void bad('La descripción es demasiado larga', 'invalid_description');
+    }
+    if (!hasPrice && !hasStock && !hasVars && !hasDesc) {
+        return void bad('No hay cambios para guardar', 'no_changes');
+    }
+
+    try {
+        const token = await mlAuth.getToken();
+        const current = (await axios.get(`${ML_API}/items/${id}`, { headers: authHeaders(token) })).data;
+        const { locks } = computeLocks(current);
+        if ((hasPrice && locks.price) || ((hasStock || hasVars) && locks.stock) || (hasDesc && locks.description)) {
+            const msg = (hasPrice && locks.price) || ((hasStock || hasVars) && locks.stock) || locks.description || 'Campo bloqueado';
+            return void res.status(409).json({ error: msg, status: 409, causes: [{ code: 'field_locked', message: msg }] });
+        }
+
+        const itemVars: any[] = current.variations || [];
+        const hasItemVars = itemVars.length > 0;
+        if (hasVars) {
+            const known = new Set(itemVars.map(v => String(v.id)));
+            if (!hasItemVars || body.variations.some((v: any) => !known.has(String(v.id)))) {
+                return void bad('Alguna variante no pertenece a la publicación', 'invalid_variation');
+            }
+        }
+        if (hasItemVars && hasStock) {
+            return void bad('Esta publicación tiene variantes: edita el stock por variante', 'invalid_stock');
+        }
+
+        // Solo cambios reales
+        const payload: any = {};
+        if (hasPrice && body.price !== current.price) payload.price = body.price;
+        if (hasStock && body.available_quantity !== current.available_quantity) {
+            payload.available_quantity = body.available_quantity;
+        }
+        if (hasVars) {
+            const changed = body.variations
+                .map((v: any) => {
+                    const cur = itemVars.find(x => String(x.id) === String(v.id));
+                    const out: any = { id: Number(v.id) };
+                    if (v.available_quantity !== undefined && v.available_quantity !== cur.available_quantity) out.available_quantity = v.available_quantity;
+                    if (v.price !== undefined && v.price !== cur.price) out.price = v.price;
+                    return out;
+                })
+                .filter((v: any) => Object.keys(v).length > 1);
+            if (changed.length) payload.variations = changed;
+        }
+
+        const itemResult: any = { ok: true, changed: false };
+        if (Object.keys(payload).length) {
+            try {
+                await axios.put(`${ML_API}/items/${id}`, payload, { headers: authHeaders(token) });
+                itemResult.changed = true;
+            } catch (e: any) {
+                // Sellers de User Products: el stock va por /user-products/{id}/stock
+                const raw = JSON.stringify(e?.response?.data || '');
+                if (payload.available_quantity !== undefined && current.user_product_id && /available_quantity|stock|user.?product/i.test(raw)) {
+                    const qty = payload.available_quantity;
+                    delete payload.available_quantity;
+                    if (Object.keys(payload).length) {
+                        await axios.put(`${ML_API}/items/${id}`, payload, { headers: authHeaders(token) });
+                    }
+                    await putUserProductStock(token, current, qty);
+                    itemResult.changed = true;
+                    itemResult.stock_via = 'user_product';
+                } else {
+                    throw e;
+                }
+            }
+        }
+
+        const descResult: any = { ok: true, changed: false };
+        if (hasDesc) {
+            const currentDesc = await fetchDescriptionText(token, id);
+            if (body.description !== currentDesc) {
+                try {
+                    try {
+                        await axios.put(`${ML_API}/items/${id}/description?api_version=2`, { plain_text: body.description }, { headers: authHeaders(token) });
+                    } catch (e: any) {
+                        if (e?.response?.status === 404) {
+                            await axios.post(`${ML_API}/items/${id}/description`, { plain_text: body.description }, { headers: authHeaders(token) });
+                        } else throw e;
+                    }
+                    descResult.changed = true;
+                } catch (e: any) {
+                    const { body: eb } = mlErrorResponse(e, 'No se pudo guardar la descripción');
+                    clearItemsCache();
+                    return void res.status(207).json({
+                        item: itemResult,
+                        description: { ok: false, error: eb.error, causes: eb.causes }
+                    });
+                }
+            }
+        }
+
+        clearItemsCache();
+        const fresh = (await axios.get(`${ML_API}/items/${id}`, { headers: authHeaders(token) })).data;
+        res.json({
+            item: itemResult,
+            description: descResult,
+            updated: {
+                id: fresh.id,
+                price: fresh.price,
+                available_quantity: fresh.available_quantity,
+                status: fresh.status,
+                last_updated: fresh.last_updated
+            }
+        });
+    } catch (error: any) {
+        const { status, body: eb } = mlErrorResponse(error, 'No se pudo guardar la publicación');
+        res.status(status).json(eb);
+    }
+});
+
 /**
  * GET /api/items/:id
  * Item fresco desde ML (para duplicar sin depender del estado viejo de la lista).
