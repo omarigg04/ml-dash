@@ -609,3 +609,139 @@ body.dark-theme {
     color: hsl(var(--foreground));
   }
 }
+
+
+/* ==========================================
+   COMPONENTES COMPARTIDOS DIRECCION B (etapa 2a)
+   Encabezado de pagina, chips, buscador, badges de estado, estados vacio/error.
+   ========================================== */
+
+.ds-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gap);
+  flex-wrap: wrap;
+  margin-bottom: var(--gap);
+}
+
+.ds-page-head h1 {
+  margin: 0;
+  line-height: 1.3;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.ds-page-head p {
+  margin: 2px 0 0;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+
+.ds-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--ctl-h);
+  padding: 0 8px;
+  min-width: 320px;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--input));
+  border-radius: var(--radius-md);
+  color: hsl(var(--muted-foreground));
+
+  &:focus-within { border-color: var(--ds-focus); box-shadow: 0 0 0 2px hsl(var(--ring) / 0.25); }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: hsl(var(--foreground));
+    font-size: var(--fs);
+  }
+
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
+}
+
+.ds-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ds-border-strong);
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  cursor: pointer;
+
+  b { font-weight: 600; font-family: var(--mono); font-size: 11.5px; color: hsl(var(--muted-foreground)); }
+  &:hover { background: hsl(var(--accent)); }
+  &[aria-pressed="true"] {
+    background: hsl(var(--primary) / 0.12);
+    border-color: hsl(var(--primary));
+    color: hsl(var(--primary));
+    b { color: inherit; }
+  }
+}
+
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--ds-off-bg);
+  color: var(--ds-off-fg);
+
+  &::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  &.tone-success { background: hsl(var(--success-light)); color: hsl(var(--success)); }
+  &.tone-warning { background: hsl(var(--warning-light)); color: hsl(var(--warning)); }
+  &.tone-info { background: hsl(var(--info-light)); color: hsl(var(--info)); }
+  &.tone-error { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
+}
+
+/* Estado vacio / error de un bloque (con boton Reintentar) */
+.ds-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+
+  mat-icon { color: hsl(var(--muted-foreground)); }
+  &.is-error mat-icon, &.is-error strong { color: hsl(var(--destructive)); }
+  strong { color: hsl(var(--foreground)); font-weight: 600; }
+}
+
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--ctl-h);
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ds-border-strong);
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  font-size: var(--fs);
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: hsl(var(--accent)); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  &.primary { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+  &.primary:hover:not(:disabled) { background: hsl(var(--primary)); opacity: 0.9; }
+}

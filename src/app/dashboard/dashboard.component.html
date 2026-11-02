@@ -1,36 +1,85 @@
-<!-- Page Header -->
-<!-- <div class="page-header">
-  <h1 class="page-title">Órdenes</h1>
-  <p class="page-description">Historial completo de pedidos cumplidos</p>
-</div> -->
-
-<!-- Grid Card -->
-<div class="card grid-card">
-  <div class="grid-header">
-    <div>
-      <h3 class="grid-title">Tabla de Órdenes</h3>
-      <p class="grid-subtitle">Visualiza y filtra todos tus pedidos · Haz clic en una orden para ver su detalle</p>
-    </div>
+<!-- Encabezado de página -->
+<div class="ds-page-head">
+  <div>
+    <h1>Órdenes</h1>
+    <p>{{ isLoading ? 'Cargando órdenes…' : (rowData.length === allRows.length ? allRows.length + ' órdenes' : rowData.length + ' de ' + allRows.length + ' órdenes') }} · Toca una orden para ver su detalle</p>
   </div>
-
-  <div class="grid-container">
-    <mat-spinner *ngIf="isLoading" diameter="50" class="grid-spinner"></mat-spinner>
-    <ag-grid-angular *ngIf="!isLoading" class="ag-theme-quartz grid-table" [rowData]="rowData" [columnDefs]="columnDefs"
-      [defaultColDef]="defaultColDef" [pagination]="true" [paginationPageSize]="100" [animateRows]="true"
-      [rowStyle]="{ cursor: 'pointer' }"
-      (gridReady)="onGridReady($event)" (rowClicked)="onRowClicked($event)">
-    </ag-grid-angular>
-  </div>
+  <label class="ds-search">
+    <mat-icon aria-hidden="true">search</mat-icon>
+    <input #q type="search" placeholder="Buscar por orden, producto o comprador" aria-label="Buscar órdenes por número, producto o comprador"
+      [value]="searchTerm" (input)="onSearch(q.value)" [disabled]="isLoading || loadError">
+  </label>
 </div>
 
-<!-- Order Detail Panel -->
-<div *ngIf="selectedOrder as order" class="detail-backdrop" (click)="closeOrderDetail()"></div>
+<!-- Chips de estado -->
+<div class="chips" role="group" aria-label="Filtrar por estado" *ngIf="!isLoading && !loadError && allRows.length">
+  <button type="button" class="ds-chip" *ngFor="let chip of statusChips" [attr.aria-pressed]="statusFilter === chip.key"
+    (click)="setStatusFilter(chip.key)">
+    {{ chip.label }} <b>{{ chip.count }}</b>
+  </button>
+</div>
 
-<aside *ngIf="selectedOrder as order" class="detail-panel">
+<div class="card orders-card">
+  <!-- Cargando -->
+  <div *ngIf="isLoading" class="skeleton" role="status" aria-label="Cargando órdenes">
+    <div class="skeleton-row" *ngFor="let r of skeletonRows"></div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="!isLoading && loadError" class="ds-state is-error" role="alert">
+    <mat-icon aria-hidden="true">error_outline</mat-icon>
+    <strong>No pudimos cargar tus órdenes</strong>
+    <span>Revisa tu conexión con Mercado Libre e inténtalo de nuevo.</span>
+    <button type="button" class="ds-btn primary" (click)="reload()">Reintentar</button>
+  </div>
+
+  <!-- Vacío (sin órdenes en absoluto) -->
+  <div *ngIf="!isLoading && !loadError && allRows.length === 0" class="ds-state">
+    <mat-icon aria-hidden="true">receipt_long</mat-icon>
+    <strong>Aún no hay órdenes</strong>
+    <span>Cuando tengas ventas completadas aparecerán aquí.</span>
+  </div>
+
+  <ng-container *ngIf="!isLoading && !loadError && allRows.length > 0">
+    <!-- Tabla (escritorio) -->
+    <ag-grid-angular class="ag-theme-quartz grid-table" [rowData]="rowData" [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef" [localeText]="localeText" [pagination]="true" [paginationPageSize]="50"
+      [paginationPageSizeSelector]="[25, 50, 100]" [animateRows]="true" [rowStyle]="{ cursor: 'pointer' }"
+      [suppressCellFocus]="false" (rowClicked)="onRowClicked($event)">
+    </ag-grid-angular>
+
+    <!-- Tarjetas (móvil <= 640px) -->
+    <div class="order-cards">
+      <p *ngIf="rowData.length === 0" class="cards-empty">Sin órdenes que coincidan con tu búsqueda</p>
+      <button type="button" class="order-card" *ngFor="let row of cardRows" (click)="openOrderDetail(row.order)">
+        <span class="oc-top">
+          <span class="oc-id">#{{ row.id }}</span>
+          <span class="oc-badges">
+            <span class="ds-badge" [ngClass]="'tone-' + phaseLabel(row.phase).tone">{{ phaseLabel(row.phase).label }}</span>
+            <span class="ds-badge" [ngClass]="'tone-' + statusInfo(row.status).tone">{{ statusInfo(row.status).label }}</span>
+          </span>
+        </span>
+        <span class="oc-title">{{ row.item }}</span>
+        <span class="oc-bottom">
+          <span class="oc-date">{{ row.date_created | date:'dd/MM/yyyy HH:mm' }} · {{ row.qty }} pza.</span>
+          <span class="oc-total">{{ row.total_amount | currency }}</span>
+        </span>
+      </button>
+      <button type="button" class="ds-btn more-cards" *ngIf="cardsLimit < rowData.length" (click)="showMoreCards()">
+        Ver más ({{ rowData.length - cardsLimit }})
+      </button>
+    </div>
+  </ng-container>
+</div>
+
+<!-- Panel de detalle de orden -->
+<div *ngIf="selectedOrder" class="detail-backdrop" (click)="closeOrderDetail()"></div>
+
+<aside *ngIf="selectedOrder as order" class="detail-panel" role="dialog" aria-modal="true" aria-label="Detalle de la orden">
   <div class="detail-header">
     <div>
       <p class="detail-label">Orden</p>
-      <h3 class="detail-title">#{{ order.id }}</h3>
+      <h2 class="detail-title">#{{ order.id }}</h2>
       <p class="detail-date">{{ order.date_created | date:'dd/MM/yyyy, HH:mm' }}</p>
     </div>
     <button type="button" class="detail-close" (click)="closeOrderDetail()" aria-label="Cerrar detalle">
@@ -41,28 +90,28 @@
   <div class="detail-body">
     <!-- Estado -->
     <div class="detail-tags">
-      <span class="detail-tag">{{ order.status }}</span>
-      <span *ngIf="order.payments[0]" class="detail-tag">Pago: {{ order.payments[0].status }}</span>
-      <span *ngIf="selectedShipment" class="detail-tag">Envío: {{ selectedShipment.status }}</span>
+      <span *ngIf="order.payments[0] as pay" class="ds-badge" [ngClass]="'tone-' + statusInfo(pay.status).tone">Pago: {{ statusInfo(pay.status).label }}</span>
+      <span *ngIf="!order.payments[0]" class="ds-badge" [ngClass]="'tone-' + statusInfo(order.status).tone">{{ statusInfo(order.status).label }}</span>
+      <span *ngIf="selectedShipment" class="ds-badge" [ngClass]="'tone-' + shipmentInfo(selectedShipment.status).tone">Envío: {{ shipmentInfo(selectedShipment.status).label }}</span>
     </div>
 
     <!-- Comprador -->
     <section class="detail-section">
-      <h4 class="detail-section-title"><mat-icon>person</mat-icon> Comprador</h4>
+      <h3 class="detail-section-title"><mat-icon>person</mat-icon> Comprador</h3>
       <p class="detail-text">{{ buyerNickname || '—' }}</p>
     </section>
 
     <!-- Artículos -->
     <section class="detail-section">
-      <h4 class="detail-section-title"><mat-icon>inventory_2</mat-icon> Artículos</h4>
+      <h3 class="detail-section-title"><mat-icon>inventory_2</mat-icon> Artículos</h3>
       <div *ngFor="let orderItem of order.order_items" class="detail-item">
         <a class="detail-item-title" [href]="'https://articulo.mercadolibre.com.mx/' + orderItem.item.id.replace('MLM', 'MLM-')"
            target="_blank" rel="noopener">
           {{ orderItem.item.title }}
         </a>
         <div class="detail-row">
-          <span>{{ orderItem.quantity }} × {{ orderItem.unit_price | currency }}</span>
-          <span>{{ orderItem.quantity * orderItem.unit_price | currency }}</span>
+          <span class="num">{{ orderItem.quantity }} × {{ orderItem.unit_price | currency }}</span>
+          <span class="num">{{ orderItem.quantity * orderItem.unit_price | currency }}</span>
         </div>
         <div class="detail-row detail-muted">
           <span>{{ orderItem.item.id }} · {{ orderItem.listing_type_id }}</span>
@@ -72,11 +121,11 @@
 
     <!-- Pago -->
     <section *ngIf="order.payments.length" class="detail-section">
-      <h4 class="detail-section-title"><mat-icon>payments</mat-icon> Pago</h4>
+      <h3 class="detail-section-title"><mat-icon>payments</mat-icon> Pago</h3>
       <div *ngFor="let payment of order.payments" class="detail-item">
         <div class="detail-row">
           <span>{{ payment.payment_method_id }} ({{ payment.payment_type }})</span>
-          <span>{{ payment.total_paid_amount | currency }}</span>
+          <span class="num">{{ payment.total_paid_amount | currency }}</span>
         </div>
         <div class="detail-row detail-muted">
           <span>{{ payment.installments }} {{ payment.installments === 1 ? 'pago' : 'meses' }}</span>
@@ -87,28 +136,29 @@
 
     <!-- Desglose -->
     <section class="detail-section">
-      <h4 class="detail-section-title"><mat-icon>receipt_long</mat-icon> Desglose</h4>
+      <h3 class="detail-section-title"><mat-icon>receipt_long</mat-icon> Desglose</h3>
       <div class="detail-row">
         <span>Total de la venta</span>
-        <span>{{ order.total_amount | currency }}</span>
+        <span class="num">{{ order.total_amount | currency }}</span>
       </div>
       <div class="detail-row detail-negative">
         <span>Comisión ML</span>
-        <span>−{{ getTotalSaleFee(order) | currency }}</span>
+        <span class="num">−{{ getTotalSaleFee(order) | currency }}</span>
       </div>
       <div class="detail-row detail-negative">
-        <span>Retenciones SAT (1% ISR + 8% IVA)</span>
-        <span>−{{ getSatFee(order) | currency }}</span>
+        <span>Retenciones SAT, estimado (1% ISR + 8% IVA)</span>
+        <span class="num">−{{ getSatFee(order) | currency }}</span>
       </div>
       <div class="detail-row detail-negative">
         <span>Costo de envío</span>
-        <span *ngIf="isShipmentLoading">Cargando...</span>
-        <span *ngIf="!isShipmentLoading && selectedShipment">−{{ selectedShipment.listCost | currency }}</span>
+        <span *ngIf="isShipmentLoading" class="detail-muted">Calculando…</span>
+        <span *ngIf="!isShipmentLoading && selectedShipment" class="num">−{{ selectedShipment.listCost | currency }}</span>
         <span *ngIf="!isShipmentLoading && !selectedShipment">—</span>
       </div>
       <div class="detail-row detail-total">
         <span>Ganancia neta</span>
-        <span>{{ getNetAmount(order) | currency }}</span>
+        <span *ngIf="getNetAmount(order) === null" class="detail-muted">Calculando…</span>
+        <span *ngIf="getNetAmount(order) !== null" class="num">{{ getNetAmount(order) | currency }}</span>
       </div>
     </section>
 

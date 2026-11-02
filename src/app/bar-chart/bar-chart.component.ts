@@ -7,6 +7,7 @@ import { DatePipe } from '@angular/common';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map, mergeMap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { orderSaleFee, satRetention } from '../shared/order-math';
 
 interface Publication {
   id: string;
@@ -19,6 +20,27 @@ interface Publication {
   listing_type_id: string;
   condition: string;
   permalink: string;
+}
+
+interface Metrics {
+  sales: number;
+  fees: number;
+  envios: number;
+  real: number;
+  count: number;
+  units: number;
+}
+
+export interface Kpi {
+  key: string;
+  label: string;
+  value: number;
+  kind: 'money' | 'int';
+  /** Variación % vs período anterior (null si no hay base o no es modo comparación) */
+  delta: number | null;
+  /** true si subir es malo (comisiones, envíos) */
+  invert?: boolean;
+  highlight?: boolean;
 }
 
 @Component({
@@ -61,6 +83,20 @@ export class BarChartComponent implements OnInit, OnDestroy {
   showUnfulfilled: boolean = false; // Controla si se muestran órdenes con fulfilled: false
   isComparisonMode: boolean = true; // true = comparación, false = rango único
 
+  // Estados de error (A2) y KPIs de la tira
+  readonly periods = [
+    { key: '2weeks', label: '2 semanas' },
+    { key: '2months', label: '2 meses' },
+    { key: '2bimesters', label: '2 bimestres' },
+  ];
+  readonly skeletonKpis: Kpi[] = ['Ventas', 'Ganancia real', 'Órdenes', 'Unidades', 'Comisiones ML', 'Costos de envío']
+    .map((label, i) => ({ key: 's' + i, label, value: 0, kind: 'int' as const, delta: null }));
+  ordersError = false;
+  productsError = false;
+  hasOrders = true;
+  kpis: Kpi[] = [];
+  periodLabel = '';
+
   // Product lists
   recentProducts: Publication[] = [];
   topSellingProducts: Publication[] = [];
@@ -96,6 +132,7 @@ export class BarChartComponent implements OnInit, OnDestroy {
    */
   loadPublications(): void {
     this.productsLoading = true;
+    this.productsError = false;
 
     const mostSoldParams = new HttpParams()
       .set('sort', 'sales_desc')
@@ -118,10 +155,10 @@ export class BarChartComponent implements OnInit, OnDestroy {
         this.topSellingProducts = mostSold.items.filter(p => (p.sold_quantity || 0) > 0);
         this.recentProducts = recentlyCreated.items;
         this.productsLoading = false;
-        console.log(`📦 Top 4 más vendidos y 4 más recientes cargados.`);
       },
       error: (error) => {
         console.error('Error al cargar publicaciones:', error);
+        this.productsError = true;
         this.productsLoading = false;
       }
     });
@@ -132,6 +169,9 @@ export class BarChartComponent implements OnInit, OnDestroy {
    */
   loadOrders(from: Date, to: Date): void {
     this.isLoading = true;
+    this.ordersError = false;
+    this.totalSumIsLoading = this.feesIsLoading = this.enviosIsLoading = this.satSumIsLoading = this.realSumIsLoading = true;
+    this.lastRange = { from, to };
 
     // Formatear fechas a ISO 8601
     const fromISO = from.toISOString();
@@ -153,7 +193,7 @@ export class BarChartComponent implements OnInit, OnDestroy {
       mergeMap(fulfilledOrders => {
         this.chartData = fulfilledOrders.map(order => {
           const date = new Date(order.date_created);
-          const saleFee = order.order_items.reduce((sum, item) => sum + item.sale_fee, 0);
+          const saleFee = orderSaleFee(order);
 
           return { date, total_amount: order.total_amount, saleFee };
         });
@@ -164,106 +204,104 @@ export class BarChartComponent implements OnInit, OnDestroy {
           )
         );
 
+        // forkJoin([]) completa sin emitir: sin órdenes el spinner quedaba infinito
+        if (shipmentCostRequests.length === 0) return of([] as Order[]);
+
         return forkJoin(shipmentCostRequests).pipe(
           map(listCosts => {
             return fulfilledOrders.map((order, index) => ({
               ...order,
               listCost: listCosts[index].listCost
-            }));
+            })) as Order[];
           })
         );
       })
-    ).subscribe(ordersWithShippingCost => {
-      this.ordersWithShippingCost = ordersWithShippingCost;
-      this.envios = ordersWithShippingCost.reduce((acc, order) => acc + order.listCost, 0);
-      this.filteredChartData = this.chartData;
-      this.updateChart();
-      this.isLoading = false;
-      this.enviosIsLoading = false;
-    }, error => {
-      console.error('Error al obtener pedidos:', error);
-      this.isLoading = false;
+    ).subscribe({
+      next: (ordersWithShippingCost: Order[]) => {
+        this.ordersWithShippingCost = ordersWithShippingCost;
+        this.envios = ordersWithShippingCost.reduce((acc, order) => acc + order.listCost, 0);
+        this.filteredChartData = this.chartData;
+        this.updateChart();
+        this.isLoading = false;
+        this.enviosIsLoading = false;
+      },
+      error: error => {
+        console.error('Error al obtener pedidos:', error);
+        this.ordersError = true;
+        this.isLoading = false;
+        this.totalSumIsLoading = this.feesIsLoading = this.enviosIsLoading = this.satSumIsLoading = this.realSumIsLoading = false;
+      }
     });
   }
 
+  private lastRange: { from: Date; to: Date } | null = null;
+
+  /** Botón "Reintentar" de KPIs y gráfica */
+  retryOrders(): void {
+    if (this.lastRange) this.loadOrders(this.lastRange.from, this.lastRange.to);
+    else this.onPeriodChange(this.selectedPeriod === 'custom' ? '2weeks' : this.selectedPeriod);
+  }
+
+  private metrics(orders: Order[]): Metrics {
+    const sales = orders.reduce((acc, o) => acc + o.total_amount, 0);
+    const fees = orders.reduce((acc, o) => acc + orderSaleFee(o), 0);
+    const envios = orders.reduce((acc, o) => acc + o.listCost, 0);
+    const real = sales - (satRetention(sales) + envios + fees);
+    const units = orders.reduce((acc, o) => acc + o.order_items.reduce((sum, item) => sum + item.quantity, 0), 0);
+    return { sales, fees, envios, real, count: orders.length, units };
+  }
+
+  private ordersBetween(orders: Order[], start: Date, end: Date): Order[] {
+    const s0 = this.normalizeToStartOfDay(start).getTime();
+    const e0 = this.normalizeToStartOfDay(end).getTime();
+    return orders.filter(o => {
+      const d = this.normalizeToStartOfDay(new Date(o.date_created)).getTime();
+      return d >= s0 && d <= e0;
+    });
+  }
+
+  private pct(cur: number, prev: number): number | null {
+    return prev > 0 ? ((cur - prev) / prev) * 100 : null;
+  }
+
   /**
-   * Calcula el porcentaje de cambio entre dos períodos
+   * Construye la tira de KPIs. En modo comparación los valores son los del período actual
+   * (período 2) y el delta es contra el período anterior (período 1); en rango personalizado
+   * son los del rango completo, sin delta.
    */
-  private calculatePeriodChanges(filteredOrders: Order[]) {
-    const period1Start: Date = (this as any).period1Start;
-    const period1End: Date = (this as any).period1End;
-    const period2Start: Date = (this as any).period2Start;
-    const period2End: Date = (this as any).period2End;
+  private buildKpis(allOrders: Order[]): void {
+    const p1s: Date = (this as any).period1Start, p1e: Date = (this as any).period1End;
+    const p2s: Date = (this as any).period2Start, p2e: Date = (this as any).period2End;
+    const compare = this.isComparisonMode && !!p1s && !!p2s;
 
-    if (!period1Start || !period2Start) {
-      this.totalSumChangePercent = 0;
-      this.realSumChangePercent = 0;
-      this.totalSumChangeIcon = 'trending_flat';
-      this.realSumChangeIcon = 'trending_flat';
-      return;
-    }
+    const cur = this.metrics(compare ? this.ordersBetween(allOrders, p2s, p2e) : allOrders);
+    const prev = compare ? this.metrics(this.ordersBetween(allOrders, p1s, p1e)) : null;
+    const d = (k: keyof Metrics) => (prev ? this.pct(cur[k], prev[k]) : null);
 
-    // Normalizar fechas
-    const normalizeDateToMidnight = (date: Date): Date => {
-      const normalized = new Date(date);
-      normalized.setHours(0, 0, 0, 0);
-      return normalized;
-    };
+    this.totalSum = cur.sales;
+    this.fees = cur.fees;
+    this.envios = cur.envios;
+    this.satSum = satRetention(cur.sales);
+    this.realSum = cur.real;
+    this.hasOrders = allOrders.length > 0;
+    this.periodLabel = compare
+      ? `${(this as any).period2Name} vs ${(this as any).period1Name}`
+      : ((this as any).customRangeName || '');
 
-    const p1Start = normalizeDateToMidnight(period1Start);
-    const p1End = normalizeDateToMidnight(period1End);
-    const p2Start = normalizeDateToMidnight(period2Start);
-    const p2End = normalizeDateToMidnight(period2End);
+    this.kpis = [
+      { key: 'sales', label: 'Ventas', value: cur.sales, kind: 'money', delta: d('sales') },
+      { key: 'real', label: 'Ganancia real', value: cur.real, kind: 'money', delta: d('real'), highlight: true },
+      { key: 'orders', label: 'Órdenes', value: cur.count, kind: 'int', delta: d('count') },
+      { key: 'units', label: 'Unidades', value: cur.units, kind: 'int', delta: d('units') },
+      { key: 'fees', label: 'Comisiones ML', value: cur.fees, kind: 'money', delta: d('fees'), invert: true },
+      { key: 'envios', label: 'Costos de envío', value: cur.envios, kind: 'money', delta: d('envios'), invert: true },
+    ];
+  }
 
-    // Separar órdenes por período
-    const period1Orders = filteredOrders.filter(order => {
-      const orderDate = normalizeDateToMidnight(new Date(order.date_created));
-      return orderDate >= p1Start && orderDate <= p1End;
-    });
-
-    const period2Orders = filteredOrders.filter(order => {
-      const orderDate = normalizeDateToMidnight(new Date(order.date_created));
-      return orderDate >= p2Start && orderDate <= p2End;
-    });
-
-    // Calcular totales de cada período
-    const period1Total = period1Orders.reduce((acc, curr) => acc + curr.total_amount, 0);
-    const period2Total = period2Orders.reduce((acc, curr) => acc + curr.total_amount, 0);
-
-    const period1Fees = period1Orders.reduce((acc, curr) => acc + curr.order_items.reduce((sum, item) => sum + item.sale_fee, 0), 0);
-    const period2Fees = period2Orders.reduce((acc, curr) => acc + curr.order_items.reduce((sum, item) => sum + item.sale_fee, 0), 0);
-
-    const period1Envios = period1Orders.reduce((acc, curr) => acc + curr.listCost, 0);
-    const period2Envios = period2Orders.reduce((acc, curr) => acc + curr.listCost, 0);
-
-    const period1Sat = period1Total * 0.08;
-    const period2Sat = period2Total * 0.08;
-
-    const period1Real = period1Total - (period1Sat + period1Envios + period1Fees);
-    const period2Real = period2Total - (period2Sat + period2Envios + period2Fees);
-
-    // Calcular porcentajes de cambio
-    if (period1Total > 0) {
-      this.totalSumChangePercent = ((period2Total - period1Total) / period1Total) * 100;
-      this.totalSumChangeIcon = this.totalSumChangePercent > 0 ? 'trending_up' :
-                                this.totalSumChangePercent < 0 ? 'trending_down' : 'trending_flat';
-    } else {
-      this.totalSumChangePercent = 0;
-      this.totalSumChangeIcon = 'trending_flat';
-    }
-
-    if (period1Real > 0) {
-      this.realSumChangePercent = ((period2Real - period1Real) / period1Real) * 100;
-      this.realSumChangeIcon = this.realSumChangePercent > 0 ? 'trending_up' :
-                              this.realSumChangePercent < 0 ? 'trending_down' : 'trending_flat';
-    } else {
-      this.realSumChangePercent = 0;
-      this.realSumChangeIcon = 'trending_flat';
-    }
-
-    console.log(`📊 Cambios entre períodos:`);
-    console.log(`  Total: $${period1Total.toFixed(2)} → $${period2Total.toFixed(2)} (${this.totalSumChangePercent.toFixed(1)}%)`);
-    console.log(`  Real: $${period1Real.toFixed(2)} → $${period2Real.toFixed(2)} (${this.realSumChangePercent.toFixed(1)}%)`);
+  deltaClass(k: Kpi): string {
+    if (k.delta === null || Math.abs(k.delta) < 0.05) return 'neutral';
+    const good = k.invert ? k.delta < 0 : k.delta > 0;
+    return good ? 'positive' : 'negative';
   }
 
   /**
@@ -593,7 +631,7 @@ export class BarChartComponent implements OnInit, OnDestroy {
     // Convertir filteredOrders a formato chartData
     const filteredChartData = filteredOrders.map(order => {
       const date = new Date(order.date_created);
-      const saleFee = order.order_items.reduce((sum, item) => sum + item.sale_fee, 0);
+      const saleFee = orderSaleFee(order);
       return { date, total_amount: order.total_amount, saleFee };
     });
 
@@ -768,22 +806,7 @@ export class BarChartComponent implements OnInit, OnDestroy {
   }
 
   updateChart(filteredOrders: Order[] = this.ordersWithShippingCost) {
-    this.totalSum = filteredOrders.reduce((acc, curr) => acc + curr.total_amount, 0);
-    this.fees = filteredOrders.reduce((acc, curr) => acc + curr.order_items.reduce((sum, item) => sum + item.sale_fee, 0), 0);
-    this.envios = filteredOrders.reduce((acc, curr) => acc + curr.listCost, 0);
-    this.satSum = this.totalSum * 0.08;
-    this.realSum = this.totalSum - (this.satSum + this.envios + this.fees);
-
-    // Calcular porcentajes de cambio entre períodos (solo en modo comparación)
-    if (this.isComparisonMode) {
-      this.calculatePeriodChanges(filteredOrders);
-    } else {
-      // En modo rango único, no hay cambios para mostrar
-      this.totalSumChangePercent = 0;
-      this.realSumChangePercent = 0;
-      this.totalSumChangeIcon = 'trending_flat';
-      this.realSumChangeIcon = 'trending_flat';
-    }
+    this.buildKpis(filteredOrders);
 
     this.totalSumIsLoading = false;
     this.feesIsLoading = false;
@@ -808,10 +831,6 @@ export class BarChartComponent implements OnInit, OnDestroy {
         background: {
           fill: 'transparent'
         },
-        animation: {
-          enabled: true,
-          duration: 800
-        },
         series: [
           {
             type: 'line',
@@ -834,22 +853,14 @@ export class BarChartComponent implements OnInit, OnDestroy {
         {
           type: 'category',
           position: 'bottom',
-          title: {
-            text: 'Día del Mes',
-            enabled: true
-          },
           label: {
-            rotation: 0,
-            fontSize: 12
+            autoRotate: true,
+            fontSize: 11
           }
         },
         {
           type: 'number',
           position: 'left',
-          title: {
-            text: 'Ventas (MXN)',
-            enabled: true
-          },
           label: {
             formatter: (params: any) => {
               return '$' + params.value.toLocaleString('es-MX', { maximumFractionDigits: 0 });
@@ -892,10 +903,6 @@ export class BarChartComponent implements OnInit, OnDestroy {
         background: {
           fill: 'transparent'
         },
-        animation: {
-          enabled: true,
-          duration: 800
-        },
         series: [
           {
             type: 'bar',
@@ -910,10 +917,6 @@ export class BarChartComponent implements OnInit, OnDestroy {
           {
             type: 'category',
             position: 'bottom',
-            title: {
-              text: 'Fecha',
-              enabled: true
-            },
             label: {
               rotation: -45,
               fontSize: 11
@@ -922,10 +925,6 @@ export class BarChartComponent implements OnInit, OnDestroy {
           {
             type: 'number',
             position: 'left',
-            title: {
-              text: 'Ventas (MXN)',
-              enabled: true
-            },
             label: {
               formatter: (params: any) => {
                 return '$' + params.value.toLocaleString('es-MX', { maximumFractionDigits: 0 });
