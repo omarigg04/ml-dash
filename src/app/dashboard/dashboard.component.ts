@@ -283,7 +283,7 @@ export class DashboardComponent implements OnInit {
     return orderSaleFee(order);
   }
 
-  // Retenciones SAT: 1% ISR + 8% IVA sobre el total
+  // Retenciones SAT: 2.5% ISR + 8% IVA sobre el precio sin IVA
   getSatFee(order: Order): number {
     return satRetention(order.total_amount);
   }

@@ -54,11 +54,18 @@ export interface MLOrder {
   status: string;
 }
 
+// GET /shipments/:id/costs — qué paga cada parte del envío
+export interface MLShipmentCosts {
+  receiver?: { user_id: number; cost: number };
+  senders?: { user_id: number; cost: number }[];
+}
+
 export interface MLShipment {
   id: number;
   order_id: number;
   order_cost: number;
-  list_cost: number;
+  list_cost?: number;
+  shipping_option?: { list_cost?: number; cost?: number };
   cost_components: {
     special_discount?: number;
     loyal_discount?: number;

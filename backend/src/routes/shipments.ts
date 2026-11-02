@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { mlAuth } from '../auth/oauth';
-import { MLShipment } from '../types';
+import { MLShipment, MLShipmentCosts } from '../types';
 
 const router = Router();
 
@@ -23,7 +23,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
         // Fetch shipment details
         const shipmentResponse = await axios.get<MLShipment>(
-            `https://api.mercadolibre.com/shipments/${id}`,
+            `https://api.mercadolibre.com/shipments/${encodeURIComponent(id)}`,
             {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -33,11 +33,28 @@ router.get('/:id', async (req: Request, res: Response) => {
 
         const shipment = shipmentResponse.data;
 
+        // Lo que el vendedor paga por el envío. list_cost ya no viene en la raíz del
+        // shipment (está en shipping_option); el dato exacto es senders[].cost de /costs.
+        let sellerCost: number | null = null;
+        try {
+            const costsResponse = await axios.get<MLShipmentCosts>(
+                `https://api.mercadolibre.com/shipments/${encodeURIComponent(id)}/costs`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            const senders = costsResponse.data.senders || [];
+            if (senders.length) {
+                sellerCost = senders.reduce((sum, s) => sum + (s.cost || 0), 0);
+            }
+        } catch (costError: any) {
+            console.warn(`Shipment ${id} costs unavailable:`, costError.response?.status || costError.message);
+        }
+        const listCost = sellerCost ?? shipment.shipping_option?.list_cost ?? shipment.list_cost ?? 0;
+
         // Return shipment data with cost information
         res.json({
             id: shipment.id,
             order_id: shipment.order_id,
-            listCost: shipment.list_cost || 0,
+            listCost,
             orderCost: shipment.order_cost || 0,
             status: shipment.status,
         });
