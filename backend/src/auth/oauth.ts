@@ -305,7 +305,7 @@ export class MercadoLibreAuth {
                     console.log('[DEBUG] No token found in KV');
                 }
             } catch (error) {
-                console.log('⚠️  Error loading tokens from Vercel KV:', error);
+                console.log('⚠️  Error loading tokens from Vercel KV:', (error as any)?.message);
             }
         }
 
@@ -337,7 +337,7 @@ export class MercadoLibreAuth {
                 console.log('✅ Tokens saved to Vercel KV (REST)');
                 return;
             } catch (error) {
-                console.error('Error saving tokens to Vercel KV:', error);
+                console.error('Error saving tokens to Vercel KV:', (error as any)?.message);
                 // On serverless there is no fallback: the token would be lost
                 if (this.isServerless()) throw new TokenStorageError((error as Error).message);
             }
@@ -351,7 +351,7 @@ export class MercadoLibreAuth {
                 fs.writeFileSync(TOKEN_FILE, JSON.stringify(this.tokenData, null, 2));
                 console.log('✅ Tokens saved to file');
             } catch (error) {
-                console.error('Error saving tokens:', error);
+                console.error('Error saving tokens:', (error as any)?.message);
             }
         }
     }
@@ -369,7 +369,7 @@ export class MercadoLibreAuth {
                 await kvRestApi('POST', ['DEL', TOKEN_KV_KEY]);
                 console.log('✅ Tokens cleared from Vercel KV');
             } catch (error) {
-                console.error('Error clearing tokens from Vercel KV:', error);
+                console.error('Error clearing tokens from Vercel KV:', (error as any)?.message);
             }
         }
 
@@ -381,29 +381,11 @@ export class MercadoLibreAuth {
                     console.log('✅ Tokens cleared from file');
                 }
             } catch (error) {
-                console.error('Error clearing tokens from file:', error);
+                console.error('Error clearing tokens from file:', (error as any)?.message);
             }
         }
     }
 
-    /**
-     * Inject tokens directly (for local development testing)
-     */
-    async injectToken(access_token: string, refresh_token: string, expires_in: number = 21600, scope?: string): Promise<void> {
-        this.tokenData = {
-            access_token,
-            refresh_token,
-            expires_in,
-            scope: scope || 'offline_access read write',
-            token_type: 'Bearer',
-            user_id: 0,
-            created_at: Date.now()
-        };
-
-        await this.saveTokens();
-        console.log('✅ Token injected successfully');
-        console.log('🔍 Scopes:', this.tokenData.scope);
-    }
 }
 
 export const mlAuth = new MercadoLibreAuth();
