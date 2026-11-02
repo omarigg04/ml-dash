@@ -102,6 +102,8 @@
           <span>{{ item.available_quantity }} disp.</span>
           <span>{{ item.sold_quantity || 0 }} vend.</span>
           <span>{{ item.visits == null ? '…' : item.visits }} visitas</span>
+          <span>{{ conversion(item) == null ? '—' : pct(conversion(item)!) }} conv.</span>
+          <span><b class="pc-rev">{{ revenue(item) | currency }}</b> ingreso</span>
         </div>
         <div class="pc-actions">
           <span class="pc-type">{{ listingLabel(item.listing_type_id) }}</span>

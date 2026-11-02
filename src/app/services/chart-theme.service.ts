@@ -52,8 +52,8 @@ export class ChartThemeService implements OnDestroy {
     const axis = {
       label: { color: muted, fontFamily: font, fontSize: 11 },
       title: { color: muted, fontFamily: font, fontSize: 12, fontWeight: 'normal' as const },
-      line: { stroke: border },
-      tick: { stroke: border },
+      line: { color: border },
+      tick: { color: border },
     };
 
     return {

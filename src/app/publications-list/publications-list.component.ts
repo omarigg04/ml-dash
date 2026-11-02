@@ -147,8 +147,8 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
       {
         headerName: 'Publicación',
         field: 'title',
-        flex: 4,
-        minWidth: 280,
+        flex: 1,
+        minWidth: 220,
         cellRenderer: (p: ICellRendererParams) => {
           const item: Publication = p.data;
           const thumb = item.thumbnail
@@ -157,30 +157,48 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
           return `<span class="pub-cell">${thumb}<span class="pub-title-wrap"><a class="pub-title" href="${escapeHtml(item.permalink)}" target="_blank" rel="noopener" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</a><span class="pub-id">${escapeHtml(item.id)}</span></span></span>`;
         },
       },
-      { headerName: 'Precio', field: 'price', width: 110, valueFormatter: p => this.money(p.value), ...num },
-      { headerName: 'Disponible', field: 'available_quantity', width: 100, valueFormatter: p => this.int(p.value), ...num },
+      { headerName: 'Precio', field: 'price', width: 105, valueFormatter: p => this.money(p.value), ...num },
+      { headerName: 'Disp.', field: 'available_quantity', headerTooltip: 'Disponible', width: 80, valueFormatter: p => this.int(p.value), ...num },
       { headerName: 'Vendidos', field: 'sold_quantity', width: 90, valueFormatter: p => this.int(p.value ?? 0), ...num },
       {
         headerName: 'Visitas',
         field: 'visits',
-        width: 90,
+        width: 85,
         valueFormatter: p => (p.value == null ? (this.isLoadingVisits ? '…' : '0') : this.int(p.value)),
+        ...num,
+      },
+      {
+        headerName: 'Conv.',
+        colId: 'conv',
+        headerTooltip: 'Conversión: vendidos / visitas',
+        width: 80,
+        valueGetter: p => this.conversion(p.data),
+        valueFormatter: p => (p.value == null ? '—' : this.pct(p.value)),
+        ...num,
+      },
+      {
+        headerName: 'Ingreso',
+        colId: 'revenue',
+        headerTooltip: 'Precio × vendidos',
+        width: 120,
+        valueGetter: p => this.revenue(p.data),
+        valueFormatter: p => this.money(p.value),
         ...num,
       },
       {
         headerName: 'Estado',
         field: 'status',
-        width: 120,
+        width: 110,
         cellRenderer: (p: ICellRendererParams) => {
           const info = this.statusInfo(p.value);
           return `<span class="ds-badge tone-${info.tone}">${escapeHtml(info.label)}</span>`;
         },
       },
-      { headerName: 'Tipo', field: 'listing_type_id', width: 100, valueFormatter: p => this.listingLabel(p.value) },
+      { headerName: 'Tipo', field: 'listing_type_id', width: 95, valueFormatter: p => this.listingLabel(p.value) },
       {
         headerName: 'Acciones',
         colId: 'actions',
-        width: 180,
+        width: 175,
         sortable: false,
         cellRenderer: (p: ICellRendererParams) => {
           const relist = p.data.status === 'closed'
@@ -438,6 +456,18 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
 
   money(v: number | null | undefined): string {
     return v == null ? '' : Number(v).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+  }
+
+  conversion(item: Publication): number | null {
+    return item.visits ? (item.sold_quantity || 0) / item.visits : null;
+  }
+
+  revenue(item: Publication): number {
+    return (item.price || 0) * (item.sold_quantity || 0);
+  }
+
+  pct(v: number): string {
+    return (v * 100).toLocaleString('es-MX', { maximumFractionDigits: 1 }) + '%';
   }
 
   int(v: number | null | undefined): string {

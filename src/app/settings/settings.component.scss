@@ -1,358 +1,91 @@
-// MercadoLibre Login Button
-.meli-login-btn {
-  background-color: hsl(38 92% 50% / 0.15);
-  border: 1px solid hsl(38 92% 50% / 0.3);
-  color: hsl(38 92% 50%);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.9375rem;
+// Configuracion - Direccion B (Operativo)
+:host { display: block; max-width: 880px; }
 
-  mat-icon {
-    font-size: 20px;
-    width: 20px;
-    height: 20px;
-  }
-
-  &:hover {
-    background-color: hsl(38 92% 50% / 0.25);
-    border-color: hsl(38 92% 50% / 0.5);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px hsl(38 92% 50% / 0.2);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-}
-
-// Page Header
 .page-header {
-  margin-bottom: 2rem;
-
-  .page-title {
-    font-size: 2rem;
-    font-weight: 700;
-    color: hsl(var(--foreground));
-    margin: 0 0 0.5rem 0;
-  }
-
-  .page-description {
-    font-size: 0.95rem;
-    color: hsl(var(--muted-foreground));
-    margin: 0;
-  }
+  margin-bottom: var(--gap);
+  .page-title { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; }
+  .page-description { margin: 2px 0 0; color: hsl(var(--muted-foreground)); line-height: 1.4; }
 }
 
-// Settings Card
-.settings-card {
-  margin-bottom: 2rem;
+.card { padding: var(--card-pad); margin-bottom: var(--gap); }
 
-  .settings-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid hsl(var(--border));
-
-    mat-icon {
-      font-size: 28px;
-      width: 28px;
-      height: 28px;
-      color: hsl(var(--primary));
-    }
-
-    h2 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: hsl(var(--foreground));
-      margin: 0;
-    }
-  }
-
-  .settings-section {
-    .setting-item {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 2rem;
-      padding: 1.5rem 0;
-
-      @media (max-width: 768px) {
-        flex-direction: column;
-        gap: 1rem;
-      }
-
-      .setting-info {
-        flex: 1;
-
-        .setting-title {
-          font-size: 1rem;
-          font-weight: 600;
-          color: hsl(var(--foreground));
-          margin: 0 0 0.5rem 0;
-        }
-
-        .setting-description {
-          font-size: 0.875rem;
-          color: hsl(var(--muted-foreground));
-          margin: 0;
-          line-height: 1.5;
-        }
-      }
-
-      .theme-toggle-wrapper {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        align-items: flex-end;
-
-        @media (max-width: 768px) {
-          width: 100%;
-          align-items: stretch;
-        }
-      }
-    }
-  }
+.settings-header, .preview-header {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 4px; padding-bottom: 10px; border-bottom: 1px solid hsl(var(--border));
+  mat-icon { font-size: 18px; width: 18px; height: 18px; color: hsl(var(--muted-foreground)); }
+  h2, h3 { margin: 0; font-size: 14px; font-weight: 600; color: hsl(var(--foreground)); }
 }
 
-// Theme Buttons
+.setting-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0 4px;
+  @media (max-width: 640px) { flex-direction: column; align-items: stretch; }
+  .setting-info { flex: 1; min-width: 0; }
+  .setting-title { margin: 0 0 2px; font-size: var(--fs); font-weight: 600; }
+  .setting-description { margin: 0; color: hsl(var(--muted-foreground)); line-height: 1.45; }
+  .theme-toggle-wrapper { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+}
+
+// Boton de autorizacion (accion principal de la tarjeta)
+.meli-login-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: var(--ctl-h); padding: 0 12px; cursor: pointer;
+  border: 1px solid hsl(var(--primary)); border-radius: var(--radius-md);
+  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+  font-size: var(--fs); font-weight: 500;
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
+  &:hover { opacity: 0.9; }
+}
+
+// Selector de tema (segmentado)
 .theme-buttons {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.25rem;
-  background-color: hsl(var(--muted) / 0.5);
-  border-radius: 8px;
-
+  display: inline-flex; padding: 2px; gap: 2px;
+  border: 1px solid var(--ds-border-strong); border-radius: var(--radius-md); background: hsl(var(--secondary));
   .theme-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.25rem;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background-color: transparent;
-    color: hsl(var(--muted-foreground));
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    mat-icon {
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
-    }
-
-    &:hover {
-      background-color: hsl(var(--muted));
-      color: hsl(var(--foreground));
-    }
-
-    &.active {
-      background-color: hsl(var(--primary));
-      color: white;
-      border-color: hsl(var(--primary));
-
-      &:hover {
-        background-color: hsl(var(--primary) / 0.9);
-      }
-    }
+    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+    border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer;
+    color: hsl(var(--muted-foreground)); font-size: var(--fs); font-weight: 500;
+    mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    &:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+    &.active { background: hsl(var(--card)); color: hsl(var(--primary)); box-shadow: 0 0 0 1px hsl(var(--primary)); }
   }
 }
 
-// Toggle Switch
 .theme-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-
-  .toggle-label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: hsl(var(--foreground));
-    min-width: 60px;
-    text-align: right;
-  }
-
+  display: flex; align-items: center; gap: 8px;
+  .toggle-label { min-width: 44px; text-align: right; font-weight: 500; }
   .toggle-switch {
-    position: relative;
-    display: inline-block;
-    width: 52px;
-    height: 28px;
-    cursor: pointer;
-
+    position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer;
     input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-
-      &:checked + .toggle-slider {
-        background-color: hsl(var(--primary));
-
-        &:before {
-          transform: translateX(24px);
-        }
-      }
-
-      &:focus + .toggle-slider {
-        box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
-      }
+      position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer;
+      &:checked + .toggle-slider { background: hsl(var(--primary)); border-color: hsl(var(--primary)); }
+      &:checked + .toggle-slider::before { transform: translateX(16px); }
+      &:focus-visible + .toggle-slider { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
     }
-
     .toggle-slider {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: hsl(var(--muted));
-      border-radius: 28px;
-      transition: all 0.3s;
-
-      &:before {
-        content: "";
-        position: absolute;
-        height: 22px;
-        width: 22px;
-        left: 3px;
-        bottom: 3px;
-        background-color: white;
-        border-radius: 50%;
-        transition: all 0.3s;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      position: absolute; inset: 0; border-radius: 999px;
+      background: hsl(var(--input)); border: 1px solid hsl(var(--input)); transition: background 0.12s;
+      &::before {
+        content: ""; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px;
+        border-radius: 50%; background: #fff; transition: transform 0.12s;
       }
     }
   }
 }
 
-// Preview Card
-.preview-card {
-  .preview-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid hsl(var(--border));
-
-    mat-icon {
-      font-size: 24px;
-      width: 24px;
-      height: 24px;
-      color: hsl(var(--primary));
-    }
-
-    h3 {
-      font-size: 1.125rem;
-      font-weight: 600;
-      color: hsl(var(--foreground));
-      margin: 0;
-    }
-  }
-
-  .preview-content {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-
-    .preview-text {
-      p {
-        color: hsl(var(--foreground));
-        margin: 0 0 1rem 0;
-        line-height: 1.6;
-      }
-
-      .preview-buttons {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-      }
-
-      .preview-btn {
-        padding: 0.625rem 1.25rem;
-        border-radius: 6px;
-        font-size: 0.875rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-        border: none;
-
-        &.preview-btn-primary {
-          background-color: hsl(var(--primary));
-          color: white;
-
-          &:hover {
-            background-color: hsl(var(--primary) / 0.9);
-          }
-        }
-
-        &.preview-btn-secondary {
-          background-color: hsl(var(--muted));
-          color: hsl(var(--foreground));
-          border: 1px solid hsl(var(--border));
-
-          &:hover {
-            background-color: hsl(var(--muted) / 0.8);
-          }
-        }
-      }
-    }
-
-    .preview-card-demo {
-      padding: 1.5rem;
-      background-color: hsl(var(--muted) / 0.3);
-      border: 1px solid hsl(var(--border));
-      border-radius: 8px;
-
-      h4 {
-        font-size: 1rem;
-        font-weight: 600;
-        color: hsl(var(--foreground));
-        margin: 0 0 0.75rem 0;
-      }
-
-      p {
-        font-size: 0.875rem;
-        color: hsl(var(--muted-foreground));
-        margin: 0;
-        line-height: 1.5;
-      }
-    }
-  }
+// Vista previa
+.preview-content { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); padding-top: 12px;
+  @media (max-width: 640px) { grid-template-columns: 1fr; } }
+.preview-text p { margin: 0 0 10px; line-height: 1.5; }
+.preview-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.preview-btn {
+  height: var(--ctl-h); padding: 0 12px; border-radius: var(--radius-md); font-size: var(--fs); font-weight: 500; cursor: pointer;
+  &.preview-btn-primary { background: hsl(var(--primary)); border: 1px solid hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+  &.preview-btn-secondary { background: hsl(var(--card)); border: 1px solid var(--ds-border-strong); color: hsl(var(--foreground)); }
+}
+.preview-card-demo {
+  padding: var(--card-pad); background: hsl(var(--secondary)); border: 1px solid hsl(var(--border)); border-radius: var(--radius-lg);
+  h4 { margin: 0 0 4px; font-size: var(--fs); font-weight: 600; }
+  p { margin: 0; color: hsl(var(--muted-foreground)); line-height: 1.45; }
 }
 
-// Responsive
-@media (max-width: 768px) {
-  .page-header {
-    margin-bottom: 1.5rem;
-
-    .page-title {
-      font-size: 1.5rem;
-    }
-  }
-
-  .theme-buttons {
-    width: 100%;
-
-    .theme-btn {
-      flex: 1;
-      justify-content: center;
-    }
-  }
-
-  .theme-toggle {
-    width: 100%;
-    justify-content: space-between;
-
-    .toggle-label {
-      text-align: left;
-    }
-  }
-}
+button:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 1px; }

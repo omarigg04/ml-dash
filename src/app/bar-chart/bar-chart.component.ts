@@ -574,7 +574,8 @@ export class BarChartComponent implements OnInit, OnDestroy {
     // Convertir órdenes a formato de datos
     const filteredChartData = filteredOrders.map(order => {
       const date = new Date(order.date_created);
-      return { date, total_amount: order.total_amount };
+      const net = order.total_amount - (satRetention(order.total_amount) + (order.listCost || 0) + orderSaleFee(order));
+      return { date, total_amount: order.total_amount, net };
     });
 
     // Normalizar fechas
@@ -588,14 +589,14 @@ export class BarChartComponent implements OnInit, OnDestroy {
     const rEnd = normalizeDateToMidnight(rangeEnd);
 
     // Agrupar por día
-    const dayMap = new Map<string, number>();
+    const dayMap = new Map<string, { sales: number; net: number }>();
 
     // Generar todos los días del rango
     const currentDate = new Date(rStart);
     while (currentDate <= rEnd) {
       const dateKey = this.datePipe.transform(currentDate, 'yyyy-MM-dd');
       if (dateKey) {
-        dayMap.set(dateKey, 0);
+        dayMap.set(dateKey, { sales: 0, net: 0 });
       }
       currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -606,7 +607,9 @@ export class BarChartComponent implements OnInit, OnDestroy {
       if (normalizedDate >= rStart && normalizedDate <= rEnd) {
         const dateKey = this.datePipe.transform(normalizedDate, 'yyyy-MM-dd');
         if (dateKey && dayMap.has(dateKey)) {
-          dayMap.set(dateKey, dayMap.get(dateKey)! + item.total_amount);
+          const acc = dayMap.get(dateKey)!;
+          acc.sales += item.total_amount;
+          acc.net += item.net;
         }
       }
     });
@@ -614,11 +617,13 @@ export class BarChartComponent implements OnInit, OnDestroy {
     // Convertir a array
     const result: any[] = [];
     dayMap.forEach((amount, dateKey) => {
-      const date = new Date(dateKey);
+      // T00:00 para que se interprete en hora local y no se recorra un día
+      const date = new Date(`${dateKey}T00:00:00`);
       const label = this.datePipe.transform(date, 'd MMM', 'es-MX') || dateKey;
       result.push({
         day: label,
-        sales: amount,
+        sales: amount.sales,
+        net: amount.net,
         dateKey
       });
     });
@@ -833,20 +838,20 @@ export class BarChartComponent implements OnInit, OnDestroy {
         },
         series: [
           {
-            type: 'line',
+            type: 'bar',
             xKey: 'day',
             yKey: 'period1',
             yName: period1Name,
-            strokeWidth: 2,
-            marker: { enabled: false }
+            strokeWidth: 0,
+            cornerRadius: 3
           },
           {
-            type: 'line',
+            type: 'bar',
             xKey: 'day',
             yKey: 'period2',
             yName: period2Name,
-            strokeWidth: 2,
-            marker: { enabled: false }
+            strokeWidth: 0,
+            cornerRadius: 3
           }
         ],
       axes: [
@@ -910,7 +915,15 @@ export class BarChartComponent implements OnInit, OnDestroy {
             yKey: 'sales',
             yName: 'Ventas',
             strokeWidth: 0,
-            cornerRadius: 4
+            cornerRadius: 3
+          },
+          {
+            type: 'bar',
+            xKey: 'day',
+            yKey: 'net',
+            yName: 'Ganancia neta',
+            strokeWidth: 0,
+            cornerRadius: 3
           }
         ],
         axes: [
@@ -933,7 +946,8 @@ export class BarChartComponent implements OnInit, OnDestroy {
           }
         ],
         legend: {
-          enabled: false
+          enabled: true,
+          position: 'top'
         },
         padding: {
           top: 20,
