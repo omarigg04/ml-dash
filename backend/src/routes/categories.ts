@@ -110,6 +110,10 @@ router.get('/predict', async (req: Request, res: Response) => {
  * Get attributes for a specific category
  */
 router.get('/:id/attributes', async (req: Request, res: Response) => {
+    if (!/^MLM[0-9]+$/.test(req.params.id)) {
+        res.status(400).json({ error: 'ID de categoría inválido', status: 400, causes: [] });
+        return;
+    }
     console.log('\n📋 ============================================');
     console.log('📥 [CATEGORIES/ATTRIBUTES] Request received');
     console.log('  - Category ID:', req.params.id);
@@ -126,7 +130,7 @@ router.get('/:id/attributes', async (req: Request, res: Response) => {
         console.log('  - Category ID:', categoryId);
 
         const response = await axios.get(
-            `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
+            `https://api.mercadolibre.com/categories/${encodeURIComponent(categoryId)}/attributes`,
             {
                 headers: {
                     Authorization: `Bearer ${token}`
@@ -181,6 +185,10 @@ router.get('/:id/attributes', async (req: Request, res: Response) => {
  * Get detailed information about a specific category
  */
 router.get('/:id', async (req: Request, res: Response) => {
+    if (!/^MLM[0-9]+$/.test(req.params.id)) {
+        res.status(400).json({ error: 'ID de categoría inválido', status: 400, causes: [] });
+        return;
+    }
     try {
         const categoryId = req.params.id;
         const token = await mlAuth.getToken();
@@ -188,7 +196,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         console.log('📋 Fetching category details for:', categoryId);
 
         const response = await axios.get(
-            `https://api.mercadolibre.com/categories/${categoryId}`,
+            `https://api.mercadolibre.com/categories/${encodeURIComponent(categoryId)}`,
             {
                 headers: {
                     Authorization: `Bearer ${token}`

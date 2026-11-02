@@ -1,203 +1,144 @@
-<!-- Page Header -->
-<!-- <div class="page-header">
-  <h1 class="page-title">Dashboard de Ventas</h1>
-  <p class="page-description">Resumen de ingresos y estadísticas</p>
-</div> -->
-
-<!-- Main Grid: Metrics + Product Lists -->
-<div class="main-grid">
-  <!-- Left Column: Metrics Stack -->
-  <div class="card metrics-stack-card">
-    <div class="metrics-stack">
-      <!-- Total Sum Metric -->
-      <div class="metric-item">
-        <div class="metric-icon-container" style="background-color: hsl(var(--chart-1) / 0.1);">
-          <mat-icon class="metric-icon" style="color: hsl(var(--chart-1));">attach_money</mat-icon>
-        </div>
-        <div class="metric-content">
-          <p class="metric-label">Ventas Totales</p>
-          <mat-spinner *ngIf="totalSumIsLoading" diameter="20" class="metric-spinner"></mat-spinner>
-          <h3 *ngIf="!totalSumIsLoading" class="metric-value">{{ totalSum | currency:'MXN':'symbol':'1.0-0' }}</h3>
-          <p class="metric-change" *ngIf="!totalSumIsLoading && isComparisonMode"
-            [class.positive]="totalSumChangePercent > 0" [class.negative]="totalSumChangePercent < 0"
-            [class.neutral]="totalSumChangePercent === 0">
-            {{ totalSumChangePercent > 0 ? '+' : '' }}{{ totalSumChangePercent | number:'1.1-1' }}% vs período anterior
-          </p>
-          <p class="metric-subtitle" *ngIf="!totalSumIsLoading && !isComparisonMode">Total acumulado</p>
-        </div>
-      </div>
-
-      <!-- Shipping Metric -->
-      <div class="metric-item">
-        <div class="metric-icon-container" style="background-color: hsl(var(--chart-2) / 0.1);">
-          <mat-icon class="metric-icon" style="color: hsl(var(--chart-2));">local_shipping</mat-icon>
-        </div>
-        <div class="metric-content">
-          <p class="metric-label">Costos de Envío</p>
-          <mat-spinner *ngIf="enviosIsLoading" diameter="20" class="metric-spinner"></mat-spinner>
-          <h3 *ngIf="!enviosIsLoading" class="metric-value">{{ envios | currency:'MXN':'symbol':'1.0-0' }}</h3>
-          <p class="metric-subtitle" *ngIf="!enviosIsLoading">Total acumulado</p>
-        </div>
-      </div>
-
-      <!-- Fees Metric -->
-      <div class="metric-item">
-        <div class="metric-icon-container" style="background-color: hsl(var(--chart-3) / 0.1);">
-          <mat-icon class="metric-icon" style="color: hsl(var(--chart-3));">receipt</mat-icon>
-        </div>
-        <div class="metric-content">
-          <p class="metric-label">Comisiones ML</p>
-          <mat-spinner *ngIf="feesIsLoading" diameter="20" class="metric-spinner"></mat-spinner>
-          <h3 *ngIf="!feesIsLoading" class="metric-value">{{ fees | currency:'MXN':'symbol':'1.0-0' }}</h3>
-          <p class="metric-subtitle" *ngIf="!feesIsLoading">Total en comisiones</p>
-        </div>
-      </div>
-
-      <!-- Real Sum Metric -->
-      <div class="metric-item metric-item-highlight">
-        <div class="metric-icon-container" style="background-color: hsl(var(--success) / 0.1);">
-          <mat-icon class="metric-icon" style="color: hsl(var(--success));">account_balance_wallet</mat-icon>
-        </div>
-        <div class="metric-content">
-          <p class="metric-label">Ganancia Real</p>
-          <mat-spinner *ngIf="realSumIsLoading" diameter="20" class="metric-spinner"></mat-spinner>
-          <h3 *ngIf="!realSumIsLoading" class="metric-value metric-value-success">{{ realSum |
-            currency:'MXN':'symbol':'1.0-0' }}</h3>
-          <p class="metric-change" *ngIf="!realSumIsLoading && isComparisonMode"
-            [class.positive]="realSumChangePercent > 0" [class.negative]="realSumChangePercent < 0"
-            [class.neutral]="realSumChangePercent === 0">
-            {{ realSumChangePercent > 0 ? '+' : '' }}{{ realSumChangePercent | number:'1.1-1' }}% vs período anterior
-          </p>
-          <p class="metric-subtitle" *ngIf="!realSumIsLoading && !isComparisonMode">Ingresos netos</p>
-        </div>
-      </div>
-    </div>
+<!-- Encabezado + selector de período global (afecta KPIs, gráfica y rango de órdenes) -->
+<div class="ds-page-head">
+  <div>
+    <h1>Analytics</h1>
+    <p>{{ periodLabel || 'Resumen de ventas' }}</p>
   </div>
 
-  <!-- Right Column: Product Lists -->
-  <div class="products-lists-container">
-    <!-- Últimos Publicados -->
-    <div class="card product-list-card">
-      <div class="product-list-header">
-        <mat-icon class="list-icon">inventory_2</mat-icon>
-        <h3 class="product-list-title">Últimos Publicados</h3>
-      </div>
-      <div class="product-list-content">
-        <mat-spinner *ngIf="productsLoading" diameter="32" class="products-spinner"></mat-spinner>
-        <div *ngIf="!productsLoading && recentProducts.length === 0" class="empty-state">
-          <p class="empty-text">No hay publicaciones recientes</p>
-        </div>
-        <div *ngIf="!productsLoading && recentProducts.length > 0" class="products-list">
-          <div *ngFor="let product of recentProducts" class="product-item">
-            <div class="product-thumbnail">
-              <img *ngIf="product.thumbnail" [src]="product.thumbnail" [alt]="product.title" class="thumbnail-img">
-              <div *ngIf="!product.thumbnail" class="thumbnail-placeholder">
-                <mat-icon>image</mat-icon>
-              </div>
-            </div>
-            <div class="product-info">
-              <div class="product-title-row">
-                <p class="product-title">{{ product.title }}</p>
-                <p class="product-id">{{ product.id }}</p>
-              </div>
-              <div class="product-meta">
-                <span class="product-price">{{ product.price | currency:'MXN':'symbol':'1.0-0' }}</span>
-                <span class="product-status" [class.status-active]="product.status === 'active'"
-                  [class.status-paused]="product.status === 'paused'">
-                  {{ product.status === 'active' ? 'Activo' : 'Pausado' }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+  <div class="period-controls">
+    <div class="seg" role="group" aria-label="Período de comparación">
+      <button type="button" *ngFor="let p of periods" [attr.aria-pressed]="selectedPeriod === p.key"
+        (click)="onPeriodChange(p.key)">{{ p.label }}</button>
     </div>
 
-    <!-- Más Vendidos -->
-    <div class="card product-list-card">
-      <div class="product-list-header">
-        <mat-icon class="list-icon list-icon-trending">trending_up</mat-icon>
-        <h3 class="product-list-title">Más Vendidos</h3>
-      </div>
-      <div class="product-list-content">
-        <mat-spinner *ngIf="productsLoading" diameter="32" class="products-spinner"></mat-spinner>
-        <div *ngIf="!productsLoading && topSellingProducts.length === 0" class="empty-state">
-          <p class="empty-text">No hay productos con ventas</p>
-        </div>
-        <div *ngIf="!productsLoading && topSellingProducts.length > 0" class="products-list">
-          <div *ngFor="let product of topSellingProducts; let i = index" class="product-item">
-            <span class="product-rank">{{ i + 1 }}</span>
-            <div class="product-thumbnail">
-              <img *ngIf="product.thumbnail" [src]="product.thumbnail" [alt]="product.title" class="thumbnail-img">
-              <div *ngIf="!product.thumbnail" class="thumbnail-placeholder">
-                <mat-icon>image</mat-icon>
-              </div>
-            </div>
-            <div class="product-info">
-              <div class="product-title-row">
-                <p class="product-title">{{ product.title }}</p>
-                <p class="product-id">{{ product.id }}</p>
-              </div>
-              <div class="product-meta">
-                <span class="product-sales">{{ product.sold_quantity || 0 }} ventas</span>
-                <span class="product-revenue">{{ (product.price * (product.sold_quantity || 0)) |
-                  currency:'MXN':'symbol':'1.0-0' }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Chart Card -->
-<div class="card chart-card">
-  <div class="chart-header">
-    <div>
-      <h3 class="chart-title">Comparación de Rendimiento</h3>
-      <p class="chart-subtitle">Ventas diarias - Comparación de períodos</p>
-    </div>
-    <div class="chart-controls">
-      <!-- Dropdown de comparación -->
-      <mat-form-field appearance="outline" class="comparison-selector">
-        <mat-label>Comparación</mat-label>
-        <mat-select [(value)]="selectedPeriod" (selectionChange)="onPeriodChange($event.value)">
-          <mat-option value="2weeks">2 Semanas</mat-option>
-          <mat-option value="2months">2 Meses</mat-option>
-          <mat-option value="2bimesters">2 Bimestres</mat-option>
-        </mat-select>
+    <div class="custom-range">
+      <mat-form-field appearance="outline" class="compact-date-field" subscriptSizing="dynamic">
+        <mat-date-range-input aria-label="Rango personalizado" [formGroup]="customRangeForm" [rangePicker]="picker" [max]="maxDate">
+          <input matStartDate formControlName="start" placeholder="Desde">
+          <input matEndDate formControlName="end" placeholder="Hasta">
+        </mat-date-range-input>
+        <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+        <mat-date-range-picker #picker panelClass="custom-datepicker-panel"></mat-date-range-picker>
       </mat-form-field>
+      <button type="button" class="ds-btn" (click)="applyCustomRange()"
+        [disabled]="!customRangeForm.value.start || !customRangeForm.value.end">Aplicar</button>
+    </div>
 
-      <!-- Datepicker personalizado (modo rango único) -->
-      <div class="custom-date-picker">
-        <mat-form-field appearance="outline" class="compact-date-field">
-          <mat-label>Rango personalizado</mat-label>
-          <mat-date-range-input [formGroup]="customRangeForm" [rangePicker]="picker" [max]="maxDate">
-            <input matStartDate formControlName="start" placeholder="Inicio">
-            <input matEndDate formControlName="end" placeholder="Fin">
-          </mat-date-range-input>
-          <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-          <mat-date-range-picker #picker panelClass="custom-datepicker-panel"></mat-date-range-picker>
-        </mat-form-field>
-        <button mat-raised-button color="primary" (click)="applyCustomRange()"
-          [disabled]="!customRangeForm.value.start || !customRangeForm.value.end" class="apply-custom-btn">
-          Aplicar
-        </button>
+    <mat-checkbox [(ngModel)]="showUnfulfilled" (change)="onUnfulfilledToggle()" color="primary">
+      Incluir canceladas
+    </mat-checkbox>
+  </div>
+</div>
+
+<!-- Tira de KPIs: una sola tarjeta con 6 celdas -->
+<section class="card kpi-strip" aria-label="Indicadores del período">
+  <ng-container *ngIf="!ordersError">
+    <div class="kpi" *ngFor="let k of (totalSumIsLoading ? skeletonKpis : kpis)" [class.kpi-highlight]="k.highlight">
+      <span class="kpi-label">{{ k.label }}</span>
+      <ng-container *ngIf="!totalSumIsLoading; else kpiSkeleton">
+        <span class="kpi-value">{{ k.kind === 'money' ? (k.value | currency:'MXN':'symbol':'1.0-0') : (k.value | number:'1.0-0') }}</span>
+        <span class="kpi-delta" [ngClass]="deltaClass(k)" *ngIf="k.delta !== null">
+          {{ k.delta > 0 ? '+' : '' }}{{ k.delta | number:'1.1-1' }}% vs anterior
+        </span>
+        <span class="kpi-delta neutral" *ngIf="k.delta === null">{{ isComparisonMode ? 'Sin base anterior' : 'Rango completo' }}</span>
+      </ng-container>
+      <ng-template #kpiSkeleton><span class="sk sk-value"></span><span class="sk sk-delta"></span></ng-template>
+    </div>
+  </ng-container>
+
+  <div *ngIf="ordersError" class="ds-state is-error kpi-error" role="alert">
+    <strong>No pudimos cargar tus ventas</strong>
+    <span>Revisa tu conexión con Mercado Libre e inténtalo de nuevo.</span>
+    <button type="button" class="ds-btn primary" (click)="retryOrders()">Reintentar</button>
+  </div>
+</section>
+
+<!-- Gráfica + listas -->
+<div class="main-grid">
+  <div class="card chart-card">
+    <div class="block-head">
+      <h2>Ventas por día</h2>
+      <span class="block-sub">{{ isComparisonMode ? 'Período actual vs anterior' : 'Rango seleccionado' }}</span>
+    </div>
+
+    <div class="chart-container">
+      <div *ngIf="isLoading" class="sk sk-chart" role="status" aria-label="Cargando gráfica"></div>
+
+      <div *ngIf="!isLoading && ordersError" class="ds-state is-error" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <strong>No pudimos cargar la gráfica</strong>
+        <button type="button" class="ds-btn primary" (click)="retryOrders()">Reintentar</button>
       </div>
 
-      <!-- Checkbox para órdenes no cumplidas -->
-      <div class="unfulfilled-checkbox">
-        <mat-checkbox [(ngModel)]="showUnfulfilled" (change)="onUnfulfilledToggle()" color="primary">
-          Canceled
-        </mat-checkbox>
+      <div *ngIf="!isLoading && !ordersError && !hasOrders" class="ds-state">
+        <mat-icon aria-hidden="true">insights</mat-icon>
+        <strong>Sin ventas en este período</strong>
+        <span>Prueba con otro período o incluye las órdenes canceladas.</span>
       </div>
+
+      <ag-charts-angular *ngIf="!isLoading && !ordersError && hasOrders" class="chart" [options]="options">
+      </ag-charts-angular>
     </div>
   </div>
 
-  <div class="chart-container">
-    <mat-spinner *ngIf="isLoading" diameter="50" class="chart-spinner"></mat-spinner>
-    <ag-charts-angular *ngIf="!isLoading" style="height: 400px; width: 100%;" [options]="options">
-    </ag-charts-angular>
+  <div class="lists">
+    <!-- Últimos publicados -->
+    <div class="card list-card">
+      <div class="block-head"><h2>Últimos publicados</h2></div>
+      <ng-container *ngTemplateOutlet="listState; context: { items: recentProducts, empty: 'No hay publicaciones recientes' }"></ng-container>
+      <ul *ngIf="!productsLoading && !productsError && recentProducts.length" class="plist">
+        <li *ngFor="let product of recentProducts">
+          <ng-container *ngTemplateOutlet="thumb; context: { p: product }"></ng-container>
+          <div class="p-info">
+            <a class="p-title" [href]="product.permalink" target="_blank" rel="noopener">{{ product.title }}</a>
+            <span class="p-id">{{ product.id }}</span>
+          </div>
+          <div class="p-end">
+            <span class="p-num">{{ product.price | currency:'MXN':'symbol':'1.0-0' }}</span>
+            <span class="ds-badge" [ngClass]="product.status === 'active' ? 'tone-success' : 'tone-warning'">{{ product.status === 'active' ? 'Activa' : 'Pausada' }}</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Más vendidos -->
+    <div class="card list-card">
+      <div class="block-head"><h2>Más vendidos</h2><span class="block-sub">Histórico</span></div>
+      <ng-container *ngTemplateOutlet="listState; context: { items: topSellingProducts, empty: 'No hay productos con ventas' }"></ng-container>
+      <ul *ngIf="!productsLoading && !productsError && topSellingProducts.length" class="plist">
+        <li *ngFor="let product of topSellingProducts; let i = index">
+          <span class="p-rank">{{ i + 1 }}</span>
+          <ng-container *ngTemplateOutlet="thumb; context: { p: product }"></ng-container>
+          <div class="p-info">
+            <a class="p-title" [href]="product.permalink" target="_blank" rel="noopener">{{ product.title }}</a>
+            <span class="p-id">{{ product.sold_quantity || 0 }} ventas</span>
+          </div>
+          <div class="p-end">
+            <span class="p-num">{{ (product.price * (product.sold_quantity || 0)) | currency:'MXN':'symbol':'1.0-0' }}</span>
+          </div>
+        </li>
+      </ul>
+    </div>
   </div>
 </div>
+
+<ng-template #thumb let-p="p">
+  <span class="p-thumb">
+    <img *ngIf="p.thumbnail" [src]="p.thumbnail" alt="" loading="lazy">
+    <mat-icon *ngIf="!p.thumbnail" aria-hidden="true">image</mat-icon>
+  </span>
+</ng-template>
+
+<!-- Estados comunes de las listas: cargando / error / vacío -->
+<ng-template #listState let-items="items" let-empty="empty">
+  <div *ngIf="productsLoading" class="plist-skeleton" role="status" aria-label="Cargando publicaciones">
+    <span class="sk sk-row" *ngFor="let n of [1, 2, 3, 4]"></span>
+  </div>
+  <div *ngIf="!productsLoading && productsError" class="ds-state is-error" role="alert">
+    <strong>No pudimos cargar las publicaciones</strong>
+    <button type="button" class="ds-btn primary" (click)="loadPublications()">Reintentar</button>
+  </div>
+  <div *ngIf="!productsLoading && !productsError && !items.length" class="ds-state">
+    <span>{{ empty }}</span>
+  </div>
+</ng-template>

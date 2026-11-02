@@ -1,13 +1,11 @@
-import { Component } from '@angular/core';
-import { Router } from '@angular/router';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 
-interface MenuItem {
+interface NavItem {
   label: string;
-  icon: string;
-  route?: string;
-  children?: MenuItem[];
-  badge?: string | number;
-  badgeType?: 'new' | 'count';
+  icon?: string;
+  route: string;
+  /** Subitem: se muestra indentado bajo el item anterior. */
+  sub?: boolean;
 }
 
 @Component({
@@ -16,64 +14,18 @@ interface MenuItem {
   styleUrls: ['./sidebar.component.scss']
 })
 export class SidebarComponent {
-  isCollapsed = false;
-  isMobileOpen = false;
+  /** Panel abierto en móvil (lo controla LayoutComponent). */
+  @Input() open = false;
+  /** Se emite al navegar, para que el layout cierre el panel móvil. */
+  @Output() navigated = new EventEmitter<void>();
 
-  menuItems: MenuItem[] = [
-    {
-      label: 'Analytics',
-      icon: 'analytics',
-      route: '/analytics'
-    },
-    {
-      label: 'Órdenes',
-      icon: 'receipt_long',
-      route: '/orders'
-    },
-    {
-      label: 'Publicar',
-      icon: 'add_box',
-      route: '/publish'
-    },
-    {
-      label: 'Publicaciones',
-      icon: 'list_alt',
-      route: '/publications'
-    },
-    {
-      label: 'Galería',
-      icon: 'collections',
-      route: '/gallery'
-    },
-    {
-      label: 'Configuración',
-      icon: 'settings',
-      route: '/settings'
-    }
+  readonly items: NavItem[] = [
+    { label: 'Analytics', icon: 'analytics', route: '/analytics' },
+    { label: 'Órdenes', icon: 'receipt_long', route: '/orders' },
+    { label: 'Publicaciones', icon: 'list_alt', route: '/publications' },
+    { label: 'Publicar', route: '/publish', sub: true },
+    { label: 'Galería', route: '/gallery', sub: true },
   ];
 
-  constructor(private router: Router) {}
-
-  toggleSidebar() {
-    this.isCollapsed = !this.isCollapsed;
-  }
-
-  toggleMobileSidebar() {
-    this.isMobileOpen = !this.isMobileOpen;
-  }
-
-  navigateTo(route?: string) {
-    if (route) {
-      this.router.navigate([route]);
-      // Close mobile sidebar after navigation
-      if (window.innerWidth < 1322) {
-        this.isMobileOpen = false;
-      }
-    }
-  }
-
-  isActiveRoute(route?: string): boolean {
-    if (!route) return false;
-    return this.router.url === route;
-  }
+  readonly footItem: NavItem = { label: 'Configuración', icon: 'settings', route: '/settings' };
 }

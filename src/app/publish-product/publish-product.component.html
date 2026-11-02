@@ -1,544 +1,458 @@
-<!-- Page Header -->
-<div class="page-header">
-  <h1 class="page-title">Publicar Producto</h1>
-  <p class="page-description">Crea una nueva publicación en MercadoLibre</p>
-</div>
-
-<!-- Success Message -->
-<div *ngIf="successMessage" class="alert alert-success">
-  <mat-icon class="alert-icon">check_circle</mat-icon>
-  <span>{{ successMessage }}</span>
-  <button type="button" class="alert-close" (click)="successMessage = ''">
-    <mat-icon>close</mat-icon>
-  </button>
-</div>
-
-<!-- Error Message -->
-<div *ngIf="errorMessage" class="alert alert-error">
-  <mat-icon class="alert-icon">error</mat-icon>
-  <span>{{ errorMessage }}</span>
-  <button type="button" class="alert-close" (click)="errorMessage = ''">
-    <mat-icon>close</mat-icon>
-  </button>
-</div>
-
-<!-- Form Card -->
-<div class="card form-card">
-  <div class="form-header">
-    <div class="form-header-content">
-      <mat-icon class="form-icon">inventory_2</mat-icon>
-      <div>
-        <h3 class="form-title">Información del Producto</h3>
-        <p class="form-subtitle">Complete los detalles de su publicación</p>
-      </div>
-    </div>
+<!-- Encabezado -->
+<div class="ds-page-head">
+  <div>
+    <h1>{{ isDuplicateMode ? 'Duplicar publicación' : 'Publicar producto' }}</h1>
+    <p>{{ isDuplicateMode ? 'Copia una publicación existente y ajusta lo que cambie' : 'Crea una nueva publicación en MercadoLibre México' }}</p>
   </div>
+</div>
 
-  <div class="form-body">
-    <form (ngSubmit)="onSubmit()" #productForm="ngForm">
+<!-- Modo duplicado (siempre visible cuando se duplica) -->
+<div *ngIf="isDuplicateMode && sourceId" class="pf-banner is-info" role="status">
+  <mat-icon aria-hidden="true">content_copy</mat-icon>
+  <span>Modo duplicado de <b class="pf-mono">{{ sourceId }}</b><ng-container *ngIf="sourceStatus"> · estado del original: {{ sourceStatus }}</ng-container>. Los datos se leyeron de MercadoLibre hace un momento.</span>
+</div>
 
-      <!-- Category Template Selector -->
-      <div *ngIf="!isDuplicateMode" class="form-section">
-        <div class="form-section-header">
-          <mat-icon>label</mat-icon>
-          <h4>Seleccionar Categoría de Producto</h4>
-        </div>
+<div *ngIf="draftRestored" class="pf-banner is-warn" role="status">
+  <mat-icon aria-hidden="true">history</mat-icon>
+  <span>Se restauró un borrador guardado en este navegador.</span>
+  <button type="button" class="ds-btn" (click)="discardDraft()">Descartar borrador</button>
+</div>
 
-        <div *ngIf="isDuplicateMode" class="duplicate-mode-alert">
-          <mat-icon>content_copy</mat-icon>
-          <span>Modo Duplicación: La categoría está fijada según el producto duplicado</span>
-        </div>
+<!-- Errores del formulario / de ML -->
+<div *ngIf="formErrors.length" class="pf-banner is-error" role="alert" id="pf-errors">
+  <mat-icon aria-hidden="true">error</mat-icon>
+  <div class="pf-banner-body">
+    <strong>{{ formErrorTitle || 'MercadoLibre rechazó la publicación' }}</strong>
+    <ul>
+      <li *ngFor="let c of formErrors; trackBy: trackByIndex"><span class="pf-mono" *ngIf="c.code">{{ c.code }}</span> {{ c.message }}</li>
+    </ul>
+  </div>
+  <button type="button" class="pf-icon-btn" (click)="formErrors = []" aria-label="Cerrar errores"><mat-icon>close</mat-icon></button>
+</div>
 
-        <div class="form-group">
-          <select class="form-select"
-                  [(ngModel)]="selectedCategoryId"
-                  name="category_selector"
-                  (change)="onCategoryChange(selectedCategoryId)"
-                  [disabled]="isDuplicateMode"
-                  [required]="!isDuplicateMode">
-            <option *ngFor="let template of categoryTemplates" [value]="template.id">
-              {{ template.name }} - {{ template.description }}
-            </option>
-          </select>
-          <small class="form-hint">
-            <span *ngIf="!isDuplicateMode">Selecciona el tipo de producto que deseas publicar. Los campos se ajustarán automáticamente.</span>
-            <span *ngIf="isDuplicateMode">Los datos del producto duplicado se han cargado automáticamente.</span>
-          </small>
-        </div>
+<!-- Resultado de validación (no publica) -->
+<div *ngIf="validationResult" class="pf-banner" [class.is-ok]="validationResult.valid" [class.is-error]="!validationResult.valid" role="status" id="pf-validation">
+  <mat-icon aria-hidden="true">{{ validationResult.valid ? 'task_alt' : 'error' }}</mat-icon>
+  <div class="pf-banner-body">
+    <strong>{{ validationResult.valid ? 'Validación correcta: MercadoLibre aceptaría esta publicación' : 'MercadoLibre encontró errores' }}</strong>
+    <ul *ngIf="validationResult.errors.length">
+      <li *ngFor="let c of validationResult.errors; trackBy: trackByIndex"><span class="pf-mono">{{ c.code }}</span> {{ c.message }}</li>
+    </ul>
+    <ul *ngIf="validationResult.warnings.length" class="pf-warnings">
+      <li *ngFor="let c of validationResult.warnings; trackBy: trackByIndex"><span class="pf-mono">aviso</span> {{ c.message }}</li>
+    </ul>
+  </div>
+  <button type="button" class="pf-icon-btn" (click)="validationResult = null" aria-label="Cerrar resultado"><mat-icon>close</mat-icon></button>
+</div>
+
+<!-- Error al cargar el original -->
+<div *ngIf="sourceError" class="ds-state is-error pf-card">
+  <mat-icon aria-hidden="true">error</mat-icon>
+  <strong>No se pudo cargar la publicación</strong>
+  <span>{{ sourceError }}</span>
+  <div class="pf-row-actions">
+    <button type="button" class="ds-btn primary" *ngIf="sourceId" (click)="loadDuplicateData(sourceId)">Reintentar</button>
+    <button type="button" class="ds-btn" (click)="goToPublications()">Volver a Publicaciones</button>
+  </div>
+</div>
+
+<div *ngIf="isLoadingSource" class="pf-card pf-loading" aria-busy="true">
+  <mat-spinner diameter="20"></mat-spinner> Leyendo la publicación {{ sourceId }} desde MercadoLibre…
+</div>
+
+<!-- ============ Resultado de la publicación ============ -->
+<section *ngIf="showResult" class="pf-card pf-result" aria-live="polite">
+  <h2 class="pf-h2">{{ allDone ? 'Publicación creada' : (submitting ? 'Publicando…' : 'Resultado de la publicación') }}</h2>
+  <p class="pf-muted" *ngIf="!submitting && !allDone">Revisa cada paso. Lo que ya se creó no se vuelve a crear.</p>
+
+  <ul class="pf-jobs">
+    <li *ngFor="let j of jobs; trackBy: trackByIndex" class="pf-job" [attr.data-status]="j.status">
+      <div class="pf-job-head">
+        <mat-spinner *ngIf="j.status === 'creating'" diameter="16"></mat-spinner>
+        <mat-icon *ngIf="j.status === 'created'" class="ok" aria-hidden="true">check_circle</mat-icon>
+        <mat-icon *ngIf="j.status === 'failed' || j.status === 'unknown'" class="bad" aria-hidden="true">error</mat-icon>
+        <mat-icon *ngIf="j.status === 'pending'" aria-hidden="true">schedule</mat-icon>
+        <strong class="pf-job-label">{{ j.label }}</strong>
+        <span class="ds-badge" [class.tone-success]="j.status === 'created'" [class.tone-error]="j.status === 'failed' || j.status === 'unknown'">
+          {{ j.status === 'created' ? 'Creada' : j.status === 'creating' ? 'Creando' : j.status === 'failed' ? 'No se creó' : j.status === 'unknown' ? 'Sin confirmar' : 'Pendiente' }}
+        </span>
       </div>
 
-      <!-- Product Details Form (for Transistors) -->
-      <div *ngIf="product">
-
-        <div class="form-section">
-          <div class="form-section-header">
-            <mat-icon>build</mat-icon>
-            <h4>Información del Transistor</h4>
-          </div>
-
-          <!-- Family Name -->
-          <div class="form-group">
-            <label for="family_name" class="form-label">
-              Nombre del Producto *
-              <span *ngIf="isLoadingPredictions" class="loading-indicator">
-                <mat-spinner diameter="16"></mat-spinner> Prediciendo categoría...
-              </span>
-            </label>
-            <input type="text"
-                   class="form-input"
-                   id="family_name"
-                   name="family_name"
-                   [(ngModel)]="product.family_name"
-                   (ngModelChange)="onProductNameChange($event)"
-                   required
-                   maxlength="60"
-                   placeholder="Ej: Transistor NPN 2N3055">
-            <small class="form-hint">
-              MercadoLibre generará automáticamente el título basado en este nombre y los atributos (máx. 60 caracteres)
-              <br>
-              💡 Escribe el nombre del producto y te sugeriremos la categoría automáticamente
-            </small>
-
-            <!-- Category Predictions Panel -->
-            <div *ngIf="showCategoryPredictions" class="category-predictions-panel">
-              <div class="predictions-header">
-                <h4>
-                  <mat-icon>lightbulb</mat-icon>
-                  Categorías Sugeridas
-                </h4>
-                <button type="button"
-                        class="close-btn"
-                        (click)="closeCategoryPredictions()">
-                  <mat-icon>close</mat-icon>
-                </button>
-              </div>
-
-              <div class="predictions-list">
-                <div *ngFor="let prediction of categoryPredictions"
-                     class="prediction-item"
-                     (click)="selectPredictedCategory(prediction)">
-                  <div class="prediction-content">
-                    <div class="prediction-category">
-                      <mat-icon>category</mat-icon>
-                      <strong>{{ prediction.category_name }}</strong>
-                    </div>
-                    <div class="prediction-domain">
-                      {{ prediction.domain_name }}
-                    </div>
-                    <div class="prediction-id">
-                      ID: {{ prediction.category_id }}
-                    </div>
-                  </div>
-                  <mat-icon class="select-icon">arrow_forward</mat-icon>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Description -->
-          <div class="form-group">
-            <label for="description" class="form-label">Descripción del Producto</label>
-            <textarea class="form-textarea"
-                      id="description"
-                      name="description"
-                      [(ngModel)]="product.description"
-                      rows="6"
-                      maxlength="50000"
-                      placeholder="Descripción detallada del producto. Puedes incluir características, especificaciones técnicas, garantía, etc."></textarea>
-            <small class="form-hint">
-              Descripción completa del producto. Máximo 50,000 caracteres. Puedes usar texto plano o HTML básico.
-            </small>
-          </div>
-
-          <!-- Price & Stock Row -->
-          <div class="form-row">
-            <div class="form-group">
-              <label for="price" class="form-label">Precio (MXN) *</label>
-              <input type="number"
-                     class="form-input"
-                     id="price"
-                     name="price"
-                     [(ngModel)]="product.price"
-                     required
-                     min="0"
-                     step="0.01"
-                     placeholder="350.00">
-            </div>
-            <div class="form-group">
-              <label for="stock" class="form-label">Cantidad Disponible *</label>
-              <input type="number"
-                     class="form-input"
-                     id="stock"
-                     name="available_quantity"
-                     [(ngModel)]="product.available_quantity"
-                     required
-                     min="1"
-                     placeholder="10">
-            </div>
-          </div>
-
-          <!-- Condition & Listing Type Row -->
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Condición *</label>
-              <select class="form-select"
-                      name="condition"
-                      [(ngModel)]="product.condition"
-                      required>
-                <option value="new">Nuevo</option>
-                <option value="used">Usado</option>
-                <option value="refurbished">Reacondicionado</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="listingType" class="form-label">Tipo de Publicación</label>
-              <select class="form-select"
-                      id="listingType"
-                      name="listing_type_id"
-                      [(ngModel)]="product.listing_type_id">
-                <option *ngFor="let type of listingTypes" [value]="type.id">
-                  {{ type.name }}
-                </option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <!-- Fixed Attributes Section (Packaging Dimensions) -->
-        <div class="form-section">
-          <div class="form-section-header">
-            <mat-icon>inventory_2</mat-icon>
-            <h4>Dimensiones del Paquete (Obligatorio)</h4>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="seller_package_height" class="form-label">
-                Alto (cm) *
-              </label>
-              <input type="number"
-                     class="form-input"
-                     [class.input-error]="attributeErrors['seller_package_height']"
-                     id="seller_package_height"
-                     name="seller_package_height"
-                     [(ngModel)]="fixedAttributes.seller_package_height"
-                     placeholder="Ej: 10"
-                     min="1"
-                     step="1">
-              <small class="form-hint">Ingresa un número entero en centímetros (cm)</small>
-              <small *ngIf="attributeErrors['seller_package_height']" class="error-message">
-                <mat-icon>error</mat-icon>
-                {{ attributeErrors['seller_package_height'] }}
-              </small>
-            </div>
-            <div class="form-group">
-              <label for="seller_package_width" class="form-label">
-                Ancho (cm) *
-              </label>
-              <input type="number"
-                     class="form-input"
-                     [class.input-error]="attributeErrors['seller_package_width']"
-                     id="seller_package_width"
-                     name="seller_package_width"
-                     [(ngModel)]="fixedAttributes.seller_package_width"
-                     placeholder="Ej: 15"
-                     min="1"
-                     step="1">
-              <small class="form-hint">Ingresa un número entero en centímetros (cm)</small>
-              <small *ngIf="attributeErrors['seller_package_width']" class="error-message">
-                <mat-icon>error</mat-icon>
-                {{ attributeErrors['seller_package_width'] }}
-              </small>
-            </div>
-            <div class="form-group">
-              <label for="seller_package_length" class="form-label">
-                Largo (cm) *
-              </label>
-              <input type="number"
-                     class="form-input"
-                     [class.input-error]="attributeErrors['seller_package_length']"
-                     id="seller_package_length"
-                     name="seller_package_length"
-                     [(ngModel)]="fixedAttributes.seller_package_length"
-                     placeholder="Ej: 20"
-                     min="1"
-                     step="1">
-              <small class="form-hint">Ingresa un número entero en centímetros (cm)</small>
-              <small *ngIf="attributeErrors['seller_package_length']" class="error-message">
-                <mat-icon>error</mat-icon>
-                {{ attributeErrors['seller_package_length'] }}
-              </small>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="seller_package_weight" class="form-label">
-                Peso (kg o g) *
-              </label>
-              <input type="number"
-                     class="form-input"
-                     [class.input-error]="attributeErrors['seller_package_weight']"
-                     id="seller_package_weight"
-                     name="seller_package_weight"
-                     [(ngModel)]="fixedAttributes.seller_package_weight"
-                     placeholder="Ej: 0.5 o 500"
-                     min="0.001"
-                     step="0.01">
-              <small class="form-hint">Ingresa en kg (ej: 0.5) o en gramos (ej: 500). Se convertirá automáticamente a gramos.</small>
-              <small *ngIf="attributeErrors['seller_package_weight']" class="error-message">
-                <mat-icon>error</mat-icon>
-                {{ attributeErrors['seller_package_weight'] }}
-              </small>
-            </div>
-          </div>
-
-          <small class="form-hint">
-            <strong>Estos valores son requeridos por MercadoLibre.</strong> Se enviarán automáticamente en cada publicación con el formato correcto (cm para dimensiones, g para peso).
-          </small>
-        </div>
-
-        <!-- Attributes Section (Dynamic) -->
-        <div class="form-section">
-          <div class="form-section-header">
-            <mat-icon>edit_note</mat-icon>
-            <h4>Atributos del Producto</h4>
-            <span *ngIf="isLoadingAttributes" class="loading-indicator">
-              <mat-spinner diameter="16"></mat-spinner>
-              <span>Cargando atributos...</span>
+      <div *ngIf="j.status === 'created'" class="pf-job-body">
+        <span>ID <b class="pf-mono">{{ j.itemId }}</b></span>
+        <a *ngIf="j.permalink" [href]="j.permalink" target="_blank" rel="noopener">Ver en MercadoLibre</a>
+        <div class="pf-step" [class.is-bad]="j.descriptionState === 'failed'">
+          <ng-container [ngSwitch]="j.descriptionState">
+            <span *ngSwitchCase="'ok'"><mat-icon aria-hidden="true">check</mat-icon> Descripción guardada</span>
+            <span *ngSwitchCase="'none'"><mat-icon aria-hidden="true">remove</mat-icon> Sin descripción</span>
+            <span *ngSwitchCase="'retrying'"><mat-spinner diameter="14"></mat-spinner> Guardando descripción…</span>
+            <span *ngSwitchCase="'failed'">
+              <mat-icon aria-hidden="true">warning</mat-icon>
+              La publicación se creó, pero la descripción falló<ng-container *ngIf="j.descriptionError">: {{ j.descriptionError }}</ng-container>.
+              <button type="button" class="ds-btn" (click)="retryDescription(j)">Reintentar descripción</button>
             </span>
-          </div>
-
-          <div class="attributes-container">
-            <!-- Atributos dinámicos de la categoría -->
-            <div *ngIf="categoryAttributes.length > 0">
-              <div *ngFor="let attr of categoryAttributes; let i = index" class="attribute-item dynamic-attribute">
-                <!-- Label del atributo con indicador de requerido -->
-                <label class="form-label attribute-name">
-                  {{ attr.name }}
-                  <span *ngIf="attr.tags.required || attr.tags.catalog_required" class="required-indicator">*</span>
-                  <span *ngIf="attr.tooltip" class="attribute-tooltip" [title]="attr.tooltip">
-                    <mat-icon>info</mat-icon>
-                  </span>
-                </label>
-
-                <!-- Hint/ayuda -->
-                <small *ngIf="attr.hint" class="form-hint attribute-hint">{{ attr.hint }}</small>
-
-                <!-- Renderizado según tipo -->
-                <div class="attribute-value-row">
-                  <!-- Tipo: string -->
-                  <input *ngIf="attr.value_type === 'string'"
-                         type="text"
-                         class="form-input form-input-sm"
-                         [class.input-error]="attributeErrors[attr.id]"
-                         [(ngModel)]="attributeValues[attr.id]"
-                         [name]="'attr_' + attr.id"
-                         [placeholder]="attr.hint || 'Ingrese ' + attr.name"
-                         [maxlength]="attr.value_max_length || null"
-                         [required]="!!(attr.tags.required || attr.tags.catalog_required)">
-
-                  <!-- Tipo: list (dropdown) -->
-                  <select *ngIf="attr.value_type === 'list'"
-                          class="form-select form-input-sm"
-                          [class.input-error]="attributeErrors[attr.id]"
-                          [(ngModel)]="attributeValues[attr.id]"
-                          [name]="'attr_' + attr.id"
-                          [required]="!!(attr.tags.required || attr.tags.catalog_required)">
-                    <option value="">Seleccione {{ attr.name }}</option>
-                    <option *ngFor="let val of attr.values" [value]="val.id">{{ val.name }}</option>
-                  </select>
-
-                  <!-- Tipo: number -->
-                  <input *ngIf="attr.value_type === 'number'"
-                         type="number"
-                         class="form-input form-input-sm"
-                         [class.input-error]="attributeErrors[attr.id]"
-                         [(ngModel)]="attributeValues[attr.id]"
-                         [name]="'attr_' + attr.id"
-                         [placeholder]="attr.hint || 'Ingrese ' + attr.name"
-                         [required]="!!(attr.tags.required || attr.tags.catalog_required)">
-
-                  <!-- Tipo: number_unit (número + unidad) -->
-                  <div *ngIf="attr.value_type === 'number_unit'" class="number-unit-group">
-                    <input type="number"
-                           class="form-input form-input-sm"
-                           [class.input-error]="attributeErrors[attr.id]"
-                           [(ngModel)]="attributeValues[attr.id + '_number']"
-                           [name]="'attr_' + attr.id + '_number'"
-                           placeholder="Valor"
-                           [required]="!!(attr.tags.required || attr.tags.catalog_required)">
-                    <select class="form-select form-input-sm unit-select"
-                            [class.input-error]="attributeErrors[attr.id]"
-                            [(ngModel)]="attributeValues[attr.id + '_unit']"
-                            [name]="'attr_' + attr.id + '_unit'">
-                      <option *ngFor="let unit of attr.allowed_units" [value]="unit.id">{{ unit.name }}</option>
-                    </select>
-                  </div>
-
-                  <!-- Tipo: boolean (checkbox) -->
-                  <label *ngIf="attr.value_type === 'boolean'" class="checkbox-wrapper">
-                    <input type="checkbox"
-                           [(ngModel)]="attributeValues[attr.id]"
-                           [name]="'attr_' + attr.id">
-                    <span class="checkbox-label">{{ attr.values && attr.values.length > 0 ? attr.values[0].name : 'Sí' }}</span>
-                  </label>
-                </div>
-
-                <!-- Mensaje de error inline -->
-                <small *ngIf="attributeErrors[attr.id]" class="error-message">
-                  <mat-icon>error</mat-icon>
-                  {{ attributeErrors[attr.id] }}
-                </small>
-              </div>
-            </div>
-
-            <!-- Mensaje si no hay atributos cargados -->
-            <div *ngIf="!isLoadingAttributes && categoryAttributes.length === 0" class="no-attributes">
-              <mat-icon>info</mat-icon>
-              <p>Selecciona una categoría para ver sus atributos específicos</p>
-            </div>
-          </div>
+          </ng-container>
         </div>
-
-        <!-- Sale Terms (Warranty) -->
-        <div class="form-section" *ngIf="product.sale_terms && product.sale_terms.length > 0">
-          <div class="form-section-header">
-            <mat-icon>verified_user</mat-icon>
-            <h4>Garantía</h4>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Tipo de Garantía</label>
-              <input type="text"
-                     class="form-input"
-                     [(ngModel)]="product.sale_terms[0].value_name"
-                     name="warranty_type_value"
-                     placeholder="Ej: Garantía del vendedor">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Tiempo de Garantía</label>
-              <input type="text"
-                     class="form-input"
-                     [(ngModel)]="product.sale_terms[1].value_name"
-                     name="warranty_time_value"
-                     placeholder="Ej: 90 días">
-            </div>
-          </div>
-        </div>
-
-        <!-- Pictures URLs -->
-        <div class="form-section">
-          <div class="form-section-header">
-            <mat-icon>image</mat-icon>
-            <h4>Imágenes del Producto</h4>
-          </div>
-
-          <div class="form-group">
-            <app-image-source-selector
-              [categoryId]="product.category_id"
-              [itemTitle]="product.family_name"
-              [initialImages]="originalItemImages"
-              [maxImages]="10"
-              (onImagesValidated)="handleImagesValidated($event)">
-            </app-image-source-selector>
-
-            <small class="form-hint">
-              Puedes subir imágenes nuevas, seleccionar de tu galería, o usar URLs directas.
-              Las imágenes serán validadas automáticamente antes de publicar.
-            </small>
-          </div>
-
-          <!-- Fallback: Textarea para URLs (mantener para compatibilidad) -->
-          <details class="legacy-input">
-            <summary>O pegar URLs manualmente (método antiguo)</summary>
-            <div class="form-group">
-              <label for="pictures" class="form-label">URLs de Imágenes</label>
-              <textarea class="form-textarea"
-                        id="pictures"
-                        name="pictures_text"
-                        [(ngModel)]="picturesText"
-                        rows="4"
-                        placeholder="http://ejemplo.com/imagen1.jpg&#10;http://ejemplo.com/imagen2.jpg&#10;Una URL por línea"></textarea>
-              <small class="form-hint">Una URL por línea. Máximo 10 imágenes.</small>
-            </div>
-          </details>
-        </div>
-
-        <!-- Shipping Info -->
-        <div class="form-section" *ngIf="product.shipping">
-          <div class="form-section-header">
-            <mat-icon>local_shipping</mat-icon>
-            <h4>Configuración de Envío</h4>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Modo de Envío</label>
-              <input type="text"
-                     class="form-input"
-                     [(ngModel)]="product.shipping.mode"
-                     name="shipping_mode"
-                     placeholder="Ej: me1">
-            </div>
-            <div class="form-group">
-              <div class="form-checkbox">
-                <input class="checkbox-input"
-                       type="checkbox"
-                       [(ngModel)]="product.shipping.free_shipping"
-                       name="free_shipping"
-                       id="freeShipping">
-                <label class="checkbox-label" for="freeShipping">
-                  Envío Gratis
-                </label>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Tipo Logístico</label>
-              <input type="text"
-                     class="form-input"
-                     [(ngModel)]="product.shipping.logistic_type"
-                     name="logistic_type"
-                     placeholder="Ej: xd_drop_off">
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      <!-- Form Actions -->
-      <div class="form-actions">
-        <button type="button"
-                class="btn-secondary"
-                (click)="resetForm()"
-                [disabled]="loading">
-          <mat-icon>refresh</mat-icon>
-          Resetear
-        </button>
-        <button type="submit"
-                class="btn-primary btn-publish"
-                [disabled]="!productForm.valid || loading">
-          <mat-spinner *ngIf="loading" diameter="20" class="btn-spinner"></mat-spinner>
-          <mat-icon *ngIf="!loading">rocket_launch</mat-icon>
-          {{ loading ? 'Publicando...' : 'Publicar Producto' }}
-        </button>
+      <div *ngIf="j.status === 'failed' || j.status === 'unknown'" class="pf-job-body">
+        <p class="pf-err-main">{{ j.error }}</p>
+        <ul *ngIf="j.causes.length" class="pf-causes">
+          <li *ngFor="let c of j.causes; trackBy: trackByIndex"><span class="pf-mono">{{ c.code }}</span> {{ c.message }}</li>
+        </ul>
+        <p *ngIf="j.status === 'unknown'" class="pf-muted">
+          No hubo respuesta clara de MercadoLibre: la publicación podría haberse creado. Revisa en Publicaciones antes de reintentar.
+          <button type="button" class="ds-btn" (click)="confirmNotCreated(j)">Verifiqué: no existe</button>
+        </p>
       </div>
-
-    </form>
-  </div>
-</div>
-
-<!-- Info Card -->
-<div class="card info-card">
-  <div class="info-header">
-    <mat-icon>info</mat-icon>
-    <h4>Información</h4>
-  </div>
-  <ul class="info-list">
-    <li>Los campos se ajustan automáticamente según la categoría seleccionada</li>
-    <li>MercadoLibre genera el título automáticamente basándose en el nombre y atributos del producto</li>
-    <li>Asegúrate de completar todos los atributos requeridos para evitar errores de validación</li>
-    <li>El template se resetea automáticamente después de publicar exitosamente</li>
+    </li>
   </ul>
-</div>
+
+  <div class="pf-row-actions">
+    <button type="button" class="ds-btn primary" *ngIf="hasRetryableJobs" [disabled]="submitting" (click)="retryFailedJobs()">Reintentar las que no se crearon</button>
+    <button type="button" class="ds-btn" *ngIf="!allDone" [disabled]="submitting" (click)="backToForm()">Volver al formulario</button>
+    <button type="button" class="ds-btn" (click)="goToPublications()">Ir a Publicaciones</button>
+    <button type="button" class="ds-btn" *ngIf="allDone" (click)="newPublication()">Publicar otro</button>
+  </div>
+</section>
+
+<!-- ============ Formulario ============ -->
+<form *ngIf="!showResult && !isLoadingSource && !sourceError" class="pf-layout" (ngSubmit)="onSubmit()" #productForm="ngForm" (input)="scheduleSave()" (change)="scheduleSave()" novalidate>
+  <div class="pf-main">
+
+    <!-- 1. Producto y categoría -->
+    <section class="pf-card" aria-labelledby="sec-producto">
+      <h2 class="pf-h2" id="sec-producto">Producto y categoría</h2>
+
+      <div class="pf-field">
+        <label for="family_name">Nombre del producto <span class="pf-req" aria-hidden="true">*</span>
+          <span *ngIf="isLoadingPredictions" class="pf-inline"><mat-spinner diameter="14"></mat-spinner> buscando categoría…</span></label>
+        <input id="family_name" name="family_name" type="text" class="pf-input" [class.is-invalid]="attributeErrors['family_name']"
+               [(ngModel)]="familyName" (ngModelChange)="onProductNameChange($event)" maxlength="80" autocomplete="off"
+               placeholder="Ej: Transistor NPN 2N3055">
+        <div class="pf-hint">
+          <span [class.is-bad]="nameOverLimit">{{ familyName.length }}/60 caracteres.</span>
+          MercadoLibre arma el título con este nombre y los atributos.
+        </div>
+        <div class="pf-error" *ngIf="attributeErrors['family_name']">{{ attributeErrors['family_name'] }}</div>
+        <div class="pf-error" *ngIf="nameOverLimit">El nombre supera los 60 caracteres que acepta MercadoLibre.</div>
+        <div class="pf-note is-warn" *ngIf="sameNameAsOriginal">
+          <mat-icon aria-hidden="true">warning</mat-icon> Es idéntico al original. Cámbialo para no generar una publicación duplicada que ML pueda dar de baja.
+        </div>
+      </div>
+
+      <div class="pf-field">
+        <label>Categoría <span class="pf-req" aria-hidden="true">*</span></label>
+        <div *ngIf="categoryId" class="pf-cat">
+          <mat-icon aria-hidden="true">category</mat-icon>
+          <div class="pf-cat-text">
+            <strong>{{ categoryName || categoryId }}</strong>
+            <span class="pf-muted" *ngIf="categoryPath">{{ categoryPath }}</span>
+          </div>
+          <span class="pf-mono pf-muted">{{ categoryId }}</span>
+          <button type="button" class="ds-btn" *ngIf="!isDuplicateMode" (click)="clearCategory()">Cambiar</button>
+        </div>
+        <div class="pf-hint" *ngIf="!categoryId">Escribe el nombre del producto y elige una de las categorías sugeridas.</div>
+        <div class="pf-error" *ngIf="attributeErrors['category']">{{ attributeErrors['category'] }}</div>
+
+        <div *ngIf="showCategoryPredictions && !categoryId" class="pf-predictions" role="listbox" aria-label="Categorías sugeridas">
+          <button type="button" role="option" class="pf-prediction" *ngFor="let p of categoryPredictions" (click)="selectPredictedCategory(p)">
+            <span><strong>{{ p.category_name }}</strong><span class="pf-muted"> · {{ p.domain_name }}</span></span>
+            <span class="pf-mono pf-muted">{{ p.category_id }}</span>
+          </button>
+          <button type="button" class="ds-btn" (click)="closeCategoryPredictions()">Cerrar sugerencias</button>
+        </div>
+      </div>
+
+      <div class="pf-field pf-field-narrow">
+        <label for="condition">Condición</label>
+        <select id="condition" name="condition" class="pf-input" [(ngModel)]="condition">
+          <option value="new">Nuevo</option>
+          <option value="used">Usado</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- 2. Atributos -->
+    <section class="pf-card" aria-labelledby="sec-atributos">
+      <h2 class="pf-h2" id="sec-atributos">Atributos
+        <span *ngIf="isLoadingAttributes" class="pf-inline"><mat-spinner diameter="14"></mat-spinner> cargando…</span></h2>
+
+      <div class="pf-note" *ngIf="!categoryId && !isLoadingAttributes">
+        <mat-icon aria-hidden="true">info</mat-icon> Elige una categoría para ver sus atributos.
+      </div>
+
+      <div class="pf-note is-warn" *ngIf="isDuplicateMode && skuCleared">
+        <mat-icon aria-hidden="true">info</mat-icon> El SKU del original no se copió porque debe ser único. Asigna uno nuevo en el atributo SKU si lo usas.
+      </div>
+
+      <!-- GTIN -->
+      <div class="pf-grid" *ngIf="hasGtinAttr">
+        <div class="pf-field">
+          <label for="gtin">Código de barras (GTIN / EAN / UPC)</label>
+          <input id="gtin" name="gtin" type="text" class="pf-input pf-mono" [(ngModel)]="gtin" inputmode="numeric" autocomplete="off" placeholder="Ej: 7501055300006">
+          <div class="pf-hint">Si el producto no tiene código, déjalo vacío y elige el motivo.</div>
+        </div>
+        <div class="pf-field" *ngIf="!gtin.trim() && gtinReasons.length">
+          <label for="gtinReason">Motivo de GTIN vacío</label>
+          <select id="gtinReason" name="gtinReason" class="pf-input" [(ngModel)]="emptyGtinReason">
+            <option *ngFor="let r of gtinReasons" [value]="r.id">{{ r.name }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="pf-grid pf-attrs">
+        <div class="pf-field" *ngFor="let attr of requiredAttributes; trackBy: trackByIndex">
+          <ng-container *ngTemplateOutlet="attrTpl; context: { $implicit: attr }"></ng-container>
+        </div>
+      </div>
+
+      <button type="button" class="ds-btn pf-toggle" *ngIf="optionalAttributes.length" (click)="showOptionalAttrs = !showOptionalAttrs" [attr.aria-expanded]="showOptionalAttrs">
+        <mat-icon aria-hidden="true">{{ showOptionalAttrs ? 'expand_less' : 'expand_more' }}</mat-icon>
+        {{ showOptionalAttrs ? 'Ocultar' : 'Mostrar' }} atributos opcionales ({{ optionalAttributes.length }})
+      </button>
+      <div class="pf-grid pf-attrs" *ngIf="showOptionalAttrs">
+        <div class="pf-field" *ngFor="let attr of optionalAttributes; trackBy: trackByIndex">
+          <ng-container *ngTemplateOutlet="attrTpl; context: { $implicit: attr }"></ng-container>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Variaciones (solo al duplicar un original con variaciones) -->
+    <section class="pf-card" aria-labelledby="sec-variaciones" *ngIf="variations.length">
+      <h2 class="pf-h2" id="sec-variaciones">Variaciones <span class="pf-count">{{ variations.length }}</span></h2>
+      <div class="pf-note is-info">
+        <mat-icon aria-hidden="true">info</mat-icon>
+        Tu cuenta usa User Products: MercadoLibre ya no acepta variaciones dentro de una publicación. Cada variación marcada se publicará como una publicación separada con el mismo nombre, sus fotos, su precio y su stock.
+      </div>
+      <ul class="pf-variations">
+        <li *ngFor="let v of variations; trackBy: trackByIndex" [class.is-off]="!v.include || v.unresolved">
+          <label class="pf-check">
+            <input type="checkbox" [name]="'var_inc_' + v.key" [(ngModel)]="v.include" [disabled]="v.unresolved">
+            <span>{{ v.label }}</span>
+          </label>
+          <div class="pf-var-pics">
+            <ng-container *ngFor="let pid of v.pictureIds.slice(0, 4)">
+              <img *ngIf="thumb(pid)" [src]="thumb(pid)" alt="" class="pf-thumb" width="32" height="32">
+            </ng-container>
+          </div>
+          <label class="pf-mini">Precio
+            <input type="number" class="pf-input" [name]="'var_price_' + v.key" [(ngModel)]="v.price" min="0" step="0.01" [disabled]="!v.include || v.unresolved"></label>
+          <label class="pf-mini">Stock
+            <input type="number" class="pf-input" [name]="'var_qty_' + v.key" [(ngModel)]="v.quantity" min="1" step="1" [disabled]="!v.include || v.unresolved"></label>
+          <span class="pf-muted pf-var-warn" *ngIf="v.unresolved">El atributo de esta variación no trae ID en MercadoLibre; no se puede copiar.</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- 4. Precio y stock -->
+    <section class="pf-card" aria-labelledby="sec-precio">
+      <h2 class="pf-h2" id="sec-precio">Precio y stock</h2>
+      <div class="pf-grid">
+        <div class="pf-field">
+          <label for="price">Precio (MXN) <span class="pf-req" aria-hidden="true">*</span></label>
+          <input id="price" name="price" type="number" class="pf-input pf-num" [class.is-invalid]="attributeErrors['price']" [(ngModel)]="price" (ngModelChange)="queueFees()" min="0" step="0.01" inputmode="decimal" placeholder="350.00">
+          <div class="pf-error" *ngIf="attributeErrors['price']">{{ attributeErrors['price'] }}</div>
+        </div>
+        <div class="pf-field" *ngIf="!variations.length">
+          <label for="quantity">Cantidad disponible <span class="pf-req" aria-hidden="true">*</span></label>
+          <input id="quantity" name="quantity" type="number" class="pf-input pf-num" [class.is-invalid]="attributeErrors['quantity']" [(ngModel)]="quantity" min="1" step="1" inputmode="numeric">
+          <div class="pf-error" *ngIf="attributeErrors['quantity']">{{ attributeErrors['quantity'] }}</div>
+        </div>
+      </div>
+      <div class="pf-note is-warn" *ngIf="variations.length"><mat-icon aria-hidden="true">info</mat-icon> El precio base se usa solo como referencia para el resumen; cada variación lleva su propio precio y stock.</div>
+      <div class="pf-note is-warn" *ngIf="fulfillmentNote"><mat-icon aria-hidden="true">warning</mat-icon> {{ fulfillmentNote }}</div>
+    </section>
+
+    <!-- 5. Tipo de publicación -->
+    <section class="pf-card" aria-labelledby="sec-tipo">
+      <h2 class="pf-h2" id="sec-tipo">Tipo de publicación</h2>
+      <div class="pf-types" role="radiogroup" aria-labelledby="sec-tipo">
+        <label class="pf-type" [class.is-selected]="listingTypeId === 'gold_special'">
+          <input type="radio" name="listing_type" value="gold_special" [(ngModel)]="listingTypeId">
+          <span class="pf-type-name">Clásica</span>
+          <span class="pf-type-desc">Exposición alta. Cuotas con interés del banco.</span>
+          <span class="pf-type-fee" *ngIf="feeFor('gold_special') as f">
+            <b class="pf-num">{{ f.percentage_fee }}%</b> · {{ f.sale_fee_amount | currency:'MXN':'symbol-narrow':'1.2-2' }} por venta
+          </span>
+          <span class="pf-type-fee pf-muted" *ngIf="!feeFor('gold_special')">{{ isLoadingFees ? 'Calculando comisión…' : 'Ingresa precio y categoría para ver la comisión' }}</span>
+        </label>
+        <label class="pf-type" [class.is-selected]="listingTypeId === 'gold_pro'">
+          <input type="radio" name="listing_type" value="gold_pro" [(ngModel)]="listingTypeId">
+          <span class="pf-type-name">Premium</span>
+          <span class="pf-type-desc">Máxima exposición. Meses sin intereses a cargo tuyo.</span>
+          <span class="pf-type-fee" *ngIf="feeFor('gold_pro') as f">
+            <b class="pf-num">{{ f.percentage_fee }}%</b> · {{ f.sale_fee_amount | currency:'MXN':'symbol-narrow':'1.2-2' }} por venta
+          </span>
+          <span class="pf-type-fee pf-muted" *ngIf="!feeFor('gold_pro')">{{ isLoadingFees ? 'Calculando comisión…' : 'Ingresa precio y categoría para ver la comisión' }}</span>
+        </label>
+      </div>
+      <div class="pf-error" *ngIf="feesError">{{ feesError }}</div>
+      <div class="pf-note is-warn" *ngIf="listingTypeNote"><mat-icon aria-hidden="true">info</mat-icon> {{ listingTypeNote }}</div>
+    </section>
+
+    <!-- 6. Envío y paquete -->
+    <section class="pf-card" aria-labelledby="sec-envio">
+      <h2 class="pf-h2" id="sec-envio">Envío y paquete</h2>
+      <p class="pf-muted pf-section-note">Mercado Envíos 2. MercadoLibre calcula el costo con estas medidas; son obligatorias.</p>
+      <div class="pf-grid pf-grid-4">
+        <div class="pf-field">
+          <label for="pkg_h">Alto (cm) <span class="pf-req" aria-hidden="true">*</span></label>
+          <input id="pkg_h" name="pkg_h" type="number" class="pf-input pf-num" [class.is-invalid]="attributeErrors['height']" [(ngModel)]="package.height" min="1" step="1" inputmode="numeric">
+          <div class="pf-error" *ngIf="attributeErrors['height']">{{ attributeErrors['height'] }}</div>
+        </div>
+        <div class="pf-field">
+          <label for="pkg_w">Ancho (cm) <span class="pf-req" aria-hidden="true">*</span></label>
+          <input id="pkg_w" name="pkg_w" type="number" class="pf-input pf-num" [class.is-invalid]="attributeErrors['width']" [(ngModel)]="package.width" min="1" step="1" inputmode="numeric">
+          <div class="pf-error" *ngIf="attributeErrors['width']">{{ attributeErrors['width'] }}</div>
+        </div>
+        <div class="pf-field">
+          <label for="pkg_l">Largo (cm) <span class="pf-req" aria-hidden="true">*</span></label>
+          <input id="pkg_l" name="pkg_l" type="number" class="pf-input pf-num" [class.is-invalid]="attributeErrors['length']" [(ngModel)]="package.length" min="1" step="1" inputmode="numeric">
+          <div class="pf-error" *ngIf="attributeErrors['length']">{{ attributeErrors['length'] }}</div>
+        </div>
+        <div class="pf-field">
+          <label for="pkg_weight">Peso <span class="pf-req" aria-hidden="true">*</span></label>
+          <div class="pf-weight">
+            <input id="pkg_weight" name="pkg_weight" type="number" class="pf-input pf-num" [class.is-invalid]="attributeErrors['weight']" [(ngModel)]="package.weight" min="0" [step]="package.weightUnit === 'kg' ? 0.001 : 1" inputmode="decimal">
+            <select name="pkg_weight_unit" class="pf-input pf-unit" [(ngModel)]="package.weightUnit" aria-label="Unidad del peso">
+              <option value="g">g</option>
+              <option value="kg">kg</option>
+            </select>
+          </div>
+          <div class="pf-hint" *ngIf="weightInGrams">Se envía como <b class="pf-num">{{ weightInGrams }} g</b></div>
+          <div class="pf-error" *ngIf="attributeErrors['weight']">{{ attributeErrors['weight'] }}</div>
+        </div>
+      </div>
+      <div class="pf-checks">
+        <label class="pf-check"><input type="checkbox" name="free_shipping" [(ngModel)]="freeShipping"> <span>Envío gratis (lo pagas tú)</span></label>
+        <label class="pf-check"><input type="checkbox" name="local_pick_up" [(ngModel)]="localPickUp"> <span>Permitir retiro en persona</span></label>
+      </div>
+      <div class="pf-subhead">Garantía</div>
+      <div class="pf-grid">
+        <div class="pf-field">
+          <label for="warrantyType">Tipo de garantía</label>
+          <select id="warrantyType" name="warrantyType" class="pf-input" [(ngModel)]="warrantyType">
+            <option *ngFor="let w of warrantyTypes" [value]="w">{{ w }}</option>
+          </select>
+        </div>
+        <div class="pf-field" *ngIf="warrantyType !== 'Sin garantía'">
+          <label for="warrantyTime">Tiempo de garantía</label>
+          <input id="warrantyTime" name="warrantyTime" type="text" class="pf-input" [(ngModel)]="warrantyTime" placeholder="Ej: 90 días">
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Fotos -->
+    <section class="pf-card" aria-labelledby="sec-fotos">
+      <h2 class="pf-h2" id="sec-fotos">Fotos
+        <span class="pf-count">máx. {{ maxPictures }}</span></h2>
+      <div class="pf-note is-warn" *ngIf="pictureWarning"><mat-icon aria-hidden="true">warning</mat-icon> {{ pictureWarning }}</div>
+      <div class="pf-note" *ngIf="isDuplicateMode && duplicatePictureIds.length && !validatedPictureIds.length">
+        <mat-icon aria-hidden="true">photo_library</mat-icon>
+        Se {{ duplicatePictureIds.length === 1 ? 'usará la foto' : 'usarán las ' + duplicatePictureIds.length + ' fotos' }} del original tal como están en MercadoLibre. Si validas imágenes abajo, se usarán esas.
+      </div>
+      <app-image-source-selector *ngIf="selectorReady"
+        [categoryId]="categoryId"
+        [itemTitle]="familyName"
+        [initialImages]="originalItemImages"
+        [maxImages]="maxPictures"
+        (onImagesValidated)="handleImagesValidated($event)">
+      </app-image-source-selector>
+      <details class="pf-details">
+        <summary>Pegar URLs de imágenes manualmente</summary>
+        <div class="pf-field">
+          <label for="pictures">URLs (una por línea)</label>
+          <textarea id="pictures" name="pictures_text" class="pf-input" rows="3" [(ngModel)]="picturesText" placeholder="https://ejemplo.com/imagen1.jpg"></textarea>
+        </div>
+      </details>
+    </section>
+
+    <!-- 8. Descripción -->
+    <section class="pf-card" aria-labelledby="sec-desc">
+      <h2 class="pf-h2" id="sec-desc">Descripción</h2>
+      <div class="pf-field">
+        <label for="description" class="pf-sr">Descripción del producto</label>
+        <textarea id="description" name="description" class="pf-input" rows="7" maxlength="50000" [(ngModel)]="description"
+                  placeholder="Características, medidas, qué incluye… Texto plano, sin HTML."></textarea>
+        <div class="pf-hint">{{ description.length }} / 50,000. Texto plano.</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Resumen sticky -->
+  <aside class="pf-side" aria-label="Resumen de la publicación">
+    <div class="pf-card pf-summary">
+      <h2 class="pf-h2">Recibes aprox.</h2>
+      <div class="pf-net">
+        <span class="pf-net-value pf-num" *ngIf="netAmount !== null">{{ netAmount | currency:'MXN':'symbol-narrow':'1.2-2' }}</span>
+        <span class="pf-net-value pf-muted" *ngIf="netAmount === null">—</span>
+        <span class="pf-muted pf-net-sub">por venta</span>
+      </div>
+      <dl class="pf-lines">
+        <div><dt>Precio de venta</dt><dd class="pf-num">{{ (price || 0) | currency:'MXN':'symbol-narrow':'1.2-2' }}</dd></div>
+        <div><dt>Comisión {{ listingTypeId === 'gold_pro' ? 'Premium' : 'Clásica' }}<ng-container *ngIf="selectedFee?.percentage_fee"> ({{ selectedFee?.percentage_fee }}%)</ng-container></dt>
+          <dd class="pf-num neg">{{ selectedFee ? ('−' + (selectedFee.sale_fee_amount | currency:'MXN':'symbol-narrow':'1.2-2')) : '—' }}</dd></div>
+        <div><dt>Retención SAT (ISR 2.5% + IVA 8%)</dt><dd class="pf-num neg">−{{ sat | currency:'MXN':'symbol-narrow':'1.2-2' }}</dd></div>
+        <div><dt>Envío</dt><dd class="pf-muted">{{ freeShipping ? 'Lo pagas tú: se calcula al vender' : 'Lo paga el comprador' }}</dd></div>
+      </dl>
+      <p class="pf-muted pf-summary-note" *ngIf="publishCount > 1">Se crearán {{ publishCount }} publicaciones (una por variación). El resumen usa el precio base.</p>
+
+      <div class="pf-actions">
+        <button type="button" class="ds-btn" (click)="onValidate()" [disabled]="validating || submitting">
+          <mat-spinner *ngIf="validating" diameter="14"></mat-spinner>
+          <mat-icon *ngIf="!validating" aria-hidden="true">fact_check</mat-icon>
+          {{ validating ? 'Validando…' : 'Validar' }}
+        </button>
+        <button type="submit" class="ds-btn primary" [disabled]="submitting || validating">
+          <mat-spinner *ngIf="submitting" diameter="14"></mat-spinner>
+          <mat-icon *ngIf="!submitting" aria-hidden="true">rocket_launch</mat-icon>
+          {{ submitting ? 'Publicando…' : (publishCount > 1 ? 'Publicar ' + publishCount : 'Publicar') }}
+        </button>
+      </div>
+      <p class="pf-muted pf-summary-note">Validar consulta a MercadoLibre sin publicar nada.</p>
+    </div>
+  </aside>
+
+  <!-- Barra fija en móvil -->
+  <div class="pf-bar" role="region" aria-label="Acciones">
+    <div class="pf-bar-net">
+      <span class="pf-muted">Recibes aprox.</span>
+      <b class="pf-num">{{ netAmount !== null ? (netAmount | currency:'MXN':'symbol-narrow':'1.2-2') : '—' }}</b>
+    </div>
+    <button type="button" class="ds-btn" (click)="onValidate()" [disabled]="validating || submitting">Validar</button>
+    <button type="submit" class="ds-btn primary" [disabled]="submitting || validating">{{ submitting ? 'Publicando…' : 'Publicar' }}</button>
+  </div>
+</form>
+
+<!-- Plantilla de un atributo de categoría -->
+<ng-template #attrTpl let-attr>
+  <label [for]="'attr_' + attr.id">{{ attr.name }} <span *ngIf="isRequired(attr)" class="pf-req" aria-hidden="true">*</span></label>
+
+  <input *ngIf="attr.value_type === 'string'" [id]="'attr_' + attr.id" type="text" class="pf-input" [class.is-invalid]="attributeErrors[attr.id]"
+         [(ngModel)]="attributeValues[attr.id]" [name]="'attr_' + attr.id" [maxlength]="attr.value_max_length || 255" autocomplete="off">
+
+  <select *ngIf="attr.value_type === 'list'" [id]="'attr_' + attr.id" class="pf-input" [class.is-invalid]="attributeErrors[attr.id]"
+          [(ngModel)]="attributeValues[attr.id]" [name]="'attr_' + attr.id">
+    <option [ngValue]="undefined">Seleccionar…</option>
+    <option *ngFor="let val of attr.values" [value]="val.id">{{ val.name }}</option>
+  </select>
+
+  <input *ngIf="attr.value_type === 'number'" [id]="'attr_' + attr.id" type="number" class="pf-input pf-num" [class.is-invalid]="attributeErrors[attr.id]"
+         [(ngModel)]="attributeValues[attr.id]" [name]="'attr_' + attr.id">
+
+  <div *ngIf="attr.value_type === 'number_unit'" class="pf-weight">
+    <input [id]="'attr_' + attr.id" type="number" class="pf-input pf-num" [class.is-invalid]="attributeErrors[attr.id]"
+           [(ngModel)]="attributeValues[attr.id + '_number']" [name]="'attr_' + attr.id + '_number'">
+    <select class="pf-input pf-unit" [(ngModel)]="attributeValues[attr.id + '_unit']" [name]="'attr_' + attr.id + '_unit'" [attr.aria-label]="'Unidad de ' + attr.name">
+      <option *ngFor="let unit of attr.allowed_units" [value]="unit.id">{{ unit.name }}</option>
+    </select>
+  </div>
+
+  <label *ngIf="attr.value_type === 'boolean'" class="pf-check">
+    <input type="checkbox" [(ngModel)]="attributeValues[attr.id]" [name]="'attr_' + attr.id" [id]="'attr_' + attr.id"> <span>Sí</span>
+  </label>
+
+  <div class="pf-hint" *ngIf="attr.hint">{{ attr.hint }}</div>
+  <div class="pf-error" *ngIf="attributeErrors[attr.id]">{{ attributeErrors[attr.id] }}</div>
+</ng-template>

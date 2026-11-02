@@ -1,15 +1,13 @@
-<div class="app-container">
-  <!-- Sidebar -->
-  <app-sidebar></app-sidebar>
+<a class="skip-link" href="#contenido" (click)="focusMain($event)">Saltar al contenido</a>
 
-  <!-- Main Content Area -->
-  <div class="main-content">
-    <!-- Top Header -->
-    <app-top-nav (menuToggle)="onMenuToggle()"></app-top-nav>
+<div class="shell" [class.nav-open]="navOpen" (keydown.escape)="closeNav()">
+  <app-top-nav class="shell-top" [navOpen]="navOpen" (menuToggle)="toggleNav()"></app-top-nav>
 
-    <!-- Content Area -->
-    <main class="content-area">
-      <router-outlet></router-outlet>
-    </main>
-  </div>
+  <app-sidebar class="shell-sb" [open]="navOpen" (navigated)="closeNav()"></app-sidebar>
+
+  <div class="shell-scrim" *ngIf="navOpen" (click)="closeNav()" aria-hidden="true"></div>
+
+  <main id="contenido" class="shell-main" tabindex="-1">
+    <router-outlet></router-outlet>
+  </main>
 </div>

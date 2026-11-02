@@ -25,6 +25,11 @@ export class CachingInterceptor implements HttpInterceptor {
   constructor(private cachingService: CachingService) {}
 
   intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+    // Los datos del panel Editar deben ser siempre frescos (se editan y se guardan en ML)
+    if (/\/items\/[^/]+\/editable/.test(req.url)) {
+      return next.handle(req);
+    }
+
     // Solo cachear peticiones GET
     if (req.method !== 'GET') {
       return next.handle(req);

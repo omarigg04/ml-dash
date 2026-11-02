@@ -1,6 +1,7 @@
-import { Component, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { ThemeService } from '../services/theme.service';
 import { environment } from '../../environments/environment';
 
 @Component({
@@ -9,12 +10,31 @@ import { environment } from '../../environments/environment';
   styleUrls: ['./top-nav.component.scss']
 })
 export class TopNavComponent {
+  @Input() navOpen = false;
   @Output() menuToggle = new EventEmitter<void>();
+
+  query = '';
 
   constructor(
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private themeService: ThemeService
   ) {}
+
+  get isDark(): boolean {
+    return this.themeService.getCurrentTheme() === 'dark';
+  }
+
+  toggleTheme(): void {
+    this.themeService.toggleTheme();
+  }
+
+  /** Búsqueda global: va a Publicaciones con el texto en ?q= (esa pantalla aún no lee el parámetro). */
+  onSearch(event: Event): void {
+    event.preventDefault();
+    const q = this.query.trim();
+    this.router.navigate(['/publications'], { queryParams: q ? { q } : {} });
+  }
 
   onMenuToggle() {
     this.menuToggle.emit();

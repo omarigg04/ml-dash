@@ -40,8 +40,9 @@ export class ThemeService {
    * Set specific theme
    */
   setTheme(theme: Theme): void {
-    this.themeSubject.next(theme);
+    // Primero la clase del body: los suscriptores (ChartThemeService) leen variables CSS ya cambiadas
     this.applyTheme(theme);
+    this.themeSubject.next(theme);
     this.saveTheme(theme);
   }
 
