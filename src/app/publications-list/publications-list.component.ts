@@ -1,8 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { CellClickedEvent, ColDef, GetRowIdParams, ICellRendererParams } from 'ag-grid-community';
 import { environment } from '../../environments/environment';
 import { UserPreferencesService, PublicationFilters } from '../services/user-preferences.service';
+import { GRID_LOCALE_ES } from '../shared/grid-locale';
 
 interface Publication {
   id: string;
@@ -27,17 +30,56 @@ interface PagingInfo {
   limit: number;
 }
 
+type Tone = 'success' | 'warning' | 'info' | 'error' | 'off';
+
+// Estados de publicación traducidos; lo desconocido se muestra tal cual con tono neutro.
+const ITEM_STATUS: Record<string, { label: string; tone: Tone }> = {
+  active: { label: 'Activa', tone: 'success' },
+  paused: { label: 'Pausada', tone: 'warning' },
+  closed: { label: 'Finalizada', tone: 'off' },
+  under_review: { label: 'En revisión', tone: 'info' },
+  inactive: { label: 'Inactiva', tone: 'off' },
+};
+
+const LISTING_TYPES: Record<string, string> = {
+  gold_special: 'Clásica',
+  gold_pro: 'Premium',
+  gold_premium: 'Oro Premium',
+  silver: 'Plata',
+  bronze: 'Bronce',
+  free: 'Gratuita',
+};
+
+const escapeHtml = (v: unknown): string =>
+  String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+
 @Component({
   selector: 'app-publications-list',
   templateUrl: './publications-list.component.html',
   styleUrls: ['./publications-list.component.scss']
 })
-export class PublicationsListComponent implements OnInit {
-  displayedColumns: string[] = ['thumbnail', 'title', 'price', 'stock', 'sales', 'visits', 'status', 'actions'];
+export class PublicationsListComponent implements OnInit, OnDestroy {
   dataSource: Publication[] = [];
   isLoading = false;
   isLoadingMore = false;
   isLoadingVisits = false;
+  loadError = false;
+  loadMoreError = false;
+
+  // Móvil: el panel de filtros se colapsa tras el botón "Filtros"
+  filtersOpen = false;
+
+  // Aviso de resultado de Republicar
+  notice: { kind: 'ok' | 'error'; text: string } | null = null;
+
+  // Confirmación de Republicar
+  relistTarget: Publication | null = null;
+  relistPrice = '';
+  relistQty = '';
+  isRelisting = false;
+
+  readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7];
+  readonly localeText = { ...GRID_LOCALE_ES, noRowsToShow: 'Sin publicaciones para mostrar' };
 
   // Filters
   searchQuery = '';
@@ -53,22 +95,22 @@ export class PublicationsListComponent implements OnInit {
 
   // Filter options
   statusOptions = [
-    { value: '', label: 'Todos los estados' },
-    { value: 'active', label: 'Activos' },
-    { value: 'paused', label: 'Pausados' },
-    { value: 'closed', label: 'Cerrados' },
+    { value: '', label: 'Todas' },
+    { value: 'active', label: 'Activas' },
+    { value: 'paused', label: 'Pausadas' },
+    { value: 'closed', label: 'Finalizadas' },
     { value: 'under_review', label: 'En revisión' },
-    { value: 'inactive', label: 'Inactivos' }
+    { value: 'inactive', label: 'Inactivas' }
   ];
 
   listingTypeOptions = [
     { value: '', label: 'Todos los tipos' },
-    { value: 'gold_pro', label: 'Oro Pro' },
+    { value: 'gold_special', label: 'Clásica' },
+    { value: 'gold_pro', label: 'Premium' },
     { value: 'gold_premium', label: 'Oro Premium' },
-    { value: 'gold_special', label: 'Oro Especial' },
     { value: 'silver', label: 'Plata' },
     { value: 'bronze', label: 'Bronce' },
-    { value: 'free', label: 'Gratis' }
+    { value: 'free', label: 'Gratuita' }
   ];
 
   sortOptions = [
@@ -85,16 +127,83 @@ export class PublicationsListComponent implements OnInit {
     { value: 'stock_desc', label: 'Mayor stock' }
   ];
 
+  // Orden del servidor (selector "Ordenar"); el orden por columna del grid se desactiva
+  // para no ordenar solo la parte cargada.
+  defaultColDef: ColDef = { sortable: false, resizable: true, suppressMovable: true };
+  columnDefs: ColDef[] = [];
+  getRowId = (p: GetRowIdParams) => p.data.id;
+
+  private querySub?: Subscription;
+  private searchTimer: any;
+
   constructor(
     private http: HttpClient,
     private router: Router,
+    private route: ActivatedRoute,
     private userPreferencesService: UserPreferencesService
-  ) {}
+  ) {
+    const num: ColDef = { cellClass: 'ds-num', headerClass: 'ag-right-aligned-header', type: 'rightAligned' };
+    this.columnDefs = [
+      {
+        headerName: 'Publicación',
+        field: 'title',
+        flex: 4,
+        minWidth: 280,
+        cellRenderer: (p: ICellRendererParams) => {
+          const item: Publication = p.data;
+          const thumb = item.thumbnail
+            ? `<img class="pub-thumb" src="${escapeHtml(item.thumbnail)}" alt="" loading="lazy">`
+            : `<span class="pub-thumb pub-thumb-empty" aria-hidden="true"></span>`;
+          return `<span class="pub-cell">${thumb}<span class="pub-title-wrap"><a class="pub-title" href="${escapeHtml(item.permalink)}" target="_blank" rel="noopener" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</a><span class="pub-id">${escapeHtml(item.id)}</span></span></span>`;
+        },
+      },
+      { headerName: 'Precio', field: 'price', width: 110, valueFormatter: p => this.money(p.value), ...num },
+      { headerName: 'Disponible', field: 'available_quantity', width: 100, valueFormatter: p => this.int(p.value), ...num },
+      { headerName: 'Vendidos', field: 'sold_quantity', width: 90, valueFormatter: p => this.int(p.value ?? 0), ...num },
+      {
+        headerName: 'Visitas',
+        field: 'visits',
+        width: 90,
+        valueFormatter: p => (p.value == null ? (this.isLoadingVisits ? '…' : '0') : this.int(p.value)),
+        ...num,
+      },
+      {
+        headerName: 'Estado',
+        field: 'status',
+        width: 120,
+        cellRenderer: (p: ICellRendererParams) => {
+          const info = this.statusInfo(p.value);
+          return `<span class="ds-badge tone-${info.tone}">${escapeHtml(info.label)}</span>`;
+        },
+      },
+      { headerName: 'Tipo', field: 'listing_type_id', width: 100, valueFormatter: p => this.listingLabel(p.value) },
+      {
+        headerName: 'Acciones',
+        colId: 'actions',
+        width: 180,
+        sortable: false,
+        cellRenderer: (p: ICellRendererParams) => {
+          const relist = p.data.status === 'closed'
+            ? `<button type="button" class="ds-btn row-btn" data-action="relist">Republicar</button>` : '';
+          return `<span class="row-actions"><button type="button" class="ds-btn row-btn" data-action="duplicate">Duplicar</button>${relist}</span>`;
+        },
+      },
+    ];
+  }
 
   async ngOnInit(): Promise<void> {
     // Cargar preferencias guardadas antes de cargar publicaciones
     await this.loadSavedPreferences();
-    this.loadPublications();
+    // Búsqueda global de la topbar: /publications?q=texto (también cuando ya estás en la pantalla)
+    this.querySub = this.route.queryParamMap.subscribe(params => {
+      this.searchQuery = params.get('q') ?? '';
+      this.loadPublications();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.querySub?.unsubscribe();
+    clearTimeout(this.searchTimer);
   }
 
   /**
@@ -105,22 +214,15 @@ export class PublicationsListComponent implements OnInit {
     try {
       const savedFilters = await this.userPreferencesService.getPublicationFilters();
       if (savedFilters) {
-        // No cargar searchQuery - siempre inicia vacío
         this.statusFilter = savedFilters.statusFilter || '';
         this.listingTypeFilter = savedFilters.listingTypeFilter || '';
         this.sortBy = savedFilters.sortBy || '';
-        console.log('✅ Filtros cargados desde preferencias:', savedFilters);
       }
     } catch (error) {
       console.error('Error al cargar preferencias:', error);
-      // Continuar con valores por defecto si hay error
     }
   }
 
-  /**
-   * Guarda las preferencias actuales de filtros
-   * Nota: NO guarda el término de búsqueda (solo filtros estructurados)
-   */
   private async saveCurrentFilters(): Promise<void> {
     try {
       const filters: PublicationFilters = {
@@ -132,18 +234,19 @@ export class PublicationsListComponent implements OnInit {
       await this.userPreferencesService.savePublicationFilters(filters);
     } catch (error) {
       console.error('Error al guardar preferencias:', error);
-      // No mostrar error al usuario, solo loguearlo
     }
   }
 
   /**
-   * Load publications with current filters
+   * Load publications with current filters (parámetros al backend sin cambios)
    */
   loadPublications(reset: boolean = true): void {
     if (reset) {
       this.dataSource = [];
       this.currentPage = 0;
+      this.loadError = false;
     }
+    this.loadMoreError = false;
 
     this.isLoading = reset;
     this.isLoadingMore = !reset;
@@ -159,23 +262,17 @@ export class PublicationsListComponent implements OnInit {
     this.http.get<{items: Publication[], paging: PagingInfo}>(`${environment.apiUrl}/items`, { params })
       .subscribe({
         next: (response) => {
-          if (reset) {
-            this.dataSource = response.items;
-          } else {
-            this.dataSource = [...this.dataSource, ...response.items];
-          }
-
+          this.dataSource = reset ? response.items : [...this.dataSource, ...response.items];
           this.totalItems = response.paging.total;
           this.hasMore = (response.paging.offset + response.paging.limit) < response.paging.total;
-
           this.isLoading = false;
           this.isLoadingMore = false;
-
-          // Load visit counts for the items
           this.loadVisits(response.items);
         },
         error: (error) => {
           console.error('Error loading publications:', error);
+          if (reset) this.loadError = true; else this.loadMoreError = true;
+          if (!reset) this.currentPage--;
           this.isLoading = false;
           this.isLoadingMore = false;
         }
@@ -186,216 +283,168 @@ export class PublicationsListComponent implements OnInit {
    * Load visit counts for items
    */
   loadVisits(items: Publication[]): void {
-    console.log('🔍 loadVisits called with', items.length, 'items');
-
-    if (!items || items.length === 0) {
-      console.log('⚠️ No items to load visits for');
-      return;
-    }
+    if (!items || items.length === 0) return;
 
     this.isLoadingVisits = true;
-
-    // Extract item IDs
     const itemIds = items.map(item => item.id).join(',');
-    console.log('📋 Item IDs:', itemIds.substring(0, 100) + '...');
 
-    const url = `${environment.apiUrl}/items/visits`;
-    console.log('🌐 Calling URL:', url);
-    console.log('📦 With params:', { ids: itemIds.substring(0, 50) + '...' });
-
-    // Call visits endpoint
     this.http.get<{[key: string]: number}>(`${environment.apiUrl}/items/visits`, {
       params: new HttpParams().set('ids', itemIds)
     }).subscribe({
       next: (visitsData) => {
-        console.log('✅ Visits data received:', visitsData);
-
-        // Map visits to items
-        this.dataSource = this.dataSource.map(item => ({
-          ...item,
-          visits: visitsData[item.id] || 0
-        }));
-
-        console.log('📊 Data source updated with visits');
+        this.dataSource = this.dataSource.map(item => ({ ...item, visits: visitsData[item.id] || 0 }));
         this.isLoadingVisits = false;
       },
       error: (error) => {
-        console.error('❌ Error loading visits:', error);
-        console.error('❌ Error status:', error.status);
-        console.error('❌ Error message:', error.message);
-
-        // Set visits to 0 if error
-        this.dataSource = this.dataSource.map(item => ({
-          ...item,
-          visits: 0
-        }));
+        console.error('Error loading visits:', error);
+        this.dataSource = this.dataSource.map(item => ({ ...item, visits: 0 }));
         this.isLoadingVisits = false;
       }
     });
   }
 
-  /**
-   * Load more publications (pagination)
-   */
   loadMore(): void {
     if (!this.hasMore || this.isLoadingMore) return;
-
     this.currentPage++;
     this.loadPublications(false);
   }
 
-  /**
-   * Apply search filter
-   */
-  onSearch(): void {
-    this.loadPublications(true);
-    // No guardar preferencias - la búsqueda es temporal
+  // ---- Buscador ----
+  onSearchInput(value: string): void {
+    this.searchQuery = value;
+    clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => this.onSearch(), 400);
   }
 
-  /**
-   * Clear search
-   */
+  onSearch(): void {
+    clearTimeout(this.searchTimer);
+    this.loadPublications(true);
+  }
+
   clearSearch(): void {
     this.searchQuery = '';
-    this.loadPublications(true);
-    // No guardar preferencias - la búsqueda es temporal
+    // Si venía de ?q=, límpialo de la URL (la suscripción recarga)
+    if (this.route.snapshot.queryParamMap.has('q')) {
+      this.router.navigate([], { queryParams: {}, replaceUrl: true });
+    } else {
+      this.loadPublications(true);
+    }
   }
 
-  /**
-   * Apply status filter
-   */
-  onStatusFilterChange(): void {
+  // ---- Filtros ----
+  setStatus(value: string): void {
+    this.statusFilter = value;
     this.loadPublications(true);
     this.saveCurrentFilters();
   }
 
-  /**
-   * Apply listing type filter
-   */
   onListingTypeFilterChange(): void {
     this.loadPublications(true);
     this.saveCurrentFilters();
   }
 
-  /**
-   * Apply sort
-   */
   onSortChange(): void {
     this.loadPublications(true);
     this.saveCurrentFilters();
   }
 
-  /**
-   * Clear all filters
-   */
   clearFilters(): void {
     this.searchQuery = '';
     this.statusFilter = '';
     this.listingTypeFilter = '';
     this.sortBy = '';
-    this.loadPublications(true);
+    if (this.route.snapshot.queryParamMap.has('q')) {
+      this.router.navigate([], { queryParams: {}, replaceUrl: true });
+    } else {
+      this.loadPublications(true);
+    }
     this.saveCurrentFilters();
   }
 
-  /**
-   * Check if any filters are active
-   */
+  /** Filtros que acotan resultados (el orden no cuenta) */
   hasActiveFilters(): boolean {
-    return !!(this.searchQuery || this.statusFilter || this.listingTypeFilter || this.sortBy);
+    return !!(this.searchQuery || this.statusFilter || this.listingTypeFilter);
   }
 
-  // Duplicate: Navigate to publish form with pre-filled data
+  get activeFilterCount(): number {
+    return [this.statusFilter, this.listingTypeFilter, this.sortBy].filter(Boolean).length;
+  }
+
+  // ---- Acciones ----
+  // Duplicate: Navigate to publish form with pre-filled data (sin cambios)
   onDuplicate(item: Publication): void {
-    // Store item data in sessionStorage
     sessionStorage.setItem('duplicateItem', JSON.stringify(item.fullData));
-    // Navigate to publish page
     this.router.navigate(['/publish'], {
       queryParams: { mode: 'duplicate' }
     });
   }
 
-  // Relist: For closed items only
-  onRelist(item: Publication): void {
-    if (item.status !== 'closed') {
-      alert('Solo se pueden republicar items cerrados');
-      return;
-    }
-
-    // Open dialog to edit price/quantity
-    // For now, simple prompt (can enhance with MatDialog)
-    const newPrice = prompt(`Nuevo precio para "${item.title}":`, item.price.toString());
-    const newQuantity = prompt('Nueva cantidad:', item.available_quantity.toString());
-
-    if (newPrice && newQuantity) {
-      this.http.post(`${environment.apiUrl}/items/${item.id}/relist`, {
-        price: parseFloat(newPrice),
-        quantity: parseInt(newQuantity),
-        listing_type_id: item.listing_type_id
-      }).subscribe({
-        next: (response: any) => {
-          alert(`Publicación republicada exitosamente! Nuevo ID: ${response.newItem.id}`);
-          this.loadPublications(); // Refresh list
-        },
-        error: (error) => {
-          alert(`Error: ${error.error?.details || 'No se pudo republicar'}`);
-        }
-      });
-    }
+  onCellClicked(event: CellClickedEvent): void {
+    const btn = (event.event?.target as HTMLElement | null)?.closest('button[data-action]') as HTMLElement | null;
+    if (!btn) return;
+    if (btn.dataset['action'] === 'duplicate') this.onDuplicate(event.data);
+    if (btn.dataset['action'] === 'relist') this.openRelist(event.data);
   }
 
-  // Edit in-place (future enhancement)
-  onEdit(item: Publication): void {
-    // TODO: Implement inline editing or modal
-    alert('Función de edición en desarrollo');
+  // Relist: solo publicaciones finalizadas, con confirmación
+  openRelist(item: Publication): void {
+    if (item.status !== 'closed') return;
+    this.relistTarget = item;
+    this.relistPrice = String(item.price);
+    this.relistQty = String(item.available_quantity);
+    this.isRelisting = false;
   }
 
-  // View details
-  onViewDetails(item: Publication): void {
-    // TODO: Open modal with full item details
-    window.open(item.permalink, '_blank');
+  cancelRelist(): void {
+    if (this.isRelisting) return;
+    this.relistTarget = null;
   }
 
-  // Status badge color
-  getStatusColor(status: string): string {
-    switch (status) {
-      case 'active': return 'primary';
-      case 'paused': return 'accent';
-      case 'closed': return 'warn';
-      default: return '';
-    }
+  get relistValid(): boolean {
+    return parseFloat(this.relistPrice) > 0 && parseInt(this.relistQty, 10) > 0;
   }
 
-  // Status label
-  getStatusLabel(status: string): string {
-    const labels: any = {
-      'active': 'Activa',
-      'paused': 'Pausada',
-      'closed': 'Cerrada',
-      'under_review': 'En revisión',
-      'inactive': 'Inactiva'
-    };
-    return labels[status] || status;
+  confirmRelist(): void {
+    const item = this.relistTarget;
+    if (!item || !this.relistValid || this.isRelisting) return;
+    this.isRelisting = true;
+    this.http.post(`${environment.apiUrl}/items/${item.id}/relist`, {
+      price: parseFloat(this.relistPrice),
+      quantity: parseInt(this.relistQty, 10),
+      listing_type_id: item.listing_type_id
+    }).subscribe({
+      next: (response: any) => {
+        this.isRelisting = false;
+        this.relistTarget = null;
+        this.notice = { kind: 'ok', text: `Publicación republicada. Nuevo ID: ${response?.newItem?.id ?? ''}` };
+        this.loadPublications();
+      },
+      error: (error) => {
+        this.isRelisting = false;
+        this.relistTarget = null;
+        this.notice = { kind: 'error', text: error.error?.details || 'No se pudo republicar' };
+      }
+    });
   }
 
-  // Status icon (para mobile)
-  getStatusIcon(status: string): string {
-    const icons: any = {
-      'active': 'check_circle',      // Palomita en círculo para activo
-      'paused': 'pause_circle',      // Círculo con pausa
-      'closed': 'cancel',            // X para cerrado
-      'under_review': 'find_in_page', // Lupa en página para en revisión
-      'inactive': 'remove_circle'    // Círculo con línea para inactivo
-    };
-    return icons[status] || 'help_outline';
+  // ---- Presentación ----
+  statusInfo(status: string): { label: string; tone: Tone } {
+    return ITEM_STATUS[status] ?? { label: status || '—', tone: 'off' };
   }
 
-  // TrackBy function para evitar re-renderizado innecesario
-  trackByItemId(index: number, item: Publication): string {
+  listingLabel(id: string): string {
+    return LISTING_TYPES[id] ?? id ?? '—';
+  }
+
+  money(v: number | null | undefined): string {
+    return v == null ? '' : Number(v).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+  }
+
+  int(v: number | null | undefined): string {
+    return v == null ? '' : Number(v).toLocaleString('es-MX');
+  }
+
+  trackById(_: number, item: Publication): string {
     return item.id;
-  }
-
-  // Handle image load error
-  onImageError(item: Publication): void {
-    item.thumbnail = null;
   }
 }

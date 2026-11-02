@@ -1,211 +1,148 @@
-<!-- Page Header -->
-<div class="page-header">
-  <h1 class="page-title">Mis Publicaciones</h1>
-  <p class="page-description">Gestiona tus productos publicados en MercadoLibre</p>
-</div>
-
-<!-- Filters and Search Card -->
-<div class="card filters-card">
-  <div class="filters-header">
-    <mat-icon>filter_list</mat-icon>
-    <h3>Filtros y Búsqueda</h3>
-    <button *ngIf="hasActiveFilters()" class="btn-clear-filters" (click)="clearFilters()">
-      <mat-icon>clear_all</mat-icon>
-      Limpiar filtros
+<!-- Encabezado de página -->
+<div class="ds-page-head">
+  <div>
+    <h1>Publicaciones</h1>
+    <p>{{ isLoading ? 'Cargando publicaciones…' : (loadError ? 'No se pudieron cargar' : (dataSource.length === totalItems ? totalItems + ' publicaciones' : dataSource.length + ' de ' + totalItems + ' publicaciones')) }}</p>
+  </div>
+  <div class="head-tools">
+    <label class="ds-search">
+      <mat-icon aria-hidden="true">search</mat-icon>
+      <input type="search" placeholder="Buscar por título o ID" aria-label="Buscar publicaciones por título o ID"
+        [value]="searchQuery" (input)="onSearchInput($any($event.target).value)" (keyup.enter)="onSearch()">
+      <button type="button" class="clear-search" *ngIf="searchQuery" (click)="clearSearch()" aria-label="Limpiar búsqueda">
+        <mat-icon>close</mat-icon>
+      </button>
+    </label>
+    <button type="button" class="ds-btn filters-toggle" (click)="filtersOpen = !filtersOpen"
+      [attr.aria-expanded]="filtersOpen" aria-controls="pub-filters">
+      <mat-icon aria-hidden="true">tune</mat-icon>
+      Filtros<span class="filters-count" *ngIf="activeFilterCount">{{ activeFilterCount }}</span>
     </button>
   </div>
+</div>
 
-  <div class="filters-body">
-    <!-- Search Bar -->
-    <div class="filter-group search-group">
-      <label class="filter-label">Buscar</label>
-      <div class="search-input-wrapper">
-        <mat-icon class="search-icon">search</mat-icon>
-        <input type="text" class="search-input" [(ngModel)]="searchQuery" (keyup.enter)="onSearch()"
-          placeholder="Buscar por título...">
-        <button *ngIf="searchQuery" class="btn-clear-search" (click)="clearSearch()">
-          <mat-icon>close</mat-icon>
-        </button>
-        <button class="btn-search" (click)="onSearch()">
-          Buscar
-        </button>
-      </div>
-    </div>
-
-    <!-- Filter Controls -->
-    <div class="filters-row">
-      <!-- Status Filter -->
-      <div class="filter-group">
-        <label class="filter-label" for="statusFilter">Estado</label>
-        <select id="statusFilter" class="filter-select" [(ngModel)]="statusFilter" (change)="onStatusFilterChange()">
-          <option *ngFor="let option of statusOptions" [value]="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
-
-      <!-- Listing Type Filter -->
-      <div class="filter-group">
-        <label class="filter-label" for="listingTypeFilter">Tipo de Publicación</label>
-        <select id="listingTypeFilter" class="filter-select" [(ngModel)]="listingTypeFilter"
-          (change)="onListingTypeFilterChange()">
-          <option *ngFor="let option of listingTypeOptions" [value]="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
-
-      <!-- Sort -->
-      <div class="filter-group">
-        <label class="filter-label" for="sortFilter">Ordenar por</label>
-        <select id="sortFilter" class="filter-select" [(ngModel)]="sortBy" (change)="onSortChange()">
-          <option *ngFor="let option of sortOptions" [value]="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
-    </div>
+<!-- Filtros: chips de estado + tipo + orden -->
+<div id="pub-filters" class="filters" [class.is-open]="filtersOpen">
+  <div class="chips" role="group" aria-label="Filtrar por estado">
+    <button type="button" class="ds-chip" *ngFor="let o of statusOptions" [attr.aria-pressed]="statusFilter === o.value"
+      (click)="setStatus(o.value)">{{ o.label }}</button>
   </div>
-
-  <!-- Results Summary -->
-  <div class="results-summary" *ngIf="!isLoading">
-    <mat-icon>inventory</mat-icon>
-    <span>
-      Mostrando {{ dataSource.length }} de {{ totalItems }} publicaciones
-    </span>
+  <div class="selects">
+    <label>
+      <select class="ds-select" [(ngModel)]="listingTypeFilter" (change)="onListingTypeFilterChange()" aria-label="Tipo de publicación">
+        <option *ngFor="let o of listingTypeOptions" [value]="o.value">{{ o.label }}</option>
+      </select>
+    </label>
+    <label>
+      <select class="ds-select" [(ngModel)]="sortBy" (change)="onSortChange()" aria-label="Ordenar por">
+        <option *ngFor="let o of sortOptions" [value]="o.value">{{ o.label }}</option>
+      </select>
+    </label>
+    <button type="button" class="ds-btn" *ngIf="hasActiveFilters() || sortBy" (click)="clearFilters()">Limpiar filtros</button>
   </div>
 </div>
 
-<!-- Table Card -->
-<div class="card table-card">
-  <div class="table-container">
-    <mat-spinner *ngIf="isLoading" diameter="50" class="table-spinner"></mat-spinner>
+<!-- Aviso de resultado de Republicar -->
+<div *ngIf="notice" class="notice" [class.is-error]="notice.kind === 'error'" role="status">
+  <span>{{ notice.text }}</span>
+  <button type="button" (click)="notice = null" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+</div>
 
-    <table *ngIf="!isLoading" mat-table [dataSource]="dataSource" class="publications-table">
+<div class="card pub-card">
+  <!-- Cargando -->
+  <div *ngIf="isLoading" class="skeleton" role="status" aria-label="Cargando publicaciones">
+    <div class="skeleton-row" *ngFor="let r of skeletonRows"></div>
+  </div>
 
-      <!-- Thumbnail Column -->
-      <ng-container matColumnDef="thumbnail">
-        <th mat-header-cell *matHeaderCellDef>Imagen</th>
-        <td mat-cell *matCellDef="let item">
-          <img *ngIf="item.thumbnail"
-               [src]="item.thumbnail"
-               (error)="onImageError(item)"
-               alt="Thumbnail"
-               class="thumbnail-image" />
-          <div *ngIf="!item.thumbnail" class="thumbnail-placeholder">
-            <mat-icon>question_mark</mat-icon>
+  <!-- Error -->
+  <div *ngIf="!isLoading && loadError" class="ds-state is-error" role="alert">
+    <mat-icon aria-hidden="true">error_outline</mat-icon>
+    <strong>No pudimos cargar tus publicaciones</strong>
+    <span>Revisa tu conexión con Mercado Libre e inténtalo de nuevo.</span>
+    <button type="button" class="ds-btn primary" (click)="loadPublications()">Reintentar</button>
+  </div>
+
+  <!-- Vacío: sin resultados con filtros -->
+  <div *ngIf="!isLoading && !loadError && dataSource.length === 0 && hasActiveFilters()" class="ds-state">
+    <mat-icon aria-hidden="true">search_off</mat-icon>
+    <strong>Sin resultados con estos filtros</strong>
+    <span>Prueba con otro texto o quita algún filtro.</span>
+    <button type="button" class="ds-btn" (click)="clearFilters()">Limpiar filtros</button>
+  </div>
+
+  <!-- Vacío: no hay publicaciones -->
+  <div *ngIf="!isLoading && !loadError && dataSource.length === 0 && !hasActiveFilters()" class="ds-state">
+    <mat-icon aria-hidden="true">inventory_2</mat-icon>
+    <strong>Aún no tienes publicaciones</strong>
+    <span>Crea tu primera publicación para comenzar.</span>
+    <a class="ds-btn primary" routerLink="/publish">Crear publicación</a>
+  </div>
+
+  <ng-container *ngIf="!isLoading && !loadError && dataSource.length > 0">
+    <!-- Tabla (escritorio) -->
+    <ag-grid-angular class="ag-theme-quartz grid-table" [rowData]="dataSource" [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef" [localeText]="localeText" [getRowId]="getRowId" [rowHeight]="56"
+      [animateRows]="false" [suppressCellFocus]="true" (cellClicked)="onCellClicked($event)">
+    </ag-grid-angular>
+
+    <!-- Tarjetas (móvil <= 640px) -->
+    <div class="pub-cards">
+      <article class="pub-cardrow" *ngFor="let item of dataSource; trackBy: trackById">
+        <div class="pc-top">
+          <img *ngIf="item.thumbnail" class="pub-thumb" [src]="item.thumbnail" alt="" loading="lazy">
+          <span *ngIf="!item.thumbnail" class="pub-thumb pub-thumb-empty" aria-hidden="true"></span>
+          <div class="pc-main">
+            <a class="pc-title" [href]="item.permalink" target="_blank" rel="noopener">{{ item.title }}</a>
+            <span class="pub-id">{{ item.id }}</span>
           </div>
-        </td>
-      </ng-container>
-
-      <!-- Title Column -->
-      <ng-container matColumnDef="title">
-        <th mat-header-cell *matHeaderCellDef>Título</th>
-        <td mat-cell *matCellDef="let item" class="title-cell">
-          <div class="title-content">
-            <span class="title-text">{{ item.title }}</span>
-          </div>
-        </td>
-      </ng-container>
-
-      <!-- Price Column -->
-      <ng-container matColumnDef="price">
-        <th mat-header-cell *matHeaderCellDef>Precio</th>
-        <td mat-cell *matCellDef="let item">
-          <span class="price-value">${{ item.price | number:'1.2-2' }}</span>
-          <span class="price-currency">MXN</span>
-        </td>
-      </ng-container>
-
-      <!-- Stock Column -->
-      <ng-container matColumnDef="stock">
-        <th mat-header-cell *matHeaderCellDef>Stock</th>
-        <td mat-cell *matCellDef="let item">
-          <span class="stock-value">{{ item.available_quantity }}</span>
-        </td>
-      </ng-container>
-
-      <!-- Sales Column -->
-      <ng-container matColumnDef="sales">
-        <th mat-header-cell *matHeaderCellDef>Ventas</th>
-        <td mat-cell *matCellDef="let item">
-          <div class="sales-container">
-            <mat-icon class="sales-icon">shopping_cart</mat-icon>
-            <span class="sales-value">{{ item.sold_quantity || 0 }}</span>
-          </div>
-        </td>
-      </ng-container>
-
-      <!-- Visits Column -->
-      <ng-container matColumnDef="visits">
-        <th mat-header-cell *matHeaderCellDef>Vistas</th>
-        <td mat-cell *matCellDef="let item">
-          <div class="visits-container">
-            <mat-icon class="visits-icon">visibility</mat-icon>
-            <span class="visits-value" *ngIf="!isLoadingVisits">{{ item.visits || 0 }}</span>
-            <mat-spinner *ngIf="isLoadingVisits" diameter="16" class="visits-spinner"></mat-spinner>
-          </div>
-        </td>
-      </ng-container>
-
-      <!-- Status Column -->
-      <ng-container matColumnDef="status">
-        <th mat-header-cell *matHeaderCellDef>Estado</th>
-        <td mat-cell *matCellDef="let item">
-          <span class="status-badge" [ngClass]="'status-' + item.status">
-            <span class="status-text">{{ getStatusLabel(item.status) }}</span>
-            <mat-icon class="status-icon">{{ getStatusIcon(item.status) }}</mat-icon>
+          <span class="ds-badge" [ngClass]="'tone-' + statusInfo(item.status).tone">{{ statusInfo(item.status).label }}</span>
+        </div>
+        <div class="pc-stats">
+          <span class="pc-price">{{ item.price | currency }}</span>
+          <span>{{ item.available_quantity }} disp.</span>
+          <span>{{ item.sold_quantity || 0 }} vend.</span>
+          <span>{{ item.visits == null ? '…' : item.visits }} visitas</span>
+        </div>
+        <div class="pc-actions">
+          <span class="pc-type">{{ listingLabel(item.listing_type_id) }}</span>
+          <span class="pc-btns">
+            <button type="button" class="ds-btn row-btn" (click)="onDuplicate(item)">Duplicar</button>
+            <button type="button" class="ds-btn row-btn" *ngIf="item.status === 'closed'" (click)="openRelist(item)">Republicar</button>
           </span>
-        </td>
-      </ng-container>
+        </div>
+      </article>
+    </div>
 
-      <!-- Actions Column -->
-      <ng-container matColumnDef="actions">
-        <th mat-header-cell *matHeaderCellDef>Acciones</th>
-        <td mat-cell *matCellDef="let item">
-          <div class="action-buttons">
-            <button mat-button class="btn-action btn-duplicate" (click)="onDuplicate(item)"
-              matTooltip="Duplicar publicación">
-              <mat-icon>content_copy</mat-icon>
-            </button>
+    <!-- Cargar más (paginación del servidor) -->
+    <div class="more" *ngIf="hasMore || loadMoreError">
+      <span class="more-error" *ngIf="loadMoreError" role="alert">No se pudieron cargar más publicaciones.</span>
+      <button type="button" class="ds-btn" (click)="loadMore()" [disabled]="isLoadingMore">
+        {{ isLoadingMore ? 'Cargando…' : (loadMoreError ? 'Reintentar' : 'Cargar más (' + (totalItems - dataSource.length) + ')') }}
+      </button>
+    </div>
+  </ng-container>
+</div>
 
-            <button mat-button class="btn-action btn-edit" matTooltip="Editar publicación">
-              <mat-icon>edit</mat-icon>
-            </button>
-
-            <button mat-icon-button class="btn-icon-action" (click)="onViewDetails(item)" matTooltip="Ver detalles">
-              <mat-icon>visibility</mat-icon>
-            </button>
-          </div>
-        </td>
-      </ng-container>
-
-      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns; trackBy: trackByItemId" class="table-row"></tr>
-    </table>
-
-    <div *ngIf="!isLoading && dataSource.length === 0" class="no-data">
-      <mat-icon class="no-data-icon">inventory_2</mat-icon>
-      <p class="no-data-text">No hay publicaciones para mostrar</p>
-      <p class="no-data-hint" *ngIf="hasActiveFilters()">
-        Intenta ajustar tus filtros de búsqueda
-      </p>
-      <p class="no-data-hint" *ngIf="!hasActiveFilters()">
-        Crea tu primera publicación para comenzar
-      </p>
+<!-- Confirmación de Republicar -->
+<ng-container *ngIf="relistTarget as t">
+  <div class="modal-backdrop" (click)="cancelRelist()"></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="relist-title" (keydown.escape)="cancelRelist()">
+    <h2 id="relist-title">Republicar publicación</h2>
+    <p class="modal-sub">{{ t.title }}</p>
+    <p class="modal-note">Se creará una nueva publicación en Mercado Libre con estos datos.</p>
+    <label class="field">
+      <span>Precio (MXN)</span>
+      <input type="number" min="0" step="0.01" [(ngModel)]="relistPrice">
+    </label>
+    <label class="field">
+      <span>Cantidad</span>
+      <input type="number" min="1" step="1" [(ngModel)]="relistQty">
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="ds-btn" (click)="cancelRelist()" [disabled]="isRelisting">Cancelar</button>
+      <button type="button" class="ds-btn primary" (click)="confirmRelist()" [disabled]="!relistValid || isRelisting">
+        {{ isRelisting ? 'Republicando…' : 'Republicar' }}
+      </button>
     </div>
   </div>
-
-  <!-- Load More Button -->
-  <div class="pagination-section" *ngIf="!isLoading && dataSource.length > 0">
-    <button *ngIf="hasMore" class="btn-load-more" (click)="loadMore()" [disabled]="isLoadingMore">
-      <mat-spinner *ngIf="isLoadingMore" diameter="20" class="btn-spinner"></mat-spinner>
-      <mat-icon *ngIf="!isLoadingMore">expand_more</mat-icon>
-      {{ isLoadingMore ? 'Cargando...' : 'Cargar más publicaciones' }}
-    </button>
-
-    <p class="pagination-info" *ngIf="!hasMore && totalItems > pageSize">
-      Has visto todas las publicaciones ({{ totalItems }} total)
-    </p>
-  </div>
-</div>
+</ng-container>

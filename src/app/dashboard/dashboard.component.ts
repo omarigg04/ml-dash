@@ -4,6 +4,7 @@ import { ColDef, ICellRendererParams, RowClickedEvent, ValueFormatterParams } fr
 import { DatePipe } from '@angular/common';
 import { Order } from '../interfaces/Order.interface';
 import { environment } from '../../environments/environment';
+import { GRID_LOCALE_ES } from '../shared/grid-locale';
 import { orderSaleFee, satRetention } from '../shared/order-math';
 
 interface ShipmentInfo {
@@ -54,22 +55,6 @@ const PHASES: Record<string, StatusInfo> = {
   cancelled: { label: 'Cancelada', tone: 'error' },
 };
 
-// Textos de ag-grid en español (v31)
-const GRID_LOCALE_ES: Record<string, string> = {
-  page: 'Página', more: 'Más', to: 'a', of: 'de', next: 'Siguiente', last: 'Última',
-  first: 'Primera', previous: 'Anterior', loadingOoo: 'Cargando...',
-  noRowsToShow: 'Sin órdenes que coincidan con tu búsqueda',
-  pageSizeSelectorLabel: 'Filas por página:',
-  ariaPageSizeSelectorLabel: 'Filas por página',
-  selectAll: 'Seleccionar todo', searchOoo: 'Buscar...', blanks: 'Vacíos',
-  filterOoo: 'Filtrar...', equals: 'Igual a', notEqual: 'Distinto de',
-  contains: 'Contiene', notContains: 'No contiene', applyFilter: 'Aplicar', resetFilter: 'Restablecer',
-  clearFilter: 'Limpiar', andCondition: 'Y', orCondition: 'O',
-  columns: 'Columnas', pinColumn: 'Fijar columna', autosizeThiscolumn: 'Autoajustar esta columna',
-  autosizeAllColumns: 'Autoajustar todas', resetColumns: 'Restablecer columnas',
-  sortAscending: 'Ascendente', sortDescending: 'Descendente',
-};
-
 @Component({
   selector: 'app-dashboard',
   templateUrl: './dashboard.component.html',
@@ -81,7 +66,7 @@ export class DashboardComponent implements OnInit {
   allRows: any[] = [];
   isLoading = true;
   loadError = false;
-  readonly localeText = GRID_LOCALE_ES;
+  readonly localeText = { ...GRID_LOCALE_ES, noRowsToShow: 'Sin órdenes que coincidan con tu búsqueda' };
   readonly skeletonRows = [1, 2, 3, 4, 5, 6];
 
   // Tarjetas en móvil (<= 640px): se muestran por tandas
