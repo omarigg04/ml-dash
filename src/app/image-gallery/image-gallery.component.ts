@@ -143,7 +143,7 @@ export class ImageGalleryComponent implements OnInit {
     const validFiles = Array.from(files).filter(file => validTypes.includes(file.type));
 
     if (validFiles.length === 0) {
-      this.errorMessage = 'Por favor selecciona archivos de imagen válidos (JPG, PNG, GIF, WEBP)';
+      this.errorMessage = 'Por favor selecciona archivos de imagen válidos (JPG, PNG, WEBP)';
       return;
     }
 

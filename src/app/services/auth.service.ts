@@ -57,7 +57,7 @@ export class AuthService {
       console.error('Logout error:', error);
     } finally {
       // Invalidar TODO el caché de la aplicación
-      this.cachingService.invalidateAll();
+      this.cachingService.clearAllUserData();
       this.currentUserSubject.next(null);
     }
   }

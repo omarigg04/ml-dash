@@ -100,8 +100,7 @@ router.get('/predict', async (req: Request, res: Response) => {
 
         res.status(500).json({
             error: 'Failed to predict category',
-            message: error.response?.data?.message || error.message,
-            details: error.response?.data
+            message: error.response?.data?.message || error.message
         });
     }
 });
@@ -175,8 +174,7 @@ router.get('/:id/attributes', async (req: Request, res: Response) => {
 
         res.status(500).json({
             error: 'Failed to fetch category attributes',
-            message: error.response?.data?.message || error.message,
-            details: error.response?.data
+            message: error.response?.data?.message || error.message
         });
     }
 });

@@ -114,6 +114,11 @@ export class ImageSourceSelectorComponent implements OnInit {
       alert(`Máximo ${this.maxImages} imágenes permitidas`);
       return;
     }
+    // Mismo tope que el backend (Vercel no acepta cuerpos de más de 4.5 MB)
+    if (file.size > 4 * 1024 * 1024) {
+      alert(`"${file.name}" pesa más de 4 MB. Redúcela antes de subirla.`);
+      return;
+    }
 
     const preview = URL.createObjectURL(file);
 

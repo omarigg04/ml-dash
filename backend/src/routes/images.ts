@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
@@ -6,23 +6,53 @@ import { mlAuth } from '../auth/oauth';
 
 const router = Router();
 
-// Configure multer for file upload (memory storage)
-const storage = multer.memoryStorage();
+// Multer en memoria. En Vercel el cuerpo máximo es 4.5 MB (la función tiene 1 GB), así que
+// un límite de 4 MB por archivo, 1 archivo y pocos campos acota el uso de memoria.
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const upload = multer({
-    storage: storage,
+    storage: multer.memoryStorage(),
     limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB max file size
+        fileSize: MAX_UPLOAD_BYTES,
+        files: 1,
+        fields: 5,
+        parts: 6,
+        fieldSize: 1024,
     },
     fileFilter: (req, file, cb) => {
-        // Accept only image files
-        const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-        if (allowedMimes.includes(file.mimetype)) {
+        // Filtro rápido por MIME declarado; la validación real es por bytes (detectImageType)
+        if (['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error('Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.'));
+            cb(new Error('Invalid file type. Only JPG, PNG and WEBP are allowed.'));
         }
     }
 });
+
+/** Tipo real de imagen según los primeros bytes (JPEG, PNG, WebP). SVG y demás se rechazan. */
+export const detectImageType = (buf: Buffer): { mime: string; ext: string } | null => {
+    if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+        return { mime: 'image/jpeg', ext: 'jpg' };
+    }
+    if (buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+        return { mime: 'image/png', ext: 'png' };
+    }
+    if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') {
+        return { mime: 'image/webp', ext: 'webp' };
+    }
+    return null;
+};
+
+/** Ejecuta multer y convierte sus errores (tamaño, tipo, partes) en 4xx claros en vez de 500. */
+const handleUpload = (req: Request, res: Response, next: NextFunction) => {
+    upload.single('file')(req, res, (err: any) => {
+        if (!err) return next();
+        const tooBig = err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE';
+        res.status(tooBig ? 413 : 400).json({
+            error: tooBig ? 'File too large' : 'Invalid upload',
+            message: tooBig ? 'Image exceeds the 4 MB limit' : 'Only JPG, PNG and WEBP images are allowed'
+        });
+    });
+};
 
 /**
  * POST /api/images/upload
@@ -31,7 +61,7 @@ const upload = multer({
  * Uses the /pictures/items/upload endpoint which allows uploading images
  * without needing to associate them with a specific item ID first.
  */
-router.post('/upload', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/upload', handleUpload, async (req: Request, res: Response) => {
     try {
         const file = (req as any).file;
         if (!file) {
@@ -42,19 +72,28 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
             return;
         }
 
+        // El MIME lo declara el cliente: se valida el contenido real por magic bytes
+        const detected = detectImageType(file.buffer);
+        if (!detected) {
+            res.status(400).json({
+                error: 'Invalid file type',
+                message: 'The file content is not a JPG, PNG or WEBP image'
+            });
+            return;
+        }
+
         // Get valid access token
         const token = await mlAuth.getToken();
 
         console.log('📸 Uploading image to ML CDN...');
-        console.log('  - File name:', file.originalname);
         console.log('  - File size:', (file.size / 1024).toFixed(2), 'KB');
-        console.log('  - MIME type:', file.mimetype);
+        console.log('  - Detected type:', detected.mime);
 
         // Create form data with the image file
         const formData = new FormData();
         formData.append('file', file.buffer, {
-            filename: file.originalname,
-            contentType: file.mimetype
+            filename: `image.${detected.ext}`, // nombre fijo: no se reenvía el del cliente
+            contentType: detected.mime
         });
 
         // Upload to MercadoLibre CDN using the pictures/items/upload endpoint
@@ -67,8 +106,8 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
                     'Authorization': `Bearer ${token}`,
                     ...formData.getHeaders()
                 },
-                maxContentLength: Infinity,
-                maxBodyLength: Infinity
+                maxContentLength: 20 * 1024 * 1024,
+                maxBodyLength: 20 * 1024 * 1024
             }
         );
 
@@ -85,8 +124,7 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
         if (error.response?.status === 401) {
             res.status(401).json({
                 error: 'Unauthorized',
-                message: 'Access token is invalid or expired. Please re-authorize the app.',
-                details: error.response.data
+                message: 'Access token is invalid or expired. Please re-authorize the app.'
             });
             return;
         }
@@ -94,16 +132,14 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
         if (error.response?.status === 400) {
             res.status(400).json({
                 error: 'Invalid image',
-                message: 'The image does not meet MercadoLibre requirements (JPG/PNG, 500x500 to 1920x1920, max 10MB)',
-                details: error.response.data
+                message: 'The image does not meet MercadoLibre requirements (JPG/PNG, 500x500 to 1920x1920, max 10MB)'
             });
             return;
         }
 
         res.status(error.response?.status || 500).json({
             error: 'Failed to upload image',
-            message: error.response?.data?.message || error.message,
-            details: error.response?.data
+            message: error.response?.data?.message || error.message
         });
     }
 });
@@ -177,8 +213,7 @@ router.post('/diagnostic', async (req: Request, res: Response) => {
         if (error.response?.status === 401) {
             res.status(401).json({
                 error: 'Unauthorized',
-                message: 'Access token is invalid or expired. Please re-authorize the app.',
-                details: error.response.data
+                message: 'Access token is invalid or expired. Please re-authorize the app.'
             });
             return;
         }
@@ -186,16 +221,14 @@ router.post('/diagnostic', async (req: Request, res: Response) => {
         if (error.response?.status === 400) {
             res.status(400).json({
                 error: 'Invalid request',
-                message: 'The diagnostic request is invalid',
-                details: error.response.data
+                message: 'The diagnostic request is invalid'
             });
             return;
         }
 
         res.status(error.response?.status || 500).json({
             error: 'Failed to validate image',
-            message: error.response?.data?.message || error.message,
-            details: error.response?.data
+            message: error.response?.data?.message || error.message
         });
     }
 });
