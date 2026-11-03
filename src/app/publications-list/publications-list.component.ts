@@ -431,7 +431,7 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
       error: (error) => {
         this.isRelisting = false;
         this.relistTarget = null;
-        this.notice = { kind: 'error', text: error.error?.details || 'No se pudo republicar' };
+        this.notice = { kind: 'error', text: this.errorLines(error.error).join(' ') || 'No se pudo republicar' };
       }
     });
   }

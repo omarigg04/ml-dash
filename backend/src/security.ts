@@ -31,3 +31,37 @@ export const safeError = (error: any): string => {
         .filter(Boolean)
         .join(' | ');
 };
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * Defensa CSRF explícita para métodos que cambian estado (incluye logout y multipart).
+ * - Sec-Fetch-Site: same-origin -> permitido (el navegador lo garantiza).
+ * - Origin presente -> permitido solo si su host coincide con el de la petición
+ *   (x-forwarded-host en Vercel) o si está en la lista blanca.
+ * - Sin ninguna de las dos cabeceras -> permitido: un navegador moderno siempre envía al menos
+ *   una en peticiones POST/PUT/DELETE, así que esto solo deja pasar clientes que no son
+ *   navegadores (curl, servidores), que no usan la cookie de sesión de forma ambiental.
+ * - Cualquier otro caso -> 403 CSRF.
+ */
+export const csrfProtection = (allowedOrigins: Set<string>, trustForwardedHost: boolean) =>
+    (req: any, res: any, next: any) => {
+        if (SAFE_METHODS.has(req.method)) return next();
+
+        const site = req.headers['sec-fetch-site'];
+        if (site === 'same-origin') return next();
+
+        const origin = req.headers['origin'] as string | undefined;
+        if (!site && !origin) return next();
+
+        if (origin) {
+            if (allowedOrigins.has(origin.replace(/\/+$/, ''))) return next();
+            const forwarded = trustForwardedHost ? req.headers['x-forwarded-host'] : undefined;
+            const host = String(forwarded || req.headers['host'] || '').split(',')[0].trim().toLowerCase();
+            try {
+                if (host && new URL(origin).host.toLowerCase() === host) return next();
+            } catch { /* Origin inválido o "null": se rechaza */ }
+        }
+
+        res.status(403).json({ error: 'Forbidden', code: 'CSRF_BLOCKED', message: 'Cross-site request blocked' });
+    };

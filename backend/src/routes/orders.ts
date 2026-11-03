@@ -7,6 +7,47 @@ import { MLOrder } from '../types';
 const router = Router();
 
 /**
+ * Minimización de datos personales: solo los campos de la orden que usa la UI (Órdenes y
+ * análisis). Del comprador solo viaja el nickname; no se envían teléfono, nombre, facturación,
+ * domicilio ni feedback.
+ */
+function toClientOrder(o: any): any {
+    const buyer = o?.buyer;
+    return {
+        id: o?.id,
+        status: o?.status,
+        status_detail: o?.status_detail,
+        date_created: o?.date_created,
+        date_closed: o?.date_closed,
+        fulfilled: o?.fulfilled,
+        tags: o?.tags,
+        total_amount: o?.total_amount,
+        paid_amount: o?.paid_amount,
+        currency_id: o?.currency_id,
+        shipping: o?.shipping?.id != null ? { id: o.shipping.id } : undefined,
+        buyer: buyer ? { nickname: buyer.nickname } : undefined,
+        order_items: (o?.order_items || []).map((oi: any) => ({
+            item: { id: oi?.item?.id, title: oi?.item?.title },
+            quantity: oi?.quantity,
+            unit_price: oi?.unit_price,
+            sale_fee: oi?.sale_fee,
+            listing_type_id: oi?.listing_type_id,
+        })),
+        payments: (o?.payments || []).map((p: any) => ({
+            id: p?.id,
+            status: p?.status,
+            payment_method_id: p?.payment_method_id,
+            payment_type: p?.payment_type,
+            total_paid_amount: p?.total_paid_amount,
+            transaction_amount: p?.transaction_amount,
+            installments: p?.installments,
+            date_approved: p?.date_approved,
+        })),
+    };
+}
+
+
+/**
  * GET /api/orders
  * Fetch orders from MercadoLibre API with optional date filtering
  *
@@ -150,10 +191,10 @@ router.get('/', async (req: Request, res: Response) => {
                             },
                         }
                     );
-                    return orderDetail.data;
+                    return toClientOrder(orderDetail.data);
                 } catch (error) {
                     console.error(`Error fetching order ${order.id}:`, safeError(error));
-                    return order; // Return basic order if detail fetch fails
+                    return toClientOrder(order); // Return basic order if detail fetch fails
                 }
             })
         );

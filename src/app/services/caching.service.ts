@@ -50,6 +50,14 @@ export class CachingService {
     { pattern: /\/publications/i, ttl: 240 },     // 4 minutos - publicaciones
   ];
 
+  /** Datos personales (pedidos con compradores): solo en memoria, nunca en localStorage */
+  private readonly MEMORY_ONLY_PATTERNS: RegExp[] = [/\/orders/i];
+  private readonly memory = new Map<string, CacheEntry>();
+
+  private isMemoryOnly(key: string): boolean {
+    return this.MEMORY_ONLY_PATTERNS.some(p => p.test(key));
+  }
+
   constructor() {
     this.cleanExpiredEntries();
   }
@@ -84,6 +92,16 @@ export class CachingService {
     if (this.isBlacklisted(key)) {
       this.log('🚫 URL en blacklist, no cachear:', key);
       return null;
+    }
+
+    if (this.isMemoryOnly(key)) {
+      const entry = this.memory.get(key);
+      if (!entry) return null;
+      if (Date.now() > entry.expiry) {
+        this.memory.delete(key);
+        return null;
+      }
+      return entry.data;
     }
 
     try {
@@ -123,6 +141,13 @@ export class CachingService {
   set(key: string, data: any, ttl_seconds?: number): void {
     // Si está en blacklist, no cachear
     if (this.isBlacklisted(key)) {
+      return;
+    }
+
+    if (this.isMemoryOnly(key)) {
+      const ttl = ttl_seconds || this.getTTL(key);
+      const now = Date.now();
+      this.memory.set(key, { data, expiry: now + ttl * 1000, timestamp: now });
       return;
     }
 
@@ -178,6 +203,7 @@ export class CachingService {
    * Invalida una entrada específica del caché
    */
   invalidate(key: string): void {
+    this.memory.delete(key);
     try {
       const cacheKey = this.getCacheKey(key);
       localStorage.removeItem(cacheKey);
@@ -191,6 +217,7 @@ export class CachingService {
    * Invalida múltiples entradas que coincidan con un patrón
    */
   invalidatePattern(pattern: RegExp): void {
+    Array.from(this.memory.keys()).filter(k => pattern.test(k)).forEach(k => this.memory.delete(k));
     try {
       const keys = this.getAllCacheKeys();
       let count = 0;
@@ -212,6 +239,7 @@ export class CachingService {
    * Limpia todo el caché de la aplicación
    */
   invalidateAll(): void {
+    this.memory.clear();
     try {
       const keys = this.getAllCacheKeys();
       keys.forEach(key => this.invalidate(key));
@@ -219,6 +247,25 @@ export class CachingService {
     } catch (error) {
       this.logError('Error al limpiar todo el caché:', error);
     }
+  }
+
+  /**
+   * Logout: borra caché, imágenes locales, catálogo y borradores de publicación.
+   * Se conservan solo preferencias no sensibles (tema).
+   */
+  clearAllUserData(): void {
+    this.invalidateAll();
+    try {
+      ['mlImageGallery', 'mlImageCatalog', 'mlImageCatalogTimestamp'].forEach(k => localStorage.removeItem(k));
+      const toRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('publish-draft:') || k.startsWith(this.CACHE_PREFIX))) toRemove.push(k);
+      }
+      toRemove.forEach(k => localStorage.removeItem(k));
+      sessionStorage.removeItem('ml_dup_queue');
+      localStorage.removeItem('ml_dash_publication_filters');
+    } catch { /* almacenamiento no disponible */ }
   }
 
   /**

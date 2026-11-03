@@ -9,9 +9,10 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      # Angular majors are a planned migration, not a routine bump
-      - dependency-name: "@angular*"
+      # Majors are planned migrations, not routine bumps (security updates still arrive separately)
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "zone.js"
   - package-ecosystem: npm
     directory: /backend
     schedule:
@@ -20,6 +21,10 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "zone.js"
   - package-ecosystem: github-actions
     directory: /
     schedule:

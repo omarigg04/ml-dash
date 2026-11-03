@@ -2,8 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
-import { safeError, safeReturnPath } from '../backend/src/security';
-import { mlAuth, UserNotAllowedError, TokenStorageError, checkTokenStorage } from '../backend/src/auth/oauth';
+import { safeError, safeReturnPath, csrfProtection } from '../backend/src/security';
+import { mlAuth, UserNotAllowedError, TokenStorageError } from '../backend/src/auth/oauth';
 import { createSession, getSession, clearSession, getCookie } from '../backend/src/auth/session';
 import ordersRouter from '../backend/src/routes/orders';
 import shipmentsRouter from '../backend/src/routes/shipments';
@@ -60,6 +60,8 @@ app.use(cors({
   origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)),
   credentials: true,
 }));
+// CSRF: antes del parseo del cuerpo, de la autenticación y de todas las rutas
+app.use('/api', csrfProtection(allowedOrigins, !!process.env['VERCEL']));
 app.use(express.json({ limit: '1mb' }));
 
 // Session auth for /api/*. Skipped only with LOCAL_DEV_NO_AUTH=true outside production
@@ -82,7 +84,6 @@ app.get('/api', (req, res) => {
   res.json({
     status: 'running',
     message: 'MercadoLibre Dashboard API',
-    hasToken: mlAuth.hasValidToken(),
   });
 });
 
@@ -92,8 +93,8 @@ app.get('/api/auth/status', async (req, res) => {
   res.json({
     authenticated: noAuth || !!session,
     userId: session?.uid ?? null,
-    connected: await mlAuth.isConnected(),
-    storage: await checkTokenStorage(),
+    // Solo con sesión: el estado de KV/token no se expone a anónimos
+    connected: session || noAuth ? await mlAuth.isConnected() : false,
   });
 });
 
@@ -122,7 +123,6 @@ app.get('/api/user/status', async (req, res) => {
       user: {
         id: userResponse.data.id,
         nickname: userResponse.data.nickname,
-        email: userResponse.data.email,
         sellerReputation: userResponse.data.seller_reputation,
         status: userResponse.data.status,
       },
@@ -130,10 +130,8 @@ app.get('/api/user/status', async (req, res) => {
       canPublish: userResponse.data.status?.site_status === 'active'
     });
   } catch (error: any) {
-    res.status(500).json({
-      error: 'Failed to get user status',
-      details: error.response?.data || error.message
-    });
+    console.error('Error getting user status:', safeError(error));
+    res.status(500).json({ error: 'Failed to get user status' });
   }
 
 

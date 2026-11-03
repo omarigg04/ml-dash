@@ -706,8 +706,7 @@ router.get('/', async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error('❌ Error fetching items:', error.response?.data || error.message);
         res.status(500).json({
-            error: 'Failed to fetch items',
-            details: error.response?.data || error.message
+            error: 'Failed to fetch items'
         });
     }
 });
@@ -795,8 +794,7 @@ router.get('/visits', async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error('❌ Error fetching visit counts:', safeError(error));
         res.status(500).json({
-            error: 'Failed to fetch visit counts',
-            details: error.message
+            error: 'Failed to fetch visit counts'
         });
     }
 });
@@ -867,8 +865,7 @@ router.get('/:id/description', async (req: Request, res: Response) => {
         }
 
         res.status(500).json({
-            error: 'Failed to fetch description',
-            details: error.response?.data || error.message
+            error: 'Failed to fetch description'
         });
     }
 });
@@ -919,11 +916,9 @@ router.post('/:id/relist', async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error('❌ Error relisting item:', error.response?.data || error.message);
-        res.status(500).json({
-            error: 'Failed to relist item',
-            details: error.response?.data || error.message
-        });
+        console.error('❌ Error relisting item:', safeError(error));
+        const { status, body } = mlErrorResponse(error, 'No se pudo republicar');
+        res.status(status).json(body);
     }
 });
 
