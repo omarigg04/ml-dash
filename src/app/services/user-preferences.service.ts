@@ -5,6 +5,9 @@ export interface PublicationFilters {
   statusFilter: string;
   listingTypeFilter: string;
   sortBy: string;
+  pageSize?: number;
+  maxStock?: number | null;
+  noSales?: boolean;
 }
 
 const PUBLICATION_FILTERS_KEY = 'ml_dash_publication_filters';

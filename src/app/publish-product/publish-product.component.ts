@@ -7,6 +7,7 @@ import { environment } from '../../environments/environment';
 import { CategoryPredictorService, CategoryPrediction, CategoryAttribute } from '../services/category-predictor.service';
 import { CachingService } from '../services/caching.service';
 import { satRetention } from '../shared/order-math';
+import { DuplicateQueueService } from '../shared/duplicate-queue.service';
 
 /** Causa de error devuelta por el backend (preserva el código de ML). */
 export interface ErrorCause { code: string; message: string; type?: string; }
@@ -152,8 +153,21 @@ export class PublishProductComponent implements OnInit, OnDestroy {
     private router: Router,
     private route: ActivatedRoute,
     private categoryPredictor: CategoryPredictorService,
-    private cachingService: CachingService
+    private cachingService: CachingService,
+    private dupQueue: DuplicateQueueService
   ) { }
+
+  /** Cola de duplicado en bloque (Publicaciones > Duplicar con varias seleccionadas) */
+  get queuePos(): { index: number; total: number; nextId: string | null } | null {
+    return this.isDuplicateMode && this.sourceId ? this.dupQueue.position(this.sourceId) : null;
+  }
+
+  goNextInQueue(): void {
+    const q = this.queuePos;
+    if (q?.nextId) this.router.navigate(['/publish'], { queryParams: { mode: 'duplicate', from: q.nextId } });
+  }
+
+  cancelQueue(): void { this.dupQueue.clear(); }
 
   // =====================================================
   // Ciclo de vida

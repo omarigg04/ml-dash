@@ -1,0 +1,91 @@
+<ng-container *ngIf="mode">
+  <div class="modal-backdrop" (click)="close()"></div>
+  <div #dialog class="modal" role="dialog" aria-modal="true" aria-labelledby="bulk-title" tabindex="-1" (keydown.escape)="close()">
+    <h2 id="bulk-title">{{ title }}</h2>
+
+    <!-- Pausar -->
+    <ng-container *ngIf="mode === 'pause'">
+      <p class="modal-note" *ngIf="step === 'confirm'">
+        Se pausarán {{ sendable.length }} de {{ rows.length }} publicaciones en Mercado Libre.
+        <span *ngIf="skipped">Las {{ skipped }} que no están activas se omiten.</span>
+      </p>
+    </ng-container>
+
+    <!-- Editar precio -->
+    <ng-container *ngIf="mode === 'price'">
+      <fieldset class="price-form" *ngIf="step === 'confirm'">
+        <legend class="sr-only">Cómo cambiar el precio</legend>
+        <label class="radio"><input type="radio" name="pm" value="percent" [(ngModel)]="priceMode"> Cambio en %</label>
+        <label class="radio"><input type="radio" name="pm" value="fixed" [(ngModel)]="priceMode"> Precio fijo</label>
+        <label class="field">
+          <span>{{ priceMode === 'percent' ? 'Porcentaje (ej. -10 baja 10%, 5 sube 5%)' : 'Nuevo precio (MXN)' }}</span>
+          <input type="number" step="0.01" inputmode="decimal" [(ngModel)]="priceValue" name="pv"
+            [attr.aria-invalid]="priceValue !== '' && !priceInputValid">
+        </label>
+      </fieldset>
+      <p class="modal-note" *ngIf="step === 'confirm'">
+        Se enviarán {{ sendable.length }} cambios de {{ rows.length }} publicaciones; el resto se omite. Revisa el antes → después y confirma.
+      </p>
+    </ng-container>
+
+    <!-- Duplicar -->
+    <ng-container *ngIf="mode === 'duplicate'">
+      <p class="modal-warn" role="note">
+        Mercado Libre ya puso una publicación tuya en revisión, probablemente por parecer un duplicado.
+        Duplica solo con cambios reales (título, fotos, atributos) y de una en una; aquí no se publica nada en bloque.
+      </p>
+      <p class="modal-note" *ngIf="rows.length > 1">
+        Se abrirá el formulario de la primera y las otras {{ rows.length - 1 }} quedan en cola (Siguiente: 2 de {{ rows.length }}).
+      </p>
+    </ng-container>
+
+    <!-- Lista de publicaciones -->
+    <ul class="blist" aria-label="Publicaciones afectadas">
+      <li *ngFor="let r of rows" [class.is-skip]="r.state === 'skip'" [class.is-err]="r.state === 'error'" [class.is-ok]="r.state === 'ok'">
+        <div class="b-main">
+          <span class="b-title">{{ r.item.title }}</span>
+          <span class="b-id">{{ r.item.id }}</span>
+        </div>
+        <div class="b-side">
+          <ng-container *ngIf="mode === 'price' && r.state !== 'skip' && r.state !== 'loading'">
+            <ng-container *ngIf="plan(r) as p">
+              <span class="b-price" *ngIf="r.current != null">
+                <span class="before">{{ money(r.current) }}</span> →
+                <b>{{ (r.after ?? p.after) != null ? money(r.after ?? p.after) : '—' }}</b>
+              </span>
+              <span class="b-state muted" *ngIf="p.kind === 'same'">Sin cambio: se omite</span>
+              <span class="b-state warn" *ngIf="p.kind === 'invalid' && p.note">{{ p.note }}</span>
+            </ng-container>
+          </ng-container>
+          <span class="b-state muted" *ngIf="r.state === 'loading'">Verificando…</span>
+          <span class="b-state muted" *ngIf="r.state === 'skip'">{{ r.note }}</span>
+          <span class="b-state muted" *ngIf="r.state === 'running'" role="status">Enviando…</span>
+          <span class="b-state ok" *ngIf="r.state === 'ok'">Listo</span>
+          <span class="b-state err" *ngIf="r.state === 'error'" role="alert">No se pudo: {{ r.note }}</span>
+        </div>
+      </li>
+    </ul>
+
+    <p class="modal-note" *ngIf="step === 'done'" role="status">
+      {{ okCount }} correctas<span *ngIf="errCount"> · {{ errCount }} con error (las demás se aplicaron igual)</span>.
+    </p>
+
+    <div class="modal-actions">
+      <ng-container *ngIf="step !== 'done'">
+        <button type="button" class="ds-btn" (click)="close()" [disabled]="step === 'running'">Cancelar</button>
+        <button type="button" class="ds-btn primary" *ngIf="mode === 'pause'" (click)="confirmPause()"
+          [disabled]="step === 'running' || sendable.length === 0">
+          {{ step === 'running' ? 'Pausando…' : 'Pausar ' + sendable.length }}
+        </button>
+        <button type="button" class="ds-btn primary" *ngIf="mode === 'price'" (click)="confirmPrice()"
+          [disabled]="step === 'running' || sendable.length === 0">
+          {{ step === 'running' ? 'Aplicando…' : 'Aplicar a ' + sendable.length }}
+        </button>
+        <button type="button" class="ds-btn primary" *ngIf="mode === 'duplicate'" (click)="openDuplicateForm()">
+          Abrir formulario{{ rows.length > 1 ? ' (1 de ' + rows.length + ')' : '' }}
+        </button>
+      </ng-container>
+      <button type="button" class="ds-btn primary" *ngIf="step === 'done'" (click)="close()">Cerrar</button>
+    </div>
+  </div>
+</ng-container>

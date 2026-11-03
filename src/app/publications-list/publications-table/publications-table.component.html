@@ -1,0 +1,210 @@
+<section class="card tcard" [class.is-compact]="compact" aria-labelledby="pt-title">
+  <h3 id="pt-title" class="sr-only">Tabla de publicaciones</h3>
+
+  <!-- Barra de filtros -->
+  <div class="toolbar" *ngIf="!compact">
+    <label class="tb-search">
+      <mat-icon aria-hidden="true">search</mat-icon>
+      <input type="search" placeholder="Filtrar…" aria-label="Filtrar publicaciones por título o ID"
+        [value]="searchQuery" (input)="onSearchInput($any($event.target).value)" (keyup.enter)="onSearch()">
+      <button type="button" class="tb-clear" *ngIf="searchQuery" (click)="clearSearch()" aria-label="Limpiar búsqueda">
+        <mat-icon aria-hidden="true">close</mat-icon>
+      </button>
+    </label>
+
+    <button type="button" class="chip filters-toggle" (click)="filtersOpen = !filtersOpen"
+      [attr.aria-expanded]="filtersOpen" aria-controls="pt-chips">
+      <mat-icon aria-hidden="true">tune</mat-icon>Filtros
+    </button>
+
+    <div id="pt-chips" class="chips" [class.is-open]="filtersOpen">
+      <button type="button" class="chip" aria-haspopup="menu" [attr.aria-expanded]="menu?.kind === 'status'"
+        (click)="openMenu('status', $event)">Estado: <b>{{ statusLabel }}</b></button>
+
+      <span class="chip" *ngIf="listingTypeFilter">Tipo <b>{{ typeLabel }}</b>
+        <button type="button" class="chip-x" (click)="removeType()" aria-label="Quitar filtro Tipo">×</button></span>
+      <span class="chip" *ngIf="maxStock != null">Stock <b>&lt; {{ maxStock }}</b>
+        <button type="button" class="chip-x" (click)="removeStock()" [attr.aria-label]="'Quitar filtro Stock menor a ' + maxStock">×</button></span>
+      <span class="chip" *ngIf="noSales">Sin ventas
+        <button type="button" class="chip-x" (click)="setNoSales(false)" aria-label="Quitar filtro Sin ventas">×</button></span>
+      <span class="chip" *ngIf="noVisits" title="Mercado Libre no filtra por visitas: se aplica solo a las filas cargadas de esta página">Sin visitas <b>(esta página)</b>
+        <button type="button" class="chip-x" (click)="setNoVisits(false)" aria-label="Quitar filtro Sin visitas">×</button></span>
+
+      <button type="button" class="chip add" aria-haspopup="menu" [attr.aria-expanded]="menu?.kind === 'add'"
+        (click)="openMenu('add', $event)">+ Agregar filtro</button>
+      <button type="button" class="chip-link" *ngIf="hasAnyFilter" (click)="clearAllFilters()">Limpiar filtros</button>
+    </div>
+
+    <span class="view">Vista:
+      <button type="button" class="view-btn" aria-haspopup="menu" [attr.aria-expanded]="menu?.kind === 'view'"
+        (click)="openMenu('view', $event)"><b>{{ sortLabel }}</b></button>
+    </span>
+  </div>
+
+  <!-- Barra de selección (sticky en móvil) -->
+  <div class="bulk" role="status" *ngIf="!compact && selected.size > 0">
+    <b>{{ selected.size }} {{ selected.size === 1 ? 'seleccionada' : 'seleccionadas' }}</b>
+    <button type="button" class="bulk-a" (click)="bulkPause.emit(selectedItems)">Pausar</button>
+    <button type="button" class="bulk-a" (click)="bulkPrice.emit(selectedItems)">Editar precio</button>
+    <button type="button" class="bulk-a" (click)="bulkDuplicate.emit(selectedItems)">Duplicar</button>
+    <button type="button" class="bulk-a muted" (click)="clearSelection()">Quitar selección</button>
+  </div>
+
+  <!-- Cargando -->
+  <div *ngIf="isLoading && rows.length === 0" class="skeleton" role="status" aria-label="Cargando publicaciones">
+    <div class="skeleton-row" *ngFor="let r of (compact ? skeletonRows.slice(0, compactRows) : skeletonRows)"></div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="!isLoading && loadError" class="ds-state is-error" role="alert">
+    <mat-icon aria-hidden="true">error_outline</mat-icon>
+    <strong>No pudimos cargar tus publicaciones</strong>
+    <span>Revisa tu conexión con Mercado Libre e inténtalo de nuevo.</span>
+    <button type="button" class="ds-btn primary" (click)="reload()">Reintentar</button>
+  </div>
+
+  <!-- Vacío -->
+  <div *ngIf="!isLoading && !loadError && visibleRows.length === 0" class="ds-state">
+    <mat-icon aria-hidden="true">{{ hasAnyFilter ? 'search_off' : 'inventory_2' }}</mat-icon>
+    <strong>{{ emptyTitle }}</strong>
+    <span *ngIf="hasAnyFilter">Prueba con otro texto o quita algún filtro.</span>
+    <button type="button" class="ds-btn" *ngIf="hasAnyFilter" (click)="clearAllFilters()">Limpiar filtros</button>
+    <a class="ds-btn primary" *ngIf="!hasAnyFilter" routerLink="/publish">Crear publicación</a>
+  </div>
+
+  <ng-container *ngIf="!loadError && visibleRows.length > 0">
+    <!-- Tabla (escritorio) -->
+    <div class="tbl-wrap" [class.is-loading]="isLoading">
+      <table class="pubs">
+        <caption class="sr-only">Publicaciones: producto, estado, ventas, precio, stock, visitas, conversión e ingreso</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="c-check" *ngIf="!compact">
+              <input type="checkbox" [checked]="allVisibleSelected" [indeterminate]="someVisibleSelected"
+                (change)="toggleAll()" aria-label="Seleccionar todas las publicaciones visibles">
+            </th>
+            <th scope="col" class="c-prod">Producto</th>
+            <th scope="col" class="c-status">Estado</th>
+            <th scope="col" class="r c-sales" [attr.aria-sort]="sortBy === 'sales_desc' ? 'descending' : (sortBy === 'sales_asc' ? 'ascending' : 'none')">
+              <button type="button" class="sort" [class.on]="sortBy.startsWith('sales_')" (click)="toggleSalesSort()"
+                [disabled]="compact" title="Ordenar por ventas">Ventas
+                <mat-icon aria-hidden="true" *ngIf="sortBy === 'sales_desc'">expand_more</mat-icon>
+                <mat-icon aria-hidden="true" *ngIf="sortBy === 'sales_asc'">expand_less</mat-icon>
+              </button>
+            </th>
+            <th scope="col" class="r">Precio</th>
+            <th scope="col" class="r">Stock</th>
+            <th scope="col" class="r">Visitas</th>
+            <th scope="col" class="r" title="Aproximada: ventas históricas / visitas que conserva MercadoLibre. Sale — si no son comparables.">Conv.</th>
+            <th scope="col" class="r" title="Aproximado: precio actual × unidades vendidas">Ingreso</th>
+            <th scope="col" class="c-act" *ngIf="!compact"><span class="sr-only">Acciones</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of visibleRows; trackBy: trackById" [class.sel]="isSelected(r)">
+            <td class="c-check" *ngIf="!compact">
+              <input type="checkbox" [checked]="isSelected(r)" (change)="toggleRow(r)" [attr.aria-label]="'Seleccionar ' + r.title">
+            </td>
+            <td class="c-prod">
+              <div class="prod">
+                <img *ngIf="r.thumbnail" class="thumb" [src]="r.thumbnail" alt="" loading="lazy">
+                <span *ngIf="!r.thumbnail" class="thumb" aria-hidden="true">{{ initials(r) }}</span>
+                <div class="prod-txt">
+                  <a class="prod-t" [href]="r.permalink" target="_blank" rel="noopener" [title]="r.title">{{ r.title }}</a>
+                  <span class="prod-id">{{ r.id }}</span>
+                </div>
+              </div>
+            </td>
+            <td class="c-status"><span class="ds-badge" [ngClass]="'tone-' + statusInfo(r.status).tone">{{ statusInfo(r.status).label }}</span></td>
+            <td class="num">{{ int(r.sold_quantity || 0) }}</td>
+            <td class="num">{{ money(r.price) }}</td>
+            <td class="num" [class.low]="isLowStock(r)">{{ int(r.available_quantity) }}</td>
+            <td class="num" [attr.title]="r.visits === null ? 'No se pudieron obtener las visitas de Mercado Libre' : null">{{ visitsLabel(r) }}</td>
+            <td class="num">{{ convLabel(r) }}</td>
+            <td class="num" title="Aproximado: precio actual × unidades vendidas">{{ money(revenue(r)) }}</td>
+            <td class="c-act" *ngIf="!compact">
+              <button type="button" class="row-menu" aria-haspopup="menu"
+                [attr.aria-expanded]="menu?.kind === 'row' && menu?.item?.id === r.id"
+                [attr.aria-label]="'Acciones de ' + r.title" (click)="openMenu('row', $event, r)">⋯</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Tarjetas (móvil <= 640px) -->
+    <div class="pcards" [class.is-loading]="isLoading">
+      <article class="pcard" *ngFor="let r of visibleRows; trackBy: trackById" [class.sel]="isSelected(r)">
+        <div class="pc-top">
+          <input *ngIf="!compact" type="checkbox" [checked]="isSelected(r)" (change)="toggleRow(r)" [attr.aria-label]="'Seleccionar ' + r.title">
+          <img *ngIf="r.thumbnail" class="thumb" [src]="r.thumbnail" alt="" loading="lazy">
+          <span *ngIf="!r.thumbnail" class="thumb" aria-hidden="true">{{ initials(r) }}</span>
+          <div class="prod-txt">
+            <a class="prod-t" [href]="r.permalink" target="_blank" rel="noopener">{{ r.title }}</a>
+            <span class="prod-id">{{ r.id }}</span>
+          </div>
+          <button *ngIf="!compact" type="button" class="row-menu always" aria-haspopup="menu"
+            [attr.aria-label]="'Acciones de ' + r.title" (click)="openMenu('row', $event, r)">⋯</button>
+        </div>
+        <div class="pc-stats">
+          <span class="ds-badge" [ngClass]="'tone-' + statusInfo(r.status).tone">{{ statusInfo(r.status).label }}</span>
+          <span><b>{{ money(r.price) }}</b></span>
+          <span [class.low]="isLowStock(r)">{{ int(r.available_quantity) }} stock</span>
+          <span>{{ int(r.sold_quantity || 0) }} ventas</span>
+          <span>{{ visitsLabel(r) }} visitas</span>
+          <span>{{ convLabel(r) }} conv.</span>
+          <span title="Aproximado: precio actual × unidades vendidas">{{ money(revenue(r)) }} ingreso</span>
+        </div>
+      </article>
+    </div>
+  </ng-container>
+
+  <!-- Pie: paginación real -->
+  <div class="pager" *ngIf="!compact && !loadError && (total > 0 || rows.length > 0)">
+    <span aria-live="polite">{{ rangeLabel }}</span>
+    <span class="pager-btns">
+      <button type="button" class="pg-size" aria-haspopup="menu" [attr.aria-expanded]="menu?.kind === 'page'"
+        (click)="openMenu('page', $event)" title="Filas por página">{{ pageSize }} por página</button>
+      <button type="button" class="pg-btn" (click)="prev()" [disabled]="!hasPrev || isLoading">Anterior</button>
+      <button type="button" class="pg-btn" (click)="next()" [disabled]="!hasNext || isLoading">Siguiente</button>
+    </span>
+  </div>
+</section>
+
+<!-- Menú flotante (estado / agregar filtro / vista / fila / tamaño de página) -->
+<div #menuEl class="menu" role="menu" *ngIf="menu as m" [style.left.px]="m.x" [style.top.px]="m.y" (keydown)="onMenuKey($event)">
+  <ng-container [ngSwitch]="m.kind">
+    <ng-container *ngSwitchCase="'status'">
+      <button type="button" role="menuitemradio" *ngFor="let o of statusOptions" [attr.aria-checked]="statusFilter === o.value"
+        [class.on]="statusFilter === o.value" (click)="setStatus(o.value)">{{ o.label }}</button>
+    </ng-container>
+    <ng-container *ngSwitchCase="'view'">
+      <button type="button" role="menuitemradio" *ngFor="let o of sortOptions" [attr.aria-checked]="sortBy === o.value"
+        [class.on]="sortBy === o.value" (click)="setSort(o.value)">{{ o.label }}</button>
+    </ng-container>
+    <ng-container *ngSwitchCase="'page'">
+      <button type="button" role="menuitemradio" *ngFor="let n of pageSizes" [attr.aria-checked]="pageSize === n"
+        [class.on]="pageSize === n" (click)="setPageSize('' + n); closeMenu()">{{ n }} por página</button>
+    </ng-container>
+    <ng-container *ngSwitchCase="'add'">
+      <ng-container *ngIf="!m.stockInput">
+        <button type="button" role="menuitem" (click)="showStockInput()">Stock (&lt; N)…</button>
+        <button type="button" role="menuitem" (click)="setType('gold_special')" [disabled]="listingTypeFilter === 'gold_special'">Tipo: Clásica</button>
+        <button type="button" role="menuitem" (click)="setType('gold_pro')" [disabled]="listingTypeFilter === 'gold_pro'">Tipo: Premium</button>
+        <button type="button" role="menuitem" (click)="setNoVisits(true)" [disabled]="noVisits"
+          title="Solo sobre las filas cargadas de la página actual">Sin visitas (esta página)</button>
+        <button type="button" role="menuitem" (click)="setNoSales(true)" [disabled]="noSales">Sin ventas</button>
+      </ng-container>
+      <form *ngIf="m.stockInput" class="menu-form" (submit)="$event.preventDefault(); applyStock()">
+        <label for="pt-stock-n">Stock menor a</label>
+        <input #stockInputEl id="pt-stock-n" type="number" min="1" step="1" inputmode="numeric" [(ngModel)]="stockDraft" name="stockDraft">
+        <button type="submit" class="ds-btn primary">Aplicar</button>
+      </form>
+    </ng-container>
+    <ng-container *ngSwitchCase="'row'">
+      <button type="button" role="menuitem" *ngIf="m.item && m.item.status !== 'closed'" (click)="rowAction('edit', m.item)">Editar</button>
+      <button type="button" role="menuitem" *ngIf="m.item" (click)="rowAction('duplicate', m.item)">Duplicar</button>
+      <button type="button" role="menuitem" *ngIf="m.item && m.item.status === 'closed'" (click)="rowAction('relist', m.item)">Republicar</button>
+    </ng-container>
+  </ng-container>
+</div>

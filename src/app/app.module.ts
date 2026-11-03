@@ -26,6 +26,8 @@ import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { PublishProductComponent } from './publish-product/publish-product.component';
 import { PublicationsListComponent } from './publications-list/publications-list.component';
+import { PublicationsTableComponent } from './publications-list/publications-table/publications-table.component';
+import { BulkDialogsComponent } from './publications-list/bulk-dialogs/bulk-dialogs.component';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -59,6 +61,8 @@ registerLocaleData(localeEsMx, 'es-MX');
     VentasBarsComponent,
     PublishProductComponent,
     PublicationsListComponent,
+    PublicationsTableComponent,
+    BulkDialogsComponent,
     SidebarComponent,
     TopNavComponent,
     LayoutComponent,
