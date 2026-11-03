@@ -57,3 +57,13 @@ docs/
 # Local QA artifacts
 .screenshots/
 .playwright-mcp/
+
+# Local-only files that hold secrets or sales data (kept in a local stash)
+.env.*
+!.env.example
+FORK_DEPLOYMENT_GUIDE.md
+FORK_QUICK_GUIDE.txt
+MINI_RESUMEN.md
+AUTOMATION_PLAN.md
+NOTIFICACIONES_ML.md
+2025.csv
