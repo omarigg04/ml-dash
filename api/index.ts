@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
-import { safeError } from '../backend/src/security';
+import { safeError, safeReturnPath } from '../backend/src/security';
 import { mlAuth, UserNotAllowedError, TokenStorageError, checkTokenStorage } from '../backend/src/auth/oauth';
 import { createSession, getSession, clearSession, getCookie } from '../backend/src/auth/session';
 import ordersRouter from '../backend/src/routes/orders';
@@ -144,9 +144,7 @@ const OAUTH_COOKIE = 'ml_oauth';
 const frontendUrl = (path: string) => `${(process.env['FRONTEND_URL'] || '').split(',')[0].trim().replace(/\/+$/, '')}${path}`;
 
 app.get('/api/auth', (req, res) => {
-  const requested = typeof req.query['returnUrl'] === 'string' ? req.query['returnUrl'] : '/';
-  // Only same-site relative paths, to avoid open redirects
-  const returnUrl = requested.startsWith('/') && !requested.startsWith('//') ? requested : '/';
+  const returnUrl = safeReturnPath(req.query['returnUrl']);
 
   const { state, verifier, challenge } = mlAuth.createPkce();
   res.cookie(OAUTH_COOKIE, JSON.stringify({ state, verifier, returnUrl }), {
@@ -181,7 +179,7 @@ app.get('/api/callback', async (req, res) => {
   try {
     const tokenData = await mlAuth.getAccessToken(code, saved.verifier);
     createSession(res, tokenData.user_id);
-    res.redirect(frontendUrl(saved.returnUrl || '/'));
+    res.redirect(frontendUrl(safeReturnPath(saved.returnUrl)));
   } catch (error) {
     console.error('Error in callback:', safeError(error));
     if (error instanceof UserNotAllowedError) {

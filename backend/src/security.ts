@@ -6,6 +6,22 @@ export const ORDER_ID_RE = /^\d+$/;
 export const SHIPMENT_ID_RE = /^\d+$/;
 export const USER_ID_RE = /^\d+$/;
 
+/**
+ * Ruta de regreso tras el login: solo rutas relativas del mismo sitio.
+ * Los navegadores tratan "\" como "/", así que "/\evil.com" saldría a otro dominio.
+ */
+export const safeReturnPath = (value: unknown): string => {
+    if (typeof value !== 'string' || !value.startsWith('/') || /[\\\u0000-\u001f\u007f]/.test(value)) {
+        return '/';
+    }
+    try {
+        const base = 'https://app.invalid';
+        return new URL(value, base).origin === base ? value : '/';
+    } catch {
+        return '/';
+    }
+};
+
 /** Resumen seguro de un error (nunca el objeto completo: AxiosError incluye Authorization y client_secret). */
 export const safeError = (error: any): string => {
     const status = error?.response?.status;
