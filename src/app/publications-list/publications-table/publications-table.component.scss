@@ -208,3 +208,6 @@ tr:hover .row-menu, .row-menu:focus-visible, .row-menu[aria-expanded="true"] { o
 
 /* Compacto: sin toolbar, selección ni pie */
 .is-compact .tbl-wrap { border-top: 0; }
+
+/* Pie del modo compacto: enlace a la lista completa */
+.compact-foot .view-all { font-weight: 500; color: hsl(var(--primary)); text-decoration: none; &:hover { text-decoration: underline; } }

@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { csvCell } from '../../shared/csv';
 import { UserPreferencesService } from '../../services/user-preferences.service';
 import {
   ITEM_STATUS, LISTING_TYPES, LOW_STOCK, PagingInfo, Publication, SORT_OPTIONS, STATUS_OPTIONS, Tone,
@@ -152,6 +153,8 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
       .set('offset', String(this.page * this.pageSize))
       .set('limit', String(this.pageSize))
       .set('sort', this.compact ? 'sales_desc' : this.sortBy);
+    // Inicio resume lo que está a la venta hoy; lo pausado se ve en Publicaciones
+    if (this.compact) params = params.set('status', 'active');
     if (!this.compact) {
       if (this.statusFilter) params = params.set('status', this.statusFilter);
       if (this.listingTypeFilter) params = params.set('listing_type', this.listingTypeFilter);
@@ -430,12 +433,7 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
 
   exportCsv(): void {
     const rows = this.visibleRows;
-    const safe = (v: unknown): string => {
-      let s = v == null ? '' : String(v);
-      // Neutraliza inyección de fórmulas en hojas de cálculo
-      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
-      return `"${s.replace(/"/g, '""')}"`;
-    };
+    const safe = csvCell;
     const head = ['ID', 'Título', 'Estado', 'Ventas', 'Precio', 'Stock', 'Visitas', 'Conversión', 'Ingreso aprox.', 'Enlace'];
     const lines = [head.map(safe).join(',')];
     for (const r of rows) {

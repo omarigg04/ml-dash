@@ -169,6 +169,12 @@
       <button type="button" class="pg-btn" (click)="next()" [disabled]="!hasNext || isLoading">Siguiente</button>
     </span>
   </div>
+
+  <!-- Pie del modo compacto (Inicio) -->
+  <div class="pager compact-foot" *ngIf="compact && !loadError && rows.length > 0">
+    <span>{{ rows.length }} de {{ int(total) }}</span>
+    <a class="view-all" routerLink="/publications">Ver todas</a>
+  </div>
 </section>
 
 <!-- Menú flotante (estado / agregar filtro / vista / fila / tamaño de página) -->

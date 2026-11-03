@@ -8,6 +8,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError, map, mergeMap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { orderSaleFee, satRetention } from '../shared/order-math';
+import { Metrics, computeMetrics, pctChange } from '../shared/sales-metrics';
 
 interface Publication {
   id: string;
@@ -20,15 +21,6 @@ interface Publication {
   listing_type_id: string;
   condition: string;
   permalink: string;
-}
-
-interface Metrics {
-  sales: number;
-  fees: number;
-  envios: number;
-  real: number;
-  count: number;
-  units: number;
 }
 
 export interface Kpi {
@@ -243,12 +235,7 @@ export class BarChartComponent implements OnInit, OnDestroy {
   }
 
   private metrics(orders: Order[]): Metrics {
-    const sales = orders.reduce((acc, o) => acc + o.total_amount, 0);
-    const fees = orders.reduce((acc, o) => acc + orderSaleFee(o), 0);
-    const envios = orders.reduce((acc, o) => acc + o.listCost, 0);
-    const real = sales - (satRetention(sales) + envios + fees);
-    const units = orders.reduce((acc, o) => acc + o.order_items.reduce((sum, item) => sum + item.quantity, 0), 0);
-    return { sales, fees, envios, real, count: orders.length, units };
+    return computeMetrics(orders);
   }
 
   private ordersBetween(orders: Order[], start: Date, end: Date): Order[] {
@@ -261,7 +248,7 @@ export class BarChartComponent implements OnInit, OnDestroy {
   }
 
   private pct(cur: number, prev: number): number | null {
-    return prev > 0 ? ((cur - prev) / prev) * 100 : null;
+    return pctChange(cur, prev);
   }
 
   /**

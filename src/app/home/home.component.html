@@ -1,0 +1,167 @@
+<!-- Encabezado -->
+<div class="ds-page-head home-head">
+  <div>
+    <h1>Inicio</h1>
+    <p>Resumen de tu cuenta · {{ period.label }}</p>
+  </div>
+  <div class="head-tools">
+    <div class="period-wrap">
+      <button type="button" class="ds-btn period-btn" aria-haspopup="menu" [attr.aria-expanded]="menuOpen"
+        [attr.aria-label]="'Período: ' + periodName + ', ' + period.label" (click)="menuOpen = !menuOpen" (keydown.escape)="menuOpen = false">
+        <mat-icon aria-hidden="true">calendar_today</mat-icon>{{ period.label }}
+      </button>
+      <div class="period-menu" role="menu" *ngIf="menuOpen" (keydown.escape)="menuOpen = false">
+        <button type="button" role="menuitemradio" *ngFor="let p of periods" [attr.aria-checked]="p.key === periodKey"
+          [class.on]="p.key === periodKey" (click)="selectPeriod(p.key)">{{ p.label }}</button>
+      </div>
+    </div>
+    <button type="button" class="ds-btn" (click)="exportCsv()" [disabled]="state !== 'ready'"
+      title="Exporta a CSV los indicadores y los datos diarios del período">Exportar</button>
+    <a class="ds-btn primary" routerLink="/publish"><mat-icon aria-hidden="true">add</mat-icon>Publicar</a>
+  </div>
+</div>
+
+<!-- Aviso de datos parciales (nunca se muestran costos faltantes como $0) -->
+<div class="notice" role="status" *ngIf="state === 'ready' && data && (missing > 0 || data.truncated)">
+  <span *ngIf="missing > 0">Datos parciales: Mercado Libre no devolvió el costo de envío de {{ missing }} {{ missing === 1 ? 'orden' : 'órdenes' }}, por eso Envíos y Ganancia neta se muestran como “—” cuando faltan.</span>
+  <span *ngIf="data.truncated">Hay más órdenes de las que se pueden resumir de una vez; los totales no incluyen todas.</span>
+  <button type="button" class="ds-btn" (click)="load()">Reintentar</button>
+</div>
+
+<!-- Tira de KPIs -->
+<section class="card kpi-strip" aria-label="Indicadores del período">
+  <ng-container *ngIf="state === 'loading'">
+    <div class="kpi" *ngFor="let t of skeletonTiles" role="status" aria-label="Cargando indicador">
+      <span class="sk sk-label"></span><span class="sk sk-value"></span><span class="sk sk-sub"></span>
+    </div>
+  </ng-container>
+
+  <div *ngIf="state === 'error'" class="ds-state is-error kpi-error" role="alert">
+    <strong>No pudimos cargar los indicadores</strong>
+    <span>Mercado Libre no respondió. Inténtalo de nuevo.</span>
+    <button type="button" class="ds-btn primary" (click)="load()">Reintentar</button>
+  </div>
+
+  <ng-container *ngIf="state === 'ready' && kpis as k">
+    <div class="kpi">
+      <span class="kpi-label">Ventas brutas</span>
+      <span class="kpi-value">{{ money(k.sales) }}</span>
+      <ng-container *ngTemplateOutlet="delta; context: { $implicit: k.deltaSales }"></ng-container>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Ganancia neta</span>
+      <span class="kpi-value" [attr.title]="k.net === null ? 'Faltan costos de envío para calcularla' : null">{{ money(k.net) }}</span>
+      <ng-container *ngTemplateOutlet="delta; context: { $implicit: k.deltaNet }"></ng-container>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Órdenes</span>
+      <span class="kpi-value">{{ int(k.orders) }}</span>
+      <ng-container *ngTemplateOutlet="delta; context: { $implicit: k.deltaOrders }"></ng-container>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Comisiones ML</span>
+      <span class="kpi-value">{{ money(k.fees) }}</span>
+      <span class="kpi-sub">{{ k.feesPct === null ? 'Sin ventas' : (k.feesPct | number:'1.1-1') + '% de ventas' }}</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Envíos</span>
+      <span class="kpi-value" [attr.title]="k.envios === null ? 'Faltan costos de envío' : null">{{ money(k.envios) }}</span>
+      <span class="kpi-sub">{{ k.enviosPerOrder === null ? (k.envios === null ? 'Datos incompletos' : 'Sin órdenes') : money(k.enviosPerOrder, 2) + ' por orden' }}</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Retenciones SAT</span>
+      <span class="kpi-value">{{ money(k.sat) }}</span>
+      <span class="kpi-sub">2.5% ISR + 8% IVA</span>
+    </div>
+  </ng-container>
+</section>
+
+<ng-template #delta let-v>
+  <span class="kpi-delta" [ngClass]="deltaClass(v)" *ngIf="v !== null">
+    <mat-icon aria-hidden="true">{{ v >= 0 ? 'arrow_drop_up' : 'arrow_drop_down' }}</mat-icon>{{ pct1(v) }}
+    <span class="sr-only"> contra el período anterior</span>
+  </span>
+  <span class="kpi-sub" *ngIf="v === null">Sin base anterior</span>
+</ng-template>
+
+<!-- Gráfica + más vendidos -->
+<div class="split">
+  <section class="card" aria-labelledby="hc-title">
+    <div class="card-h">
+      <div>
+        <h3 id="hc-title">Ventas vs. ganancia neta</h3>
+        <p>Últimos 14 días, MXN</p>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span><i class="sq s1"></i>Ventas brutas</span>
+        <span><i class="sq s2"></i>Ganancia neta</span>
+      </div>
+    </div>
+    <div class="card-b">
+      <div *ngIf="state === 'loading'" class="chart-skel" role="status" aria-label="Cargando gráfica"></div>
+      <div *ngIf="state === 'error'" class="ds-state is-error" role="alert">
+        <strong>No se pudo cargar la gráfica</strong>
+        <span>Mercado Libre no respondió.</span>
+        <button type="button" class="ds-btn" (click)="load()">Reintentar</button>
+      </div>
+      <ng-container *ngIf="state === 'ready'">
+        <div *ngIf="!hasChartSales" class="ds-state">
+          <mat-icon aria-hidden="true">insights</mat-icon>
+          <strong>Sin ventas en estos días</strong>
+          <span>Prueba con otro período.</span>
+        </div>
+        <ng-container *ngIf="hasChartSales">
+          <div class="chart-wrap" role="img" [attr.aria-label]="chartLabel">
+            <ag-charts-angular class="chart" [options]="chartOptions"></ag-charts-angular>
+          </div>
+          <p class="chart-note" *ngIf="chartHasGaps">Faltan costos de envío de algunos días: su ganancia neta no se grafica.</p>
+          <details class="data">
+            <summary>Ver datos como tabla</summary>
+            <div class="data-scroll">
+              <table>
+                <caption class="sr-only">Ventas brutas y ganancia neta por día</caption>
+                <thead><tr><th scope="col">Día</th><th scope="col">Ventas brutas</th><th scope="col">Ganancia neta</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let d of days"><td>{{ fmtDay(d.day) }}</td><td>{{ money(d.sales) }}</td><td>{{ money(d.net) }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </ng-container>
+      </ng-container>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="ht-title">
+    <div class="card-h">
+      <div>
+        <h3 id="ht-title">Más vendidos</h3>
+        <p>Unidades, {{ period.label }}</p>
+      </div>
+    </div>
+    <div class="card-b">
+      <div *ngIf="state === 'loading'" role="status" aria-label="Cargando más vendidos">
+        <div class="sk sk-top" *ngFor="let r of skeletonRows"></div>
+      </div>
+      <div *ngIf="state === 'error'" class="ds-state is-error" role="alert">
+        <strong>No se pudo cargar</strong>
+        <button type="button" class="ds-btn" (click)="load()">Reintentar</button>
+      </div>
+      <ng-container *ngIf="state === 'ready'">
+        <p class="mini-empty" *ngIf="top.length === 0">Sin ventas en este período.</p>
+        <ol class="mini-list" *ngIf="top.length > 0">
+          <li *ngFor="let t of top">
+            <div class="mini-main">
+              <span class="mini-t" [title]="t.title">{{ t.title }}</span>
+              <div class="bar" [style.width.%]="t.pct" aria-hidden="true"></div>
+            </div>
+            <span class="mini-n">{{ int(t.units) }}<span class="sr-only"> unidades</span></span>
+          </li>
+        </ol>
+      </ng-container>
+    </div>
+  </section>
+</div>
+
+<!-- Publicaciones (tabla compacta; su carga es independiente de las tarjetas de arriba) -->
+<app-publications-table [compact]="true" [compactRows]="7"></app-publications-table>

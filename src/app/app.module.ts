@@ -46,6 +46,7 @@ import { LayoutComponent } from './layout/layout.component';
 import { ImageGalleryComponent } from './image-gallery/image-gallery.component';
 import { ToastComponent } from './shared/toast/toast.component';
 import { SettingsComponent } from './settings/settings.component';
+import { HomeComponent } from './home/home.component';
 import { AnalyticsComponent } from './analytics/analytics.component';
 import { NotFoundComponent } from './not-found/not-found.component';
 
@@ -71,6 +72,7 @@ registerLocaleData(localeEsMx, 'es-MX');
     SettingsComponent,
     ImageSourceSelectorComponent,
     AnalyticsComponent,
+    HomeComponent,
     NotFoundComponent,
   ],
   imports: [
