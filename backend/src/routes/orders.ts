@@ -35,8 +35,8 @@ router.get('/', async (req: Request, res: Response) => {
 
         // Validate that from is before to
         if (from && to) {
-            const fromDate = new Date(from);
-            const toDate = new Date(to);
+            const fromDate = new Date(String(from));
+            const toDate = new Date(String(to));
 
             if (isNaN(fromDate.getTime())) {
                 return res.status(400).json({
