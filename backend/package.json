@@ -7,7 +7,7 @@
         "dev": "ts-node-dev --respawn --transpile-only ../api/index.ts",
         "build": "tsc",
         "start": "ts-node --transpile-only ../api/index.ts",
-        "test": "node --require ts-node/register/transpile-only --test test/tokens.test.ts test/routes.test.ts"
+        "test": "node --require ts-node/register/transpile-only test/tokens.test.ts && node --require ts-node/register/transpile-only test/routes.test.ts"
     },
     "keywords": [
         "mercadolibre",
