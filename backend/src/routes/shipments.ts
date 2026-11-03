@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { mlAuth } from '../auth/oauth';
+import { SHIPMENT_ID_RE, safeError } from '../security';
 import { MLShipment, MLShipmentCosts } from '../types';
 
 const router = Router();
@@ -13,8 +14,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        if (!id) {
-            res.status(400).json({ error: 'Shipment ID is required' });
+        if (!id || !SHIPMENT_ID_RE.test(id)) {
+            res.status(400).json({ error: 'Invalid shipment ID' });
             return;
         }
 

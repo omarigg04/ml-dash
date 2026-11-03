@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { mlAuth } from '../auth/oauth';
+import { ITEM_ID_RE, CATEGORY_ID_RE, safeError } from '../security';
 
 const router = Router();
 
@@ -72,8 +73,6 @@ function clearItemsCache(sellerId?: string): void {
 // HELPERS (validación de ids y errores de ML)
 // ============================================
 
-const ITEM_ID_RE = /^MLM\d+$/;
-const CATEGORY_ID_RE = /^MLM\d+$/;
 const ML_API = 'https://api.mercadolibre.com';
 
 interface ErrorCause {
@@ -712,6 +711,10 @@ router.get('/visits', async (req: Request, res: Response) => {
             });
         }
 
+        if (ids.some(i => !ITEM_ID_RE.test(i))) {
+            return res.status(400).json({ error: 'Invalid item ID in ids' });
+        }
+
         // Limit to prevent too many requests
         if (ids.length > 100) {
             return res.status(400).json({
@@ -730,7 +733,7 @@ router.get('/visits', async (req: Request, res: Response) => {
         const promises = ids.map(async (itemId) => {
             try {
                 const response = await axios.get(
-                    `https://api.mercadolibre.com/visits/items?ids=${itemId}`,
+                    `https://api.mercadolibre.com/visits/items?ids=${encodeURIComponent(itemId)}`,
                     {
                         headers: {
                             'Authorization': `Bearer ${token}`,
@@ -755,7 +758,7 @@ router.get('/visits', async (req: Request, res: Response) => {
         res.json(visitsData);
 
     } catch (error: any) {
-        console.error('❌ Error fetching visit counts:', error.message);
+        console.error('❌ Error fetching visit counts:', safeError(error));
         res.status(500).json({
             error: 'Failed to fetch visit counts',
             details: error.message

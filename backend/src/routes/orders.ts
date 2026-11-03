@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { mlAuth } from '../auth/oauth';
+import { safeError } from '../security';
 import { MLOrder } from '../types';
 
 const router = Router();
@@ -106,7 +107,7 @@ router.get('/', async (req: Request, res: Response) => {
 
         while (hasMore) {
             const ordersResponse = await axios.get(
-                `https://api.mercadolibre.com/orders/search?seller=${sellerId}`,
+                `https://api.mercadolibre.com/orders/search?seller=${encodeURIComponent(String(sellerId))}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -142,7 +143,7 @@ router.get('/', async (req: Request, res: Response) => {
             allOrders.map(async (order) => {
                 try {
                     const orderDetail = await axios.get(
-                        `https://api.mercadolibre.com/orders/${order.id}`,
+                        `https://api.mercadolibre.com/orders/${encodeURIComponent(String(order.id))}`,
                         {
                             headers: {
                                 Authorization: `Bearer ${token}`,
@@ -151,7 +152,7 @@ router.get('/', async (req: Request, res: Response) => {
                     );
                     return orderDetail.data;
                 } catch (error) {
-                    console.error(`Error fetching order ${order.id}:`, error);
+                    console.error(`Error fetching order ${order.id}:`, safeError(error));
                     return order; // Return basic order if detail fetch fails
                 }
             })

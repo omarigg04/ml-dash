@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
+import { CATEGORY_ID_RE } from '../security';
 import { mlAuth } from '../auth/oauth';
 
 const router = Router();
@@ -110,7 +111,7 @@ router.get('/predict', async (req: Request, res: Response) => {
  * Get attributes for a specific category
  */
 router.get('/:id/attributes', async (req: Request, res: Response) => {
-    if (!/^MLM[0-9]+$/.test(req.params.id)) {
+    if (!CATEGORY_ID_RE.test(req.params.id)) {
         res.status(400).json({ error: 'ID de categoría inválido', status: 400, causes: [] });
         return;
     }
@@ -185,7 +186,7 @@ router.get('/:id/attributes', async (req: Request, res: Response) => {
  * Get detailed information about a specific category
  */
 router.get('/:id', async (req: Request, res: Response) => {
-    if (!/^MLM[0-9]+$/.test(req.params.id)) {
+    if (!CATEGORY_ID_RE.test(req.params.id)) {
         res.status(400).json({ error: 'ID de categoría inválido', status: 400, causes: [] });
         return;
     }

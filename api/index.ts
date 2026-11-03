@@ -2,8 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
-import fs from 'fs';
-import https from 'https';
+import { safeError } from '../backend/src/security';
 import { mlAuth, UserNotAllowedError, TokenStorageError, checkTokenStorage } from '../backend/src/auth/oauth';
 import { createSession, getSession, clearSession, getCookie } from '../backend/src/auth/session';
 import ordersRouter from '../backend/src/routes/orders';
@@ -17,27 +16,60 @@ dotenv.config();
 
 const app = express();
 
-// Middleware
+// Entorno: producción (Vercel / NODE_ENV=production) vs desarrollo local
+const isProduction = !!process.env['VERCEL'] || process.env['NODE_ENV'] === 'production';
+const wantsNoAuth = process.env['LOCAL_DEV_NO_AUTH'] === 'true';
+if (wantsNoAuth && isProduction) {
+  console.warn('[security] LOCAL_DEV_NO_AUTH is ignored in production: authentication is enforced');
+}
+// Bypass de autenticación solo con opt-in explícito y nunca en producción
+const noAuth = wantsNoAuth && !isProduction;
+if (noAuth) {
+  console.warn('[security] LOCAL_DEV_NO_AUTH=true: authentication is DISABLED (local development only)');
+}
+
+// CORS con lista blanca: FRONTEND_URL (separada por comas) + orígenes de dev local.
+// En producción el frontend comparte origen con la API, así que no necesita CORS.
+const allowedOrigins = new Set<string>(
+  (process.env['FRONTEND_URL'] || '')
+    .split(',')
+    .map(o => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+);
+if (!isProduction) {
+  allowedOrigins.add('http://127.0.0.1:4200');
+  allowedOrigins.add('http://localhost:4200');
+}
+
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+  res.setHeader('Cache-Control', 'no-store');
+  if (isProduction) {
+    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
+  next();
+});
 app.use(cors({
-  origin: '*', // Allow all origins in production
+  // Sin cabecera Origin (mismo origen, curl, servidor) se permite; con Origin solo la lista blanca
+  origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)),
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
 
-// Session auth for /api/*. Skipped locally (OAuth needs a public HTTPS
-// callback, so local dev can't obtain a session cookie)
+// Session auth for /api/*. Skipped only with LOCAL_DEV_NO_AUTH=true outside production
 const PUBLIC_PATHS = [
   '/api',
   '/api/auth',
   '/api/callback',
   '/api/auth/status',
   '/api/auth/logout',
-  '/api/debug/token',        // protected by requireAdmin
-  '/api/auth/inject-token',  // protected by requireAdmin
 ];
 app.use((req, res, next) => {
-  if (!process.env['VERCEL'] || PUBLIC_PATHS.includes(req.path) || getSession(req)) {
+  if (noAuth || PUBLIC_PATHS.includes(req.path) || getSession(req)) {
     return next();
   }
   res.status(401).json({ error: 'Unauthorized', code: 'SESSION_REQUIRED', message: 'Please log in with MercadoLibre' });
@@ -52,20 +84,11 @@ app.get('/api', (req, res) => {
   });
 });
 
-// Token-handling admin endpoints: always allowed locally, require
-// the x-admin-secret header (ADMIN_SECRET env var) on Vercel
-const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (!process.env['VERCEL']) return next();
-  const secret = process.env['ADMIN_SECRET'];
-  if (secret && req.header('x-admin-secret') === secret) return next();
-  res.status(403).json({ error: 'Forbidden' });
-};
-
 // Session + store connection status for the frontend (never exposes tokens)
 app.get('/api/auth/status', async (req, res) => {
   const session = getSession(req);
   res.json({
-    authenticated: !process.env['VERCEL'] || !!session,
+    authenticated: noAuth || !!session,
     userId: session?.uid ?? null,
     connected: await mlAuth.isConnected(),
     storage: await checkTokenStorage(),
@@ -75,43 +98,6 @@ app.get('/api/auth/status', async (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   clearSession(res);
   res.json({ success: true });
-});
-
-// Debug endpoint to get current token
-app.get('/api/debug/token', requireAdmin, async (req, res) => {
-  try {
-    await (mlAuth as any).loadTokensAsync?.() || Promise.resolve();
-    const tokenData = (mlAuth as any).tokenData;
-
-    if (!tokenData) {
-      return res.json({
-        hasToken: false,
-        message: 'No token found. Please authorize at /api/auth'
-      });
-    }
-
-    const scopesArray = tokenData.scope?.split(' ') || [];
-
-    res.json({
-      hasToken: true,
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      tokenLength: tokenData.access_token?.length || 0,
-      scopes: tokenData.scope || 'No scopes found',
-      scopesArray: scopesArray,
-      hasOfflineAccess: scopesArray.includes('offline_access'),
-      hasReadScope: scopesArray.includes('read'),
-      hasWriteScope: scopesArray.includes('write'),
-      tokenCreatedAt: tokenData.created_at ? new Date(tokenData.created_at).toISOString() : 'unknown',
-      isExpired: mlAuth.isTokenExpired(),
-      expiresIn: tokenData.expires_in
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      error: 'Failed to get token info',
-      message: error.message
-    });
-  }
 });
 
 // Check user/seller status
@@ -154,7 +140,8 @@ app.get('/api/user/status', async (req, res) => {
 // OAuth login: ML authorization doubles as the dashboard login.
 // PKCE verifier, state and returnUrl travel in a short-lived httpOnly cookie
 const OAUTH_COOKIE = 'ml_oauth';
-const frontendUrl = (path: string) => `${process.env['FRONTEND_URL'] || ''}${path}`;
+// FRONTEND_URL puede ser una lista separada por comas: se redirige al primero
+const frontendUrl = (path: string) => `${(process.env['FRONTEND_URL'] || '').split(',')[0].trim().replace(/\/+$/, '')}${path}`;
 
 app.get('/api/auth', (req, res) => {
   const requested = typeof req.query['returnUrl'] === 'string' ? req.query['returnUrl'] : '/';
@@ -164,7 +151,7 @@ app.get('/api/auth', (req, res) => {
   const { state, verifier, challenge } = mlAuth.createPkce();
   res.cookie(OAUTH_COOKIE, JSON.stringify({ state, verifier, returnUrl }), {
     httpOnly: true,
-    secure: !!process.env['VERCEL'],
+    secure: isProduction,
     sameSite: 'lax',
     maxAge: 10 * 60 * 1000,
   });
@@ -196,7 +183,7 @@ app.get('/api/callback', async (req, res) => {
     createSession(res, tokenData.user_id);
     res.redirect(frontendUrl(saved.returnUrl || '/'));
   } catch (error) {
-    console.error('Error in callback:', error);
+    console.error('Error in callback:', safeError(error));
     if (error instanceof UserNotAllowedError) {
       res.redirect(frontendUrl(`/login?error=not_allowed&uid=${error.userId}`));
       return;
@@ -206,34 +193,6 @@ app.get('/api/callback', async (req, res) => {
       return;
     }
     res.redirect(frontendUrl('/login?error=auth_failed'));
-  }
-});
-
-// Inject token endpoint (for local development testing)
-app.post('/api/auth/inject-token', requireAdmin, async (req, res) => {
-  try {
-    const { access_token, refresh_token, expires_in, scope } = req.body;
-
-    if (!access_token || !refresh_token) {
-      return res.status(400).json({
-        error: 'Missing required fields',
-        message: 'Both access_token and refresh_token are required'
-      });
-    }
-
-    await mlAuth.injectToken(access_token, refresh_token, expires_in, scope);
-
-    res.json({
-      success: true,
-      message: 'Token injected successfully! Your backend is now authenticated.',
-      scope: scope || 'offline_access read write'
-    });
-  } catch (error: any) {
-    console.error('Error injecting token:', error);
-    res.status(500).json({
-      error: 'Failed to inject token',
-      message: error.message
-    });
   }
 });
 
@@ -248,10 +207,10 @@ console.log('✅ All routes registered (including /api/categories)');
 
 // Error handling middleware
 app.use((err: any, req: any, res: any, next: any) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({
-    error: 'Internal server error',
-    message: err.message,
+  console.error('Unhandled error:', safeError(err));
+  const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 500 ? err.status : 500;
+  res.status(status).json({
+    error: status === 500 ? 'Internal server error' : 'Bad request',
   });
 });
 
@@ -260,22 +219,10 @@ if (!process.env['VERCEL']) {
   const PORT = Number(process.env['PORT'] || 3000);
   // Loopback only: the local backend holds the owner's ML token
   const HOST = '127.0.0.1';
-  const certPath = process.env['LOCAL_HTTPS_CERT'];
-  const keyPath = process.env['LOCAL_HTTPS_KEY'];
 
-  // ML rejects plain-http and "localhost" redirect URIs, so local OAuth
-  // uses https://127.0.0.1:<PORT>/api/callback with a self-signed cert
-  if (certPath && keyPath) {
-    https
-      .createServer({ cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) }, app)
-      .listen(PORT, HOST, () => {
-        console.log(`\n🚀 MercadoLibre Dashboard Backend (Local) on https://${HOST}:${PORT}\n`);
-      });
-  } else {
-    app.listen(PORT, HOST, () => {
-      console.log(`\n🚀 MercadoLibre Dashboard Backend (Local) on http://${HOST}:${PORT}\n`);
-    });
-  }
+  app.listen(PORT, HOST, () => {
+    console.log(`🚀 MercadoLibre Dashboard Backend (Local) on http://${HOST}:${PORT}`);
+  });
 }
 
 // Export for Vercel serverless

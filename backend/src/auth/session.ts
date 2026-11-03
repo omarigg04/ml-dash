@@ -30,7 +30,7 @@ export const createSession = (res: Response, uid: number): void => {
     const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
     res.cookie(SESSION_COOKIE, `${data}.${sign(data)}`, {
         httpOnly: true,
-        secure: !!process.env['VERCEL'],
+        secure: !!process.env['VERCEL'] || process.env['NODE_ENV'] === 'production',
         sameSite: 'lax',
         maxAge: SESSION_TTL_MS,
     });
