@@ -82,6 +82,8 @@ export class PublishProductComponent implements OnInit, OnDestroy {
   // ---- Producto ----
   familyName = '';
   originalFamilyName = '';
+  /** Nombre sugerido (query param `name`, p. ej. desde Oportunidades): solo precarga el campo, el usuario lo revisa. */
+  private suggestedName = '';
   categoryId = '';
   categoryName = '';
   categoryPath = '';
@@ -190,6 +192,8 @@ export class PublishProductComponent implements OnInit, OnDestroy {
       if (params['mode'] === 'duplicate' && from && /^MLM\d+$/.test(from)) {
         this.isDuplicateMode = true;
         this.sourceId = from;
+        const nm = params['name'];
+        this.suggestedName = typeof nm === 'string' ? nm.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
         this.draftKey = DRAFT_PREFIX + 'duplicate:' + from;
         this.loadDuplicateData(from);
       } else if (params['mode'] === 'duplicate') {
@@ -228,7 +232,7 @@ export class PublishProductComponent implements OnInit, OnDestroy {
       } catch { description = ''; }
 
       this.originalFamilyName = (item.family_name || item.title || '').toString();
-      this.familyName = this.originalFamilyName.slice(0, 60);
+      this.familyName = this.suggestedName || this.originalFamilyName.slice(0, 60);
       this.categoryId = item.category_id;
       this.price = item.price;
       this.quantity = item.available_quantity > 0 ? item.available_quantity : 1;

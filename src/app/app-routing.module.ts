@@ -6,6 +6,7 @@ import { LayoutComponent } from './layout/layout.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
 import { HomeComponent } from './home/home.component';
 import { AnalyticsComponent } from './analytics/analytics.component';
+import { OpportunitiesComponent } from './opportunities/opportunities.component';
 import { PublishProductComponent } from './publish-product/publish-product.component';
 import { PublicationsListComponent } from './publications-list/publications-list.component';
 import { ImageGalleryComponent } from './image-gallery/image-gallery.component';
@@ -26,6 +27,7 @@ const routes: Routes = [
     children: [
       { path: 'inicio', component: HomeComponent },
       { path: 'analytics', component: AnalyticsComponent },
+      { path: 'oportunidades', component: OpportunitiesComponent },
       { path: 'orders', component: DashboardComponent },
       { path: 'publish', component: PublishProductComponent },
       { path: 'publications', component: PublicationsListComponent },

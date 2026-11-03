@@ -20,7 +20,7 @@ const tokenFile = (key: string) =>
 
 // Helper to interact with Vercel KV via REST API using fetch
 // This avoids dependency issues with @vercel/kv package
-const kvRestApi = async (method: string, params: any[] = []) => {
+export const kvRestApi = async (method: string, params: any[] = []) => {
     const url = process.env['KV_REST_API_URL'];
     const token = process.env['KV_REST_API_TOKEN'];
 
@@ -71,7 +71,7 @@ export class UserNotAllowedError extends Error {
 
 export class TokenStorageError extends Error {}
 
-const isServerless = (): boolean => !!process.env['VERCEL'] || !!process.env['AWS_LAMBDA_FUNCTION_NAME'];
+export const isServerless = (): boolean => !!process.env['VERCEL'] || !!process.env['AWS_LAMBDA_FUNCTION_NAME'];
 
 const parseToken = (raw: any): TokenData | null => {
     try {

@@ -33,6 +33,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
     { label: 'Publicar', route: '/publish', sub: true },
     { label: 'Galería', route: '/gallery', sub: true },
     { label: 'Analytics', icon: 'analytics', route: '/analytics' },
+    { label: 'Oportunidades', icon: 'lightbulb', route: '/oportunidades' },
   ];
 
   /** Órdenes por enviar; null mientras no carga o si falló (la insignia se oculta). */

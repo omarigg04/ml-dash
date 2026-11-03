@@ -22,22 +22,22 @@ const router = Router();
  */
 
 const ML_API = 'https://api.mercadolibre.com';
-const MAX_WINDOW_DAYS = 150;        // ML rechaza `last` > 150 días
-const MAX_ITEMS = 250;              // tope de publicaciones a las que se consultan visitas
+export const MAX_WINDOW_DAYS = 150;        // ML rechaza `last` > 150 días
+export const MAX_ITEMS = 250;              // tope de publicaciones a las que se consultan visitas
 const TIME_BUDGET_MS = 8000;
 const VISITS_CONCURRENCY = 10;
 const DETAIL_BATCH = 20;
 const VISITS_TTL_MS = 10 * 60_000;
 const RESPONSE_TTL_MS = 30_000;
 
-interface DayCount { date: string; total: number; }
+export interface DayCount { date: string; total: number; }
 const visitsCache = new Map<string, { exp: number; days: DayCount[]; last: number }>();
 const responseCache = new Map<string, { exp: number; body: any }>();
 
-const todayInTz = (): string => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+export const todayInTz = (): string => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 /** Visitas por día de una publicación en los últimos `last` días (ML: puede devolver last+1 con hoy y omite días sin datos). */
-async function itemDaily(ctx: Ctx, id: string, last: number): Promise<DayCount[] | null> {
+export async function itemDaily(ctx: Ctx, id: string, last: number): Promise<DayCount[] | null> {
     const vKey = `${currentUid()}:${id}`; // por cuenta
     const hit = visitsCache.get(vKey);
     if (hit && hit.exp > Date.now() && hit.last >= last) { ctx.cacheHits++; return hit.days; }
@@ -53,8 +53,53 @@ async function itemDaily(ctx: Ctx, id: string, last: number): Promise<DayCount[]
     }
 }
 
-const sumRange = (days: DayCount[], a: string, b: string): number =>
+export const sumRange = (days: DayCount[], a: string, b: string): number =>
     days.reduce((acc, d) => (d.date >= a && d.date <= b ? acc + d.total : acc), 0);
+
+export interface AnalyticsItem {
+    id: string; title: string; price: number; available_quantity: number; sold_quantity: number;
+    status: string; listing_type_id: string; permalink: string; date_created: string | null; free_shipping: boolean;
+    visits: number | null; visits30: number | null;
+}
+
+/** Pasos 1-3 de GET /items, reutilizables (Oportunidades): ids activas + pedidas, detalle en multiget y visitas por publicación. */
+export async function loadItemsWithVisits(
+    ctx: Ctx, sellerId: number, rawIds: string[], last: number, dFrom: string, dTo: string, last30From: string, today: string
+): Promise<{ items: AnalyticsItem[]; truncated: boolean }> {
+    // 1) Ids: activas + pedidas
+    const ids = new Set<string>(rawIds);
+    for (let offset = 0; offset < 300; offset += 100) {
+        const page: any = await mlGet(ctx, `${ML_API}/users/${sellerId}/items/search`, { status: 'active', limit: 100, offset });
+        (page.results || []).forEach((i: string) => ids.add(i));
+        if (!page.paging || offset + 100 >= page.paging.total) break;
+    }
+    const idList = [...ids].slice(0, MAX_ITEMS);
+    const truncated = ids.size > MAX_ITEMS;
+
+    // 2) Detalle (multiget de 20)
+    const batches: string[][] = [];
+    for (let i = 0; i < idList.length; i += DETAIL_BATCH) batches.push(idList.slice(i, i + DETAIL_BATCH));
+    const items: AnalyticsItem[] = [];
+    await runPool(batches, 4, async batch => {
+        const rows: any[] = await mlGet(ctx, `${ML_API}/items`, { ids: batch.join(',') });
+        rows.filter(r => r.code === 200).forEach(r => {
+            const b = r.body;
+            items.push({
+                id: b.id, title: b.title, price: b.price, available_quantity: b.available_quantity,
+                sold_quantity: b.sold_quantity || 0, status: b.status, listing_type_id: b.listing_type_id,
+                permalink: b.permalink, date_created: b.date_created || null, free_shipping: !!b.shipping?.free_shipping,
+                visits: null, visits30: null
+            });
+        });
+    }, ctx.deadline);
+
+    // 3) Visitas por publicación (concurrencia acotada, presupuesto de tiempo)
+    await runPool(items, VISITS_CONCURRENCY, async it => {
+        const days = await itemDaily(ctx, it.id, last);
+        if (days) { it.visits = sumRange(days, dFrom, dTo); it.visits30 = sumRange(days, last30From, today); }
+    }, ctx.deadline);
+    return { items, truncated };
+}
 
 router.get('/items', async (req: Request, res: Response) => {
     const started = Date.now();
@@ -85,38 +130,8 @@ router.get('/items', async (req: Request, res: Response) => {
 
         const me = await mlGet<{ id: number }>(ctx, `${ML_API}/users/me`);
 
-        // 1) Ids: activas + pedidas
-        const ids = new Set<string>(rawIds);
-        for (let offset = 0; offset < 300; offset += 100) {
-            const page: any = await mlGet(ctx, `${ML_API}/users/${me.id}/items/search`, { status: 'active', limit: 100, offset });
-            (page.results || []).forEach((i: string) => ids.add(i));
-            if (!page.paging || offset + 100 >= page.paging.total) break;
-        }
-        const idList = [...ids].slice(0, MAX_ITEMS);
-        const truncated = ids.size > MAX_ITEMS;
-
-        // 2) Detalle (multiget de 20)
-        const batches: string[][] = [];
-        for (let i = 0; i < idList.length; i += DETAIL_BATCH) batches.push(idList.slice(i, i + DETAIL_BATCH));
-        const items: any[] = [];
-        await runPool(batches, 4, async batch => {
-            const rows: any[] = await mlGet(ctx, `${ML_API}/items`, { ids: batch.join(',') });
-            rows.filter(r => r.code === 200).forEach(r => {
-                const b = r.body;
-                items.push({
-                    id: b.id, title: b.title, price: b.price, available_quantity: b.available_quantity,
-                    sold_quantity: b.sold_quantity || 0, status: b.status, listing_type_id: b.listing_type_id,
-                    permalink: b.permalink, date_created: b.date_created || null, free_shipping: !!b.shipping?.free_shipping,
-                    visits: null as number | null, visits30: null as number | null
-                });
-            });
-        }, ctx.deadline);
-
-        // 3) Visitas por publicación (concurrencia acotada, presupuesto de tiempo)
-        await runPool(items, VISITS_CONCURRENCY, async it => {
-            const days = await itemDaily(ctx, it.id, last);
-            if (days) { it.visits = sumRange(days, dFrom, dTo); it.visits30 = sumRange(days, last30From, today); }
-        }, ctx.deadline);
+        // 1-3) Ids (activas + pedidas), detalle y visitas por publicación
+        const { items, truncated } = await loadItemsWithVisits(ctx, me.id, rawIds, last, dFrom, dTo, last30From, today);
 
         // 4) Visitas diarias de la cuenta en la ventana (ML omite los días sin datos: se reportan tal cual)
         let account: DayCount[] | null = null;

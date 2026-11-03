@@ -23,6 +23,7 @@ import { MatMomentDateModule } from '@angular/material-moment-adapter'; // Impor
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { OpportunitiesComponent } from './opportunities/opportunities.component';
 import { PublishProductComponent } from './publish-product/publish-product.component';
 import { PublicationsListComponent } from './publications-list/publications-list.component';
 import { PublicationsTableComponent } from './publications-list/publications-table/publications-table.component';
@@ -70,6 +71,7 @@ registerLocaleData(localeEsMx, 'es-MX');
     SettingsComponent,
     ImageSourceSelectorComponent,
     AnalyticsComponent,
+    OpportunitiesComponent,
     HomeComponent,
     NotFoundComponent,
   ],

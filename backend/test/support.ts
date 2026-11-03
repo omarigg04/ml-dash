@@ -49,6 +49,9 @@ globalThis.fetch = (async (input: any, init?: any) => {
         result = kv.data.get(key) ?? null;
     } else if (cmd === 'SET') { kv.data.set(key, value); result = 'OK'; }
     else if (cmd === 'DEL') { result = kv.data.delete(key) ? 1 : 0; }
+    else if (cmd === 'INCR') { result = Number(kv.data.get(key) ?? 0) + 1; kv.data.set(key, String(result)); }
+    else if (cmd === 'DECR') { result = Number(kv.data.get(key) ?? 0) - 1; kv.data.set(key, String(result)); }
+    else if (cmd === 'EXPIRE') { result = 1; }
     else if (cmd === 'PING') result = 'PONG';
     return new Response(JSON.stringify({ result }), { status: 200 });
 }) as any;

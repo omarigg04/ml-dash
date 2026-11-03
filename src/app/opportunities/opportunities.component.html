@@ -1,0 +1,276 @@
+<div class="ds-page-head">
+  <div>
+    <h1>Oportunidades</h1>
+    <p>Publicaciones que reciben visitas pero no venden, e ideas de publicaciones nuevas · últimos {{ data?.window?.days || 90 }} días</p>
+  </div>
+  <div class="usage" *ngIf="usage" role="status" aria-live="polite">
+    <mat-icon aria-hidden="true">bolt</mat-icon>
+    <span>Hoy: <b>{{ usage.used }}</b> de {{ usage.limit }} generaciones · quedan <b>{{ usage.remaining }}</b></span>
+  </div>
+</div>
+
+<!-- Avisos permanentes -->
+<div class="op-banner is-info" role="note">
+  <mat-icon aria-hidden="true">auto_awesome</mat-icon>
+  <span>Las sugerencias las genera una IA (Claude) con los datos de tu tienda y <b>deben revisarse</b> antes de usarlas. La app nunca publica ni cambia nada por sí sola: tú decides y confirmas cada cambio.
+    Generar o regenerar usa Claude y <b>cuesta dinero</b> (del orden de 0.10 a 0.15 USD cada vez); lo ya generado se guarda 7 días y se vuelve a mostrar gratis.</span>
+</div>
+<div class="op-banner is-warn" *ngIf="!aiConfigured" role="alert">
+  <mat-icon aria-hidden="true">key_off</mat-icon>
+  <span><b>Falta configurar la clave de Claude</b> (variable <code>ANTHROPIC_API_KEY</code> en el servidor). Puedes ver los números de tus publicaciones, pero los botones de IA están desactivados.</span>
+</div>
+<div class="op-banner is-warn" *ngIf="aiConfigured && limitReached" role="alert">
+  <mat-icon aria-hidden="true">block</mat-icon>
+  <span>Llegaste al límite de {{ usage?.limit }} generaciones de hoy. Se reinicia mañana; lo ya generado se sigue mostrando.</span>
+</div>
+
+<!-- ============ Publicaciones por mejorar ============ -->
+<section class="card op-card" aria-labelledby="h-improve">
+  <div class="op-head">
+    <div>
+      <h2 id="h-improve">Publicaciones por mejorar</h2>
+      <p class="op-sub" *ngIf="data">Activas con al menos {{ data.thresholds.minVisits }} visitas y menos de {{ data.thresholds.maxConversionPct }}% de conversión (órdenes ÷ visitas de los mismos {{ data.window.days }} días). Son indicios, no causas.</p>
+    </div>
+    <button type="button" class="ds-btn" (click)="loadCandidates()" [disabled]="state === 'loading'">Actualizar</button>
+  </div>
+
+  <div class="op-skeleton" *ngIf="state === 'loading'" role="status" aria-label="Cargando publicaciones">
+    <span class="sk" *ngFor="let n of [1,2,3]"></span>
+  </div>
+
+  <div class="ds-state is-error" *ngIf="state === 'error'" role="alert">
+    <mat-icon aria-hidden="true">error_outline</mat-icon>
+    <strong>No pudimos cargar tus publicaciones</strong>
+    <span>{{ loadError }}</span>
+    <button type="button" class="ds-btn primary" (click)="loadCandidates()">Reintentar</button>
+  </div>
+
+  <ng-container *ngIf="state === 'ready' && data as d">
+    <p class="op-note" *ngIf="d.partial" role="status">
+      {{ d.ordersTruncated ? 'Tienes muchas órdenes y no se alcanzaron a leer todas: no se muestran candidatas para no dar números falsos.' : 'Algunas visitas no respondieron a tiempo; la lista puede estar incompleta. Pulsa Actualizar.' }}
+    </p>
+
+    <div class="ds-state" *ngIf="d.improve.length === 0 && !d.ordersTruncated">
+      <mat-icon aria-hidden="true">task_alt</mat-icon>
+      <strong>No hay publicaciones por mejorar</strong>
+      <span>Ninguna activa tiene {{ d.thresholds.minVisits }}+ visitas con menos de {{ d.thresholds.maxConversionPct }}% de conversión en {{ d.window.days }} días.</span>
+    </div>
+
+    <ul class="op-list" *ngIf="d.improve.length">
+      <li class="op-row" *ngFor="let c of d.improve; trackBy: trackById" [class.is-selected]="selected?.id === c.id">
+        <div class="op-main">
+          <a [href]="c.permalink" target="_blank" rel="noopener noreferrer" class="op-title">{{ c.title }}</a>
+          <span class="op-meta">{{ c.id }} · {{ money(c.price) }}</span>
+        </div>
+        <dl class="op-nums">
+          <div><dt>Visitas</dt><dd>{{ num(c.visits) }}</dd></div>
+          <div><dt>Órdenes</dt><dd>{{ num(c.orders) }}</dd></div>
+          <div><dt>Conversión</dt><dd>{{ pct(c.conversionPct) }}</dd></div>
+        </dl>
+        <button type="button" class="ds-btn primary" (click)="openSuggest(c)" [disabled]="aiDisabled"
+          [attr.aria-label]="'Sugerir mejoras para ' + c.title">
+          <mat-icon aria-hidden="true">auto_awesome</mat-icon> Sugerir mejoras
+        </button>
+      </li>
+    </ul>
+
+    <div class="op-best" *ngIf="d.bestSellers.length">
+      <h3>Lo que más vende (referencia)</h3>
+      <ul>
+        <li *ngFor="let b of d.bestSellers; trackBy: trackById"><span class="op-best-title">{{ b.title }}</span> <span class="op-meta">{{ b.units }} uds. · {{ b.orders }} órdenes</span></li>
+      </ul>
+    </div>
+  </ng-container>
+</section>
+
+<!-- ============ Ideas de publicaciones ============ -->
+<section class="card op-card" aria-labelledby="h-ideas">
+  <div class="op-head">
+    <div>
+      <h2 id="h-ideas">Ideas de publicaciones</h2>
+      <p class="op-sub">Hasta 5 productos <b>realmente distintos</b> (otra talla, color, paquete o artículo relacionado) a partir de lo que más vende tu tienda. Nunca el mismo producto con otro título: las copias casi idénticas pueden violar las reglas de Mercado Libre.</p>
+    </div>
+    <div class="op-actions">
+      <button type="button" class="ds-btn primary" *ngIf="ideasState !== 'ready'" (click)="generateIdeas()" [disabled]="aiDisabled || ideasState === 'loading'">
+        <mat-icon aria-hidden="true">lightbulb</mat-icon> {{ ideasState === 'loading' ? 'Generando…' : 'Generar ideas' }}
+      </button>
+      <button type="button" class="ds-btn" *ngIf="ideasState === 'ready'" (click)="generateIdeas(true)" [disabled]="aiDisabled || limitReached">Regenerar (cuenta como uso)</button>
+    </div>
+  </div>
+
+  <p class="op-note" *ngIf="ideasState === 'idle'">Aún no has generado ideas. Genera cuando quieras; no se hace de forma automática.</p>
+  <div class="op-loading" *ngIf="ideasState === 'loading'" role="status"><span class="spinner" aria-hidden="true"></span> Claude está analizando tus ventas… puede tardar hasta un minuto.</div>
+  <div class="ds-state is-error" *ngIf="ideasState === 'error' && ideasError" role="alert">
+    <mat-icon aria-hidden="true">error_outline</mat-icon>
+    <strong>{{ ideasError.code === 'AI_NOT_CONFIGURED' ? 'Falta configurar la clave de Claude' : ideasError.code === 'AI_DAILY_LIMIT' ? 'Límite diario alcanzado' : 'No se pudieron generar ideas' }}</strong>
+    <span>{{ ideasError.message }}</span>
+    <button type="button" class="ds-btn" *ngIf="ideasError.code !== 'AI_NOT_CONFIGURED' && ideasError.code !== 'AI_DAILY_LIMIT'" (click)="generateIdeas()">Reintentar</button>
+  </div>
+
+  <ng-container *ngIf="ideasState === 'ready' && ideas as r">
+    <p class="op-note" *ngIf="r.cached">Resultado guardado (generado {{ r.generatedAt | date:'medium' }}); verlo no cuesta nada.</p>
+    <ul class="op-note-list" *ngIf="r.warnings.length"><li *ngFor="let w of r.warnings">{{ w }}</li></ul>
+    <div class="ds-state" *ngIf="r.ideas.length === 0"><strong>Sin ideas que cumplan las reglas</strong><span>Prueba Regenerar.</span></div>
+    <ul class="idea-list" *ngIf="r.ideas.length">
+      <li class="idea" *ngFor="let i of r.ideas; trackBy: trackByIndex">
+        <div class="idea-top">
+          <span class="chip">{{ kindLabel(i.kind) }}</span>
+          <span class="idea-len">{{ i.length }}/60</span>
+        </div>
+        <p class="idea-title">{{ i.title }}</p>
+        <p class="idea-line"><b>Parte de:</b> {{ i.source_title }} <span class="op-meta">({{ i.source_item_id }})</span></p>
+        <p class="idea-line"><b>Dato que la respalda:</b> {{ i.data_behind }}</p>
+        <div class="idea-line" *ngIf="i.confirm_stock.length"><b>Confirma antes de publicar:</b>
+          <ul><li *ngFor="let s of i.confirm_stock">{{ s }}</li></ul>
+        </div>
+        <div class="idea-actions">
+          <button type="button" class="ds-btn" (click)="createFromIdea(i)">Crear desde esta idea</button>
+          <button type="button" class="ds-btn" (click)="copy(i.title)">{{ copied === i.title ? 'Copiado' : 'Copiar título' }}</button>
+        </div>
+      </li>
+    </ul>
+    <p class="op-note" *ngIf="r.ideas.length">«Crear desde esta idea» abre el formulario de duplicar de la publicación origen con este nombre ya escrito. No se publica nada hasta que lo revises y lo envíes tú; si el nombre queda igual al del original verás el aviso de duplicado.</p>
+  </ng-container>
+</section>
+
+<!-- ============ Cambios y resultados ============ -->
+<section class="card op-card" aria-labelledby="h-changes">
+  <div class="op-head">
+    <div>
+      <h2 id="h-changes">Cambios y resultados</h2>
+      <p class="op-sub">Cambios que hiciste con estas sugerencias. Se compara el promedio diario de los 30 días anteriores con los días completos posteriores. Hacen falta al menos {{ changes?.minDays || 14 }} días y {{ changes?.minVisits || 30 }} visitas.</p>
+    </div>
+    <button type="button" class="ds-btn" (click)="loadChanges()" [disabled]="changesState === 'loading'">Actualizar</button>
+  </div>
+  <div class="op-skeleton" *ngIf="changesState === 'loading'" role="status"><span class="sk"></span></div>
+  <div class="ds-state is-error" *ngIf="changesState === 'error'" role="alert">
+    <strong>No se pudieron cargar los cambios</strong>
+    <button type="button" class="ds-btn" (click)="loadChanges()">Reintentar</button>
+  </div>
+  <ng-container *ngIf="changesState === 'ready' && changes as c">
+    <div class="ds-state" *ngIf="c.changes.length === 0">
+      <strong>Todavía no registras cambios</strong>
+      <span>Cuando copies un título y marques «Ya lo cambié», o guardes una descripción, aparecerá aquí.</span>
+    </div>
+    <ul class="chg-list" *ngIf="c.changes.length">
+      <li class="chg" *ngFor="let ch of c.changes; trackBy: trackById">
+        <div class="chg-head">
+          <span class="chip">{{ fieldLabel(ch.field) }}</span>
+          <span class="op-meta">{{ ch.itemId }} · {{ ch.appliedAt | date:'mediumDate' }} · hace {{ ch.daysElapsed }} {{ ch.daysElapsed === 1 ? 'día' : 'días' }}</span>
+        </div>
+        <p class="chg-text"><span class="chg-b">{{ ch.textBefore | slice:0:120 }}{{ ch.textBefore.length > 120 ? '…' : '' }}</span> → <b>{{ ch.textAfter | slice:0:120 }}{{ ch.textAfter.length > 120 ? '…' : '' }}</b></p>
+        <p class="op-note" *ngIf="ch.status !== 'ready'">{{ ch.reason }}</p>
+        <table class="chg-table" *ngIf="ch.status === 'ready' && ch.before && ch.after">
+          <caption class="sr-only">Comparación por día antes y después del cambio</caption>
+          <thead><tr><th scope="col"></th><th scope="col">Antes ({{ ch.before.days }} d)</th><th scope="col">Después ({{ ch.after.days }} d)</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Visitas por día</th><td>{{ num(ch.before.visitsPerDay, 2) }}</td><td>{{ num(ch.after.visitsPerDay, 2) }}</td></tr>
+            <tr><th scope="row">Órdenes por día</th><td>{{ num(ch.before.ordersPerDay, 2) }}</td><td>{{ num(ch.after.ordersPerDay, 2) }}</td></tr>
+            <tr><th scope="row">Conversión</th><td>{{ pct(ch.before.conversionPct) }}</td><td>{{ pct(ch.after.conversionPct) }}</td></tr>
+          </tbody>
+        </table>
+      </li>
+    </ul>
+    <p class="op-note" *ngIf="c.changes.length">{{ c.note }}</p>
+  </ng-container>
+</section>
+
+<!-- ============ Panel de sugerencias ============ -->
+<ng-container *ngIf="selected as sel">
+  <div class="drawer-backdrop" (click)="closePanel()"></div>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="sug-title" (keydown.escape)="closePanel()">
+    <header class="drawer-head">
+      <div>
+        <h2 id="sug-title">Sugerencias para esta publicación</h2>
+        <p class="drawer-sub">{{ sel.title }} · {{ sel.id }}</p>
+      </div>
+      <button type="button" class="drawer-x" (click)="closePanel()" [disabled]="descSaving" aria-label="Cerrar panel"><mat-icon aria-hidden="true">close</mat-icon></button>
+    </header>
+
+    <div class="drawer-body">
+      <p class="op-note">Generado por IA: revisa todo antes de usarlo. Nada se aplica solo.</p>
+
+      <div class="op-loading" *ngIf="panel === 'loading'" role="status"><span class="spinner" aria-hidden="true"></span> Claude está preparando sugerencias… puede tardar hasta un minuto.</div>
+
+      <div class="ds-state is-error" *ngIf="panel === 'error' && panelError" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <strong>{{ panelError.code === 'AI_NOT_CONFIGURED' ? 'Falta configurar la clave de Claude' : panelError.code === 'AI_DAILY_LIMIT' ? 'Límite diario alcanzado' : panelError.code === 'NOT_YOUR_ITEM' ? 'Publicación de otra cuenta' : 'No se pudieron generar sugerencias' }}</strong>
+        <span>{{ panelError.message }}</span>
+        <button type="button" class="ds-btn primary" *ngIf="!['AI_NOT_CONFIGURED','AI_DAILY_LIMIT','NOT_YOUR_ITEM','AI_REFUSAL'].includes(panelError.code)" (click)="openSuggest(sel)">Reintentar</button>
+      </div>
+
+      <ng-container *ngIf="panel === 'ready' && suggestion as s">
+        <p class="op-note" *ngIf="s.cached">Resultado guardado (generado {{ s.generatedAt | date:'medium' }}); verlo no cuesta nada.</p>
+        <p class="op-metrics">{{ num(s.metrics.visits) }} visitas · {{ num(s.metrics.orders) }} órdenes · {{ pct(s.metrics.conversionPct) }} de conversión en {{ s.metrics.windowDays }} días</p>
+        <ul class="op-note-list is-warn" *ngIf="s.warnings.length"><li *ngFor="let w of s.warnings">{{ w }}</li></ul>
+
+        <!-- Títulos -->
+        <section aria-labelledby="sec-titles">
+          <h3 id="sec-titles">Títulos sugeridos</h3>
+          <p class="op-note">Título actual: <b>{{ s.current.title }}</b> ({{ s.current.title.length }}/60). La app no cambia títulos: cópialo y cámbialo tú en Mercado Libre. ML restringe editar el título de publicaciones con ventas, así que puede que no te deje; en ese caso conviene crear una publicación nueva.</p>
+          <div class="empty-mini" *ngIf="s.titles.length === 0">Ninguna opción cumplió las reglas (máx. 60 caracteres, sin contacto ni promesas). Prueba Regenerar.</div>
+          <div class="opt" *ngFor="let t of s.titles; trackBy: trackByIndex">
+            <p class="opt-title">{{ t.title }} <span class="idea-len">{{ t.length }}/60</span></p>
+            <p class="opt-reason">{{ t.reason }}</p>
+            <div class="idea-actions">
+              <button type="button" class="ds-btn" (click)="copy(t.title)">{{ copied === t.title ? 'Copiado' : 'Copiar' }}</button>
+              <button type="button" class="ds-btn" (click)="markTitleChanged(t.title)" [disabled]="!!titleApplying || !!titleNotice[t.title]">
+                {{ titleApplying === t.title ? 'Registrando…' : 'Ya lo cambié en MercadoLibre' }}
+              </button>
+            </div>
+            <p class="opt-notice" *ngIf="titleNotice[t.title]" role="status">{{ titleNotice[t.title] }}</p>
+          </div>
+        </section>
+
+        <!-- Descripción -->
+        <section aria-labelledby="sec-desc">
+          <h3 id="sec-desc">Descripción</h3>
+          <p class="opt-reason">{{ s.description.reason }}</p>
+          <ul class="op-note-list is-warn" *ngIf="descProblems.length && descStep === 'edit'"><li *ngFor="let p of descProblems">{{ p }}</li></ul>
+
+          <ng-container *ngIf="descStep === 'edit'">
+            <label class="fld">
+              <span>Texto propuesto (editable). Solo texto plano.</span>
+              <textarea rows="10" [(ngModel)]="descDraft" name="descDraft" maxlength="50000" [disabled]="descSaving"></textarea>
+            </label>
+            <small class="muted">{{ descDraft.length | number }} caracteres</small>
+            <div class="diff" *ngIf="descChanged">
+              <span class="diff-label">Descripción actual</span>
+              <pre class="diff-before">{{ s.current.description || '(vacía)' }}</pre>
+            </div>
+            <p class="err" *ngIf="descError" role="alert">{{ descError }}</p>
+            <p class="opt-notice" *ngIf="descDone" role="status">{{ descDone }}</p>
+            <div class="idea-actions">
+              <button type="button" class="ds-btn" (click)="copy(descDraft)">{{ copied === descDraft ? 'Copiado' : 'Copiar texto' }}</button>
+              <button type="button" class="ds-btn primary" (click)="reviewDescription()" [disabled]="descProblems.length > 0 || !descChanged">Revisar cambio</button>
+            </div>
+          </ng-container>
+
+          <ng-container *ngIf="descStep === 'review'">
+            <p class="op-note">Se enviará a Mercado Libre solo este cambio de descripción.</p>
+            <div class="diff">
+              <span class="diff-label">Antes</span><pre class="diff-before">{{ s.current.description || '(vacía)' }}</pre>
+              <span class="diff-label">Después</span><pre class="diff-after">{{ descDraft }}</pre>
+            </div>
+            <div class="idea-actions">
+              <button type="button" class="ds-btn" (click)="backToEdit()" [disabled]="descSaving">Volver</button>
+              <button type="button" class="ds-btn primary" (click)="confirmDescription()" [disabled]="descSaving">{{ descSaving ? 'Guardando…' : 'Confirmar y guardar en Mercado Libre' }}</button>
+            </div>
+          </ng-container>
+        </section>
+
+        <!-- Qué verificar -->
+        <section aria-labelledby="sec-checks" *ngIf="s.checks.length">
+          <h3 id="sec-checks">Qué verificar antes de usar esto</h3>
+          <ul class="checks"><li *ngFor="let c of s.checks">{{ c }}</li></ul>
+        </section>
+      </ng-container>
+    </div>
+
+    <footer class="drawer-foot">
+      <span class="muted foot-note" *ngIf="panel === 'ready'">Regenerar usa Claude y cuenta como uso.</span>
+      <button type="button" class="ds-btn" (click)="regenerate()" *ngIf="panel === 'ready'" [disabled]="aiDisabled || limitReached || descSaving">Regenerar</button>
+      <button type="button" class="ds-btn" (click)="closePanel()" [disabled]="descSaving">Cerrar</button>
+    </footer>
+  </aside>
+</ng-container>
