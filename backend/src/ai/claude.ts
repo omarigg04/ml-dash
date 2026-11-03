@@ -1,9 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import type * as z from 'zod/v4';
+import { AiError, AiProvider, ProviderRequest, ProviderResult } from './errors';
 
 export const AI_MODEL = 'claude-opus-5-5';
 export const AI_MAX_TOKENS = 16000;
+/** Modelo barato para el botón "Proponer títulos para todas" (Cargas masivas). */
+export const BULK_TITLES_MODEL = 'claude-haiku-5-5';
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 const CLIENT_TIMEOUT_MS = 50_000;
 /** Vercel corta a los 60 s (vercel.json): se aborta antes para poder responder con un mensaje claro. */
@@ -14,17 +16,17 @@ export interface AiClient {
     beta: { messages: { parse(params: any, options?: any): Promise<any> } };
 }
 
-export class AiError extends Error {
-    constructor(public status: number, public code: string, message: string) { super(message); }
-}
 
 let injected: AiClient | null = null;
 let real: AiClient | null = null;
 export const __setAiClientForTests = (c: AiClient | null) => { injected = c; real = null; };
 
-export const aiKeyConfigured = (): boolean => !!injected || !!process.env['ANTHROPIC_API_KEY']?.trim();
+export const anthropicKeyConfigured = (): boolean => !!injected || !!process.env['ANTHROPIC_API_KEY']?.trim();
 
-/** Cliente creado de forma perezosa: sin clave no se construye nada. */
+/**
+ * Proveedor Anthropic: OPCIONAL y de pago. Solo se usa con AI_PROVIDER=anthropic y ANTHROPIC_API_KEY.
+ * Cliente creado de forma perezosa: sin clave no se construye nada.
+ */
 const getClient = (): AiClient => {
     if (injected) return injected;
     if (!process.env['ANTHROPIC_API_KEY']?.trim()) {
@@ -34,52 +36,40 @@ const getClient = (): AiClient => {
     return real;
 };
 
-export interface AiUsage { input_tokens: number; output_tokens: number; }
 
-/**
- * Llama a Claude con salida estructurada validada con zod. Thinking por defecto, esfuerzo medio y
- * reintento server-side ante rechazo (fallbacks: "default"). Revisa stop_reason antes de leer la salida.
- * No registra prompts, respuestas ni claves: solo los tokens de uso.
- */
-export async function callStructured<S extends z.ZodType>(
-    label: string, schema: S, system: string, user: string
-): Promise<{ data: z.infer<S>; usage: AiUsage }> {
-    const client = getClient();
-    let msg: any;
-    try {
-        msg = await client.beta.messages.parse({
-            model: AI_MODEL,
-            max_tokens: AI_MAX_TOKENS,
+export const anthropicProvider: AiProvider = {
+    name: 'anthropic',
+    configured: anthropicKeyConfigured,
+    async generate(req: ProviderRequest): Promise<ProviderResult> {
+        const { system, user, schema, opts, signal } = req;
+        const client = getClient();
+        const custom = !!opts.model && opts.model !== AI_MODEL;
+        const model = opts.model ?? AI_MODEL;
+        const params: any = {
+            model,
+            max_tokens: opts.maxTokens ?? AI_MAX_TOKENS,
             system,
             messages: [{ role: 'user', content: user }],
-            fallbacks: 'default',
-            betas: [FALLBACK_BETA],
-            output_config: { effort: 'medium', format: zodOutputFormat(schema) },
-        }, { signal: AbortSignal.timeout(OVERALL_DEADLINE_MS) });
-    } catch (e) {
-        throw mapAiError(e);
-    }
-    const usage: AiUsage = { input_tokens: Number(msg?.usage?.input_tokens) || 0, output_tokens: Number(msg?.usage?.output_tokens) || 0 };
-    console.log(`ai:${label} tokens input=${usage.input_tokens} output=${usage.output_tokens}`);
-
-    if (msg?.stop_reason === 'refusal') {
-        throw new AiError(422, 'AI_REFUSAL', 'Claude no quiso responder a esta solicitud. Prueba con otra publicación o revisa el texto de la publicación.');
-    }
-    if (msg?.stop_reason === 'max_tokens') {
-        throw new AiError(502, 'AI_TRUNCATED', 'La respuesta de Claude se cortó por longitud. Intenta de nuevo.');
-    }
-    // Se valida siempre con zod, venga o no parsed_output
-    let candidate: unknown = msg?.parsed_output ?? null;
-    if (candidate === null) {
-        const text = (Array.isArray(msg?.content) ? msg.content : []).filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('');
-        try { candidate = JSON.parse(text); } catch { candidate = null; }
-    }
-    const checked = schema.safeParse(candidate);
-    if (!checked.success) {
-        throw new AiError(502, 'AI_INVALID_OUTPUT', 'Claude devolvió una respuesta con formato inválido. Intenta de nuevo.');
-    }
-    return { data: checked.data, usage };
-}
+            output_config: { effort: opts.effort ?? 'medium', format: zodOutputFormat(schema) },
+        };
+        if (!custom) { params.fallbacks = 'default'; params.betas = [FALLBACK_BETA]; }
+        let msg: any;
+        try {
+            msg = await client.beta.messages.parse(params, { signal });
+        } catch (e) {
+            throw mapAiError(e);
+        }
+        const usage = { input_tokens: Number(msg?.usage?.input_tokens) || 0, output_tokens: Number(msg?.usage?.output_tokens) || 0 };
+        if (msg?.stop_reason === 'refusal') return { candidate: null, stop: 'refusal', usage, model };
+        if (msg?.stop_reason === 'max_tokens') return { candidate: null, stop: 'truncated', usage, model };
+        let candidate: unknown = msg?.parsed_output ?? null;
+        if (candidate === null) {
+            const text = (Array.isArray(msg?.content) ? msg.content : []).filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('');
+            try { candidate = JSON.parse(text); } catch { candidate = null; }
+        }
+        return { candidate, stop: 'ok', usage, model };
+    },
+};
 
 /** Errores del SDK (de lo más específico a lo más general) a respuestas amables. */
 export function mapAiError(e: unknown): AiError {

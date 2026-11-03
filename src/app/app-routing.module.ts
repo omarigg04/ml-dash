@@ -7,6 +7,7 @@ import { DashboardComponent } from './dashboard/dashboard.component';
 import { HomeComponent } from './home/home.component';
 import { AnalyticsComponent } from './analytics/analytics.component';
 import { OpportunitiesComponent } from './opportunities/opportunities.component';
+import { BulkUploadsComponent } from './bulk-uploads/bulk-uploads.component';
 import { PublishProductComponent } from './publish-product/publish-product.component';
 import { PublicationsListComponent } from './publications-list/publications-list.component';
 import { ImageGalleryComponent } from './image-gallery/image-gallery.component';
@@ -31,6 +32,7 @@ const routes: Routes = [
       { path: 'orders', component: DashboardComponent },
       { path: 'publish', component: PublishProductComponent },
       { path: 'publications', component: PublicationsListComponent },
+      { path: 'publications/cargas-masivas', component: BulkUploadsComponent },
       { path: 'gallery', component: ImageGalleryComponent },
       { path: 'settings', component: SettingsComponent },
       { path: '', redirectTo: 'inicio', pathMatch: 'full' }

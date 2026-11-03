@@ -4,6 +4,14 @@ import * as z from 'zod/v4';
 export const MAX_TITLE_CHARS = 60;
 export const MAX_TITLES = 3;
 export const MAX_IDEAS = 5;
+/** Cargas masivas: copias por tanda (la misma constante limita el front). */
+export const MIN_BULK_COPIES = 1;
+export const MAX_BULK_COPIES = 20;
+
+export const BulkTitlesSchema = z.object({
+    titles: z.array(z.object({ title: z.string(), feature: z.string() })),
+});
+export type BulkTitlesOut = z.infer<typeof BulkTitlesSchema>;
 
 // ---------------- Esquemas de salida estructurada ----------------
 export const SuggestSchema = z.object({
@@ -108,4 +116,17 @@ export function isCosmeticCopy(idea: string, existing: string): boolean {
     if (!I.size || !E.size) return false;
     const added = [...I].filter(w => !E.has(w) && !FILLER.has(w));
     return added.length === 0 || titleSimilarity(idea, existing) >= NEAR_DUPLICATE_SIMILARITY;
+}
+
+// ---------------- Cargas masivas: hechos que no constan en la publicación ----------------
+const norm = (t: string): string => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/**
+ * Números del título (medidas, cantidades, modelos) que no aparecen en los datos de la publicación.
+ * Es una red de seguridad barata contra datos inventados: no demuestra que el resto sea cierto.
+ */
+export function numbersNotInSource(title: string, corpus: string): string[] {
+    const hay = norm(corpus);
+    const nums = norm(title).match(/\d+(?:[.,]\d+)?/g) ?? [];
+    return nums.filter(n => !new RegExp(`(^|[^0-9])${n.replace(/[.,]/g, '[.,]')}($|[^0-9])`).test(hay));
 }

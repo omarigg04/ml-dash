@@ -8,6 +8,9 @@ import { CategoryPredictorService, CategoryPrediction, CategoryAttribute } from 
 import { CachingService } from '../services/caching.service';
 import { satRetention } from '../shared/order-math';
 import { DuplicateQueueService } from '../shared/duplicate-queue.service';
+import {
+  EMPTY_GTIN_DEFAULT_REASON, FALLBACK_MAX_PICTURES, ListingTemplateService, PackageForm, VariationDraft, WARRANTY_TYPES
+} from '../shared/listing-template.service';
 
 /** Causa de error devuelta por el backend (preserva el código de ML). */
 export interface ErrorCause { code: string; message: string; type?: string; }
@@ -18,17 +21,6 @@ export interface ListingFee {
   sale_fee_amount: number;
   percentage_fee: number | null;
   fixed_fee: number;
-}
-
-interface VariationDraft {
-  key: number;
-  include: boolean;
-  label: string;
-  price: number;
-  quantity: number;
-  pictureIds: string[];
-  attributes: Array<{ id: string; value_id?: string; value_name: string }>;
-  unresolved: boolean;      // algún atributo de la combinación no trae ID usable
 }
 
 type JobStatus = 'pending' | 'creating' | 'created' | 'failed' | 'unknown';
@@ -46,19 +38,7 @@ interface PublishJob {
   descriptionError?: string;
 }
 
-interface PackageForm {
-  height: number | null;
-  width: number | null;
-  length: number | null;
-  weight: number | null;
-  weightUnit: 'g' | 'kg';
-}
-
 const DRAFT_PREFIX = 'publish-draft:';
-const FALLBACK_MAX_PICTURES = 12;
-const WARRANTY_TYPES = ['Garantía del vendedor', 'Garantía de fábrica', 'Sin garantía'];
-const PACKAGE_IDS = ['SELLER_PACKAGE_HEIGHT', 'SELLER_PACKAGE_WIDTH', 'SELLER_PACKAGE_LENGTH', 'SELLER_PACKAGE_WEIGHT'];
-const EMPTY_GTIN_DEFAULT_REASON = '17055160'; // "El producto no tiene código registrado" (MLM)
 
 @Component({
   selector: 'app-publish-product',
@@ -156,7 +136,8 @@ export class PublishProductComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private categoryPredictor: CategoryPredictorService,
     private cachingService: CachingService,
-    private dupQueue: DuplicateQueueService
+    private dupQueue: DuplicateQueueService,
+    private tpl: ListingTemplateService
   ) { }
 
   /** Cola de duplicado en bloque (Publicaciones > Duplicar con varias seleccionadas) */
@@ -222,65 +203,36 @@ export class PublishProductComponent implements OnInit, OnDestroy {
     this.sourceError = '';
     this.suppressDraft = true;
     try {
-      const item: any = await firstValueFrom(this.http.get<any>(`${environment.apiUrl}/items/${encodeURIComponent(id)}`));
-      this.sourceStatus = item.status || '';
+      const { item, description } = await this.tpl.fetchSource(id);
+      const m = this.tpl.mapSourceItem(item, description);
+      this.sourceStatus = m.sourceStatus;
 
-      let description = '';
-      try {
-        const d: any = await firstValueFrom(this.http.get<any>(`${environment.apiUrl}/items/${encodeURIComponent(id)}/description`));
-        description = d?.plain_text || '';
-      } catch { description = ''; }
-
-      this.originalFamilyName = (item.family_name || item.title || '').toString();
+      this.originalFamilyName = m.originalFamilyName;
       this.familyName = this.suggestedName || this.originalFamilyName.slice(0, 60);
-      this.categoryId = item.category_id;
-      this.price = item.price;
-      this.quantity = item.available_quantity > 0 ? item.available_quantity : 1;
-      this.condition = item.condition === 'used' ? 'used' : 'new';
-      this.description = description;
-
-      if (item.listing_type_id === 'gold_pro') {
-        this.listingTypeId = 'gold_pro';
-      } else {
-        this.listingTypeId = 'gold_special';
-        if (item.listing_type_id !== 'gold_special') {
-          this.listingTypeNote = `El original usa "${item.listing_type_id}", que ya no se ofrece: se eligió Clásica.`;
-        }
-      }
-
-      this.freeShipping = !!item.shipping?.free_shipping;
-      this.localPickUp = !!item.shipping?.local_pick_up;
-      if (item.shipping?.logistic_type === 'fulfillment') {
-        this.fulfillmentNote = 'El original se envía con Full. La copia se publica con envío del vendedor (Full no se copia) y el stock lo defines tú.';
-      }
-
-      // Garantía y otros términos de venta (por id, no por posición)
-      const terms: any[] = Array.isArray(item.sale_terms) ? item.sale_terms : [];
-      const wType = terms.find(t => t.id === 'WARRANTY_TYPE');
-      const wTime = terms.find(t => t.id === 'WARRANTY_TIME');
-      this.warrantyType = wType?.value_name && WARRANTY_TYPES.includes(wType.value_name) ? wType.value_name : (wType ? 'Sin garantía' : 'Sin garantía');
-      this.warrantyTime = wTime?.value_name || '';
-      this.otherSaleTerms = terms
-        .filter(t => t.id !== 'WARRANTY_TYPE' && t.id !== 'WARRANTY_TIME')
-        .map(t => t.value_id ? { id: t.id, value_id: t.value_id } : { id: t.id, value_name: t.value_name });
+      this.categoryId = m.categoryId;
+      this.price = m.price;
+      this.quantity = m.quantity;
+      this.condition = m.condition;
+      this.description = m.description;
+      this.listingTypeId = m.listingTypeId;
+      if (m.listingTypeNote) { this.listingTypeNote = m.listingTypeNote; }
+      this.freeShipping = m.freeShipping;
+      this.localPickUp = m.localPickUp;
+      if (m.fulfillmentNote) { this.fulfillmentNote = m.fulfillmentNote; }
+      this.warrantyType = m.warrantyType;
+      this.warrantyTime = m.warrantyTime;
+      this.otherSaleTerms = m.otherSaleTerms;
 
       // Fotos: se copian por id (ya alojadas en ML), hasta el máximo de la categoría
-      const pics: any[] = Array.isArray(item.pictures) ? item.pictures : [];
-      pics.forEach(p => { this.pictureThumbs[p.id] = p.secure_url || p.url; });
+      const pics = m.pictures;
+      Object.assign(this.pictureThumbs, m.pictureThumbs);
       this.originalItemImages = pics;
 
       // Atributos del original
       this.hydrateFromItemAttributes(item.attributes || []);
 
       // Variaciones legacy -> publicaciones separadas
-      this.variations = (item.variations || []).map((v: any, i: number) => this.mapVariation(v, i));
-      (item.variations || []).forEach((v: any) => (v.picture_ids || []).forEach((pid: string) => {
-        const pic = pics.find(p => p.id === pid);
-        if (pic) { this.pictureThumbs[pid] = pic.secure_url || pic.url; }
-      }));
-      if (this.variations.length > 0) {
-        this.quantity = this.variations.reduce((s, v) => s + (v.include ? v.quantity : 0), 0) || 1;
-      }
+      this.variations = m.variations;
 
       await this.loadCategoryContext(this.categoryId);
       this.applyPictureLimit(pics.map(p => p.id));
@@ -296,98 +248,26 @@ export class PublishProductComponent implements OnInit, OnDestroy {
     }
   }
 
-  private mapVariation(v: any, i: number): VariationDraft {
-    let unresolved = false;
-    const attrs = (v.attribute_combinations || []).map((a: any) => {
-      let id: string | null = a.id || null;
-      if (!id && typeof a.name === 'string' && /^[A-Z][A-Z0-9_]+$/.test(a.name)) { id = a.name; }
-      if (!id) { unresolved = true; return null; }
-      return a.value_id ? { id, value_id: String(a.value_id), value_name: a.value_name } : { id, value_name: a.value_name };
-    }).filter(Boolean);
-    const label = (v.attribute_combinations || []).map((a: any) => `${a.name}: ${a.value_name}`).join(' · ') || `Variación ${i + 1}`;
-    return {
-      key: v.id ?? i, include: !unresolved, label, price: v.price, quantity: v.available_quantity || 0,
-      pictureIds: v.picture_ids || [], attributes: attrs, unresolved
-    };
-  }
-
   /** Copia todos los atributos del original que el formulario sabe mostrar o que deben conservarse. */
   private hydrateFromItemAttributes(attrs: any[]): void {
     this.extraAttributes = [];
     this.attributeValues = {};
     this.gtin = '';
-    this.skuCleared = false;
-    const pkg = this.package;
-    attrs.forEach((a: any) => {
-      let id: string | null = a.id || null;
-      if (!id && typeof a.name === 'string' && /^[A-Z][A-Z0-9_]+$/.test(a.name)) { id = a.name; }
-      if (!id) { return; }
-      const struct = a.value_struct || a.values?.[0]?.struct || null;
-      if (PACKAGE_IDS.includes(id)) {
-        const n = struct?.number ?? parseFloat(String(a.value_name));
-        if (id === 'SELLER_PACKAGE_HEIGHT') { pkg.height = n; }
-        if (id === 'SELLER_PACKAGE_WIDTH') { pkg.width = n; }
-        if (id === 'SELLER_PACKAGE_LENGTH') { pkg.length = n; }
-        if (id === 'SELLER_PACKAGE_WEIGHT') {
-          const unit = (struct?.unit || (String(a.value_name).includes('kg') ? 'kg' : 'g')) as string;
-          pkg.weightUnit = unit === 'kg' ? 'kg' : 'g';
-          pkg.weight = n;
-          if (unit !== 'kg' && unit !== 'g') { pkg.weightUnit = 'g'; }
-        }
-        return;
-      }
-      if (id === 'SELLER_SKU') { this.skuCleared = true; return; }     // debe ser único: no se copia
-      if (id === 'GTIN') { if (a.value_id !== '-1' && a.value_name) { this.gtin = String(a.value_name); } return; }
-      if (id === 'EMPTY_GTIN_REASON') { if (a.value_id) { this.emptyGtinReason = String(a.value_id); } return; }
-      if (a.value_id === '-1' || (!a.value_id && !a.value_name)) { return; }
-      this.attributeValues['__raw_' + id] = { id, value_id: a.value_id || undefined, value_name: a.value_name, struct };
-    });
+    const h = this.tpl.hydrateAttributes(attrs, this.package);
+    this.skuCleared = h.skuCleared;
+    this.gtin = h.gtin;
+    if (h.emptyGtinReason) { this.emptyGtinReason = h.emptyGtinReason; }
+    Object.assign(this.attributeValues, h.raw);
   }
 
   /** Una vez cargados los atributos de la categoría, mapea los valores crudos del original a los controles. */
   private applyRawAttributeValues(): void {
     const rawKeys = Object.keys(this.attributeValues).filter(k => k.startsWith('__raw_'));
-    const displayed = new Map(this.categoryAttributes.map(a => [a.id, a] as const));
-    const all = new Map(this.allCategoryAttributes.map(a => [a.id, a] as const));
-    rawKeys.forEach(k => {
-      const raw = this.attributeValues[k];
-      delete this.attributeValues[k];
-      const def = displayed.get(raw.id);
-      if (!def) {
-        const full = all.get(raw.id);
-        // Atributos ocultos pero no de solo lectura se conservan tal cual
-        if (full && !full.tags.read_only) {
-          this.extraAttributes.push(raw.value_id ? { id: raw.id, value_id: raw.value_id } : { id: raw.id, value_name: raw.value_name });
-        }
-        return;
-      }
-      switch (def.value_type) {
-        case 'list': {
-          let opt = raw.value_id ? def.values?.find(v => v.id === raw.value_id) : undefined;
-          if (!opt) { opt = def.values?.find(v => v.name?.toLowerCase() === String(raw.value_name).toLowerCase()); }
-          if (opt) { this.attributeValues[def.id] = opt.id; }
-          else if (raw.value_name) { this.extraAttributes.push({ id: raw.id, value_name: raw.value_name }); }
-          break;
-        }
-        case 'number_unit': {
-          const n = raw.struct?.number ?? parseFloat(String(raw.value_name));
-          const unit = raw.struct?.unit || String(raw.value_name).split(' ')[1] || def.default_unit || def.allowed_units?.[0]?.id;
-          this.attributeValues[def.id + '_number'] = n;
-          this.attributeValues[def.id + '_unit'] = unit;
-          break;
-        }
-        case 'number':
-          this.attributeValues[def.id] = raw.struct?.number ?? parseFloat(String(raw.value_name));
-          break;
-        case 'boolean': {
-          const opt = def.values?.find(v => v.id === raw.value_id);
-          this.attributeValues[def.id] = opt ? opt.name === 'Sí' : String(raw.value_name).toLowerCase().startsWith('s');
-          break;
-        }
-        default:
-          this.attributeValues[def.id] = raw.value_name;
-      }
-    });
+    const raws = rawKeys.map(k => this.attributeValues[k]);
+    rawKeys.forEach(k => delete this.attributeValues[k]);
+    const r = this.tpl.resolveRawAttributes(raws, this.categoryAttributes, this.allCategoryAttributes);
+    Object.assign(this.attributeValues, r.values);
+    this.extraAttributes.push(...r.extra);
   }
 
   // =====================================================
@@ -397,32 +277,16 @@ export class PublishProductComponent implements OnInit, OnDestroy {
   private async loadCategoryContext(categoryId: string): Promise<void> {
     this.isLoadingAttributes = true;
     try {
-      const [cat, attrs] = await Promise.all([
-        firstValueFrom(this.categoryPredictor.getCategoryDetails(categoryId)).catch(() => null),
-        firstValueFrom(this.categoryPredictor.getCategoryAttributes(categoryId))
-      ]);
-      if (cat) {
-        this.categoryName = cat.name || this.categoryName;
-        this.categoryPath = (cat.path_from_root || []).map((p: any) => p.name).join(' › ');
-        this.maxPictures = cat.settings?.max_pictures_per_item || FALLBACK_MAX_PICTURES;
+      const ctx = await this.tpl.loadCategoryContext(categoryId);
+      if (ctx.cat) {
+        this.categoryName = ctx.cat.name || this.categoryName;
+        this.categoryPath = ctx.cat.path;
+        this.maxPictures = ctx.cat.maxPictures;
       }
-      this.allCategoryAttributes = attrs;
-      this.hasGtinAttr = attrs.some(a => a.id === 'GTIN');
-      const reason = attrs.find(a => a.id === 'EMPTY_GTIN_REASON');
-      this.gtinReasons = (reason?.values || []).map(v => ({ id: v.id, name: v.name }));
-      this.categoryAttributes = attrs
-        .filter(a => {
-          if (a.id === 'GTIN' || a.id === 'EMPTY_GTIN_REASON' || a.id.startsWith('SELLER_PACKAGE_') || a.id === 'ITEM_CONDITION') { return false; }
-          const required = a.tags.required || a.tags.catalog_required;
-          return required || (!a.tags.hidden && !a.tags.read_only);
-        })
-        .sort((a, b) => {
-          const ar = a.tags.required || a.tags.catalog_required;
-          const br = b.tags.required || b.tags.catalog_required;
-          if (ar && !br) { return -1; }
-          if (!ar && br) { return 1; }
-          return b.relevance - a.relevance;
-        });
+      this.allCategoryAttributes = ctx.allAttributes;
+      this.hasGtinAttr = ctx.hasGtinAttr;
+      this.gtinReasons = ctx.gtinReasons;
+      this.categoryAttributes = ctx.displayedAttributes;
       this.applyRawAttributeValues();
     } catch (err) {
       this.formErrorTitle = 'No se pudieron cargar los atributos de la categoría';
@@ -534,11 +398,7 @@ export class PublishProductComponent implements OnInit, OnDestroy {
   // =====================================================
 
   /** Convierte el peso a gramos enteros según la unidad elegida. */
-  get weightInGrams(): number | null {
-    const w = Number(this.package.weight);
-    if (!w || w <= 0) { return null; }
-    return Math.max(1, Math.round(this.package.weightUnit === 'kg' ? w * 1000 : w));
-  }
+  get weightInGrams(): number | null { return this.tpl.weightInGrams(this.package); }
 
   private localValidate(): boolean {
     const errs: { [k: string]: string } = {};
@@ -575,62 +435,15 @@ export class PublishProductComponent implements OnInit, OnDestroy {
   get hasLocalErrors(): boolean { return Object.keys(this.attributeErrors).length > 0; }
 
   private buildAttributes(): any[] {
-    const out: any[] = [];
-    const pkg = this.package;
-    const int = (n: any) => Math.max(1, Math.round(Number(n)));
-    out.push({ id: 'SELLER_PACKAGE_HEIGHT', value_name: `${int(pkg.height)} cm` });
-    out.push({ id: 'SELLER_PACKAGE_WIDTH', value_name: `${int(pkg.width)} cm` });
-    out.push({ id: 'SELLER_PACKAGE_LENGTH', value_name: `${int(pkg.length)} cm` });
-    out.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${this.weightInGrams} g` });
-
-    this.categoryAttributes.forEach(a => {
-      const v = this.attributeValues[a.id];
-      switch (a.value_type) {
-        case 'string':
-        case 'number':
-          if (v !== undefined && v !== null && v !== '') { out.push({ id: a.id, value_name: String(v) }); }
-          break;
-        case 'list': {
-          if (!v) { break; }
-          const opt = a.values?.find(x => x.id === v);
-          if (opt) { out.push({ id: a.id, value_id: opt.id, value_name: opt.name }); }
-          break;
-        }
-        case 'number_unit': {
-          const n = this.attributeValues[a.id + '_number'];
-          const u = this.attributeValues[a.id + '_unit'];
-          if (n !== undefined && n !== null && n !== '' && u) { out.push({ id: a.id, value_name: `${n} ${u}` }); }
-          break;
-        }
-        case 'boolean': {
-          if (v === undefined || v === null) { break; }
-          const want = v ? 'Sí' : 'No';
-          const opt = a.values?.find(x => x.name === want);
-          out.push(opt ? { id: a.id, value_id: opt.id, value_name: opt.name } : { id: a.id, value_name: want });
-          break;
-        }
-      }
+    return this.tpl.buildAttributes({
+      pkg: this.package, weightInGrams: this.weightInGrams, categoryAttributes: this.categoryAttributes,
+      attributeValues: this.attributeValues, gtin: this.gtin, gtinReasons: this.gtinReasons,
+      emptyGtinReason: this.emptyGtinReason, extraAttributes: this.extraAttributes
     });
-
-    // GTIN o, si no hay, el motivo de GTIN vacío
-    if (this.gtin.trim()) {
-      out.push({ id: 'GTIN', value_name: this.gtin.trim() });
-    } else if (this.gtinReasons.length > 0) {
-      out.push({ id: 'EMPTY_GTIN_REASON', value_id: this.emptyGtinReason || EMPTY_GTIN_DEFAULT_REASON });
-    }
-
-    this.extraAttributes.forEach(e => {
-      if (!out.some(o => o.id === e.id)) { out.push(e); }
-    });
-    return out;
   }
 
   private buildSaleTerms(): any[] {
-    const terms: any[] = [{ id: 'WARRANTY_TYPE', value_name: this.warrantyType }];
-    if (this.warrantyType !== 'Sin garantía' && this.warrantyTime.trim()) {
-      terms.push({ id: 'WARRANTY_TIME', value_name: this.warrantyTime.trim() });
-    }
-    return terms.concat(this.otherSaleTerms);
+    return this.tpl.buildSaleTerms(this.warrantyType, this.warrantyTime, this.otherSaleTerms);
   }
 
   private buildPictures(): Array<{ id?: string; source?: string }> {
@@ -668,7 +481,7 @@ export class PublishProductComponent implements OnInit, OnDestroy {
     }
     return included.map(v => {
       const varAttrs = v.attributes;
-      const merged = attributes.filter(a => !varAttrs.some(x => x.id === a.id)).concat(varAttrs);
+      const merged = this.tpl.mergeVariationAttributes(attributes, varAttrs);
       const varPics = v.pictureIds.length > 0 ? v.pictureIds.slice(0, this.maxPictures).map(id => ({ id })) : pictures;
       return {
         label: v.label,

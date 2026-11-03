@@ -12,12 +12,12 @@
 <!-- Avisos permanentes -->
 <div class="op-banner is-info" role="note">
   <mat-icon aria-hidden="true">auto_awesome</mat-icon>
-  <span>Las sugerencias las genera una IA (Claude) con los datos de tu tienda y <b>deben revisarse</b> antes de usarlas. La app nunca publica ni cambia nada por sí sola: tú decides y confirmas cada cambio.
-    Generar o regenerar usa Claude y <b>cuesta dinero</b> (del orden de 0.10 a 0.15 USD cada vez); lo ya generado se guarda 7 días y se vuelve a mostrar gratis.</span>
+  <span>Las sugerencias las genera una IA con los datos de tu tienda y <b>deben revisarse</b> antes de usarlas. La app nunca publica ni cambia nada por sí sola: tú decides y confirmas cada cambio.
+    Lo ya generado se guarda 7 días y se vuelve a mostrar. Usa el plan gratuito de Google Gemini. Google puede usar estos textos para mejorar sus productos y personas pueden revisarlos. Solo se envían datos de la publicación, nunca de compradores.</span>
 </div>
 <div class="op-banner is-warn" *ngIf="!aiConfigured" role="alert">
   <mat-icon aria-hidden="true">key_off</mat-icon>
-  <span><b>Falta configurar la clave de Claude</b> (variable <code>ANTHROPIC_API_KEY</code> en el servidor). Puedes ver los números de tus publicaciones, pero los botones de IA están desactivados.</span>
+  <span><b>Falta configurar la clave de la IA</b> (variable <code>GEMINI_API_KEY</code> en el servidor). Puedes ver los números de tus publicaciones, pero los botones de IA están desactivados.</span>
 </div>
 <div class="op-banner is-warn" *ngIf="aiConfigured && limitReached" role="alert">
   <mat-icon aria-hidden="true">block</mat-icon>
@@ -99,16 +99,16 @@
   </div>
 
   <p class="op-note" *ngIf="ideasState === 'idle'">Aún no has generado ideas. Genera cuando quieras; no se hace de forma automática.</p>
-  <div class="op-loading" *ngIf="ideasState === 'loading'" role="status"><span class="spinner" aria-hidden="true"></span> Claude está analizando tus ventas… puede tardar hasta un minuto.</div>
+  <div class="op-loading" *ngIf="ideasState === 'loading'" role="status"><span class="spinner" aria-hidden="true"></span> La IA está analizando tus ventas… puede tardar hasta un minuto.</div>
   <div class="ds-state is-error" *ngIf="ideasState === 'error' && ideasError" role="alert">
     <mat-icon aria-hidden="true">error_outline</mat-icon>
-    <strong>{{ ideasError.code === 'AI_NOT_CONFIGURED' ? 'Falta configurar la clave de Claude' : ideasError.code === 'AI_DAILY_LIMIT' ? 'Límite diario alcanzado' : 'No se pudieron generar ideas' }}</strong>
+    <strong>{{ ideasError.code === 'AI_NOT_CONFIGURED' ? 'Falta configurar la clave de la IA' : ideasError.code === 'AI_QUOTA_FREE' ? 'Se agotó la cuota gratuita de hoy' : ideasError.code === 'AI_DAILY_LIMIT' ? 'Límite diario alcanzado' : 'No se pudieron generar ideas' }}</strong>
     <span>{{ ideasError.message }}</span>
     <button type="button" class="ds-btn" *ngIf="ideasError.code !== 'AI_NOT_CONFIGURED' && ideasError.code !== 'AI_DAILY_LIMIT'" (click)="generateIdeas()">Reintentar</button>
   </div>
 
   <ng-container *ngIf="ideasState === 'ready' && ideas as r">
-    <p class="op-note" *ngIf="r.cached">Resultado guardado (generado {{ r.generatedAt | date:'medium' }}); verlo no cuesta nada.</p>
+    <p class="op-note" *ngIf="r.cached">Resultado guardado (generado {{ r.generatedAt | date:'medium' }}).</p>
     <ul class="op-note-list" *ngIf="r.warnings.length"><li *ngFor="let w of r.warnings">{{ w }}</li></ul>
     <div class="ds-state" *ngIf="r.ideas.length === 0"><strong>Sin ideas que cumplan las reglas</strong><span>Prueba Regenerar.</span></div>
     <ul class="idea-list" *ngIf="r.ideas.length">
@@ -190,17 +190,17 @@
     <div class="drawer-body">
       <p class="op-note">Generado por IA: revisa todo antes de usarlo. Nada se aplica solo.</p>
 
-      <div class="op-loading" *ngIf="panel === 'loading'" role="status"><span class="spinner" aria-hidden="true"></span> Claude está preparando sugerencias… puede tardar hasta un minuto.</div>
+      <div class="op-loading" *ngIf="panel === 'loading'" role="status"><span class="spinner" aria-hidden="true"></span> La IA está preparando sugerencias… puede tardar hasta un minuto.</div>
 
       <div class="ds-state is-error" *ngIf="panel === 'error' && panelError" role="alert">
         <mat-icon aria-hidden="true">error_outline</mat-icon>
-        <strong>{{ panelError.code === 'AI_NOT_CONFIGURED' ? 'Falta configurar la clave de Claude' : panelError.code === 'AI_DAILY_LIMIT' ? 'Límite diario alcanzado' : panelError.code === 'NOT_YOUR_ITEM' ? 'Publicación de otra cuenta' : 'No se pudieron generar sugerencias' }}</strong>
+        <strong>{{ panelError.code === 'AI_NOT_CONFIGURED' ? 'Falta configurar la clave de la IA' : panelError.code === 'AI_QUOTA_FREE' ? 'Se agotó la cuota gratuita de hoy' : panelError.code === 'AI_DAILY_LIMIT' ? 'Límite diario alcanzado' : panelError.code === 'NOT_YOUR_ITEM' ? 'Publicación de otra cuenta' : 'No se pudieron generar sugerencias' }}</strong>
         <span>{{ panelError.message }}</span>
         <button type="button" class="ds-btn primary" *ngIf="!['AI_NOT_CONFIGURED','AI_DAILY_LIMIT','NOT_YOUR_ITEM','AI_REFUSAL'].includes(panelError.code)" (click)="openSuggest(sel)">Reintentar</button>
       </div>
 
       <ng-container *ngIf="panel === 'ready' && suggestion as s">
-        <p class="op-note" *ngIf="s.cached">Resultado guardado (generado {{ s.generatedAt | date:'medium' }}); verlo no cuesta nada.</p>
+        <p class="op-note" *ngIf="s.cached">Resultado guardado (generado {{ s.generatedAt | date:'medium' }}).</p>
         <p class="op-metrics">{{ num(s.metrics.visits) }} visitas · {{ num(s.metrics.orders) }} órdenes · {{ pct(s.metrics.conversionPct) }} de conversión en {{ s.metrics.windowDays }} días</p>
         <ul class="op-note-list is-warn" *ngIf="s.warnings.length"><li *ngFor="let w of s.warnings">{{ w }}</li></ul>
 
@@ -268,7 +268,7 @@
     </div>
 
     <footer class="drawer-foot">
-      <span class="muted foot-note" *ngIf="panel === 'ready'">Regenerar usa Claude y cuenta como uso.</span>
+      <span class="muted foot-note" *ngIf="panel === 'ready'">Regenerar cuenta como uso del límite diario.</span>
       <button type="button" class="ds-btn" (click)="regenerate()" *ngIf="panel === 'ready'" [disabled]="aiDisabled || limitReached || descSaving">Regenerar</button>
       <button type="button" class="ds-btn" (click)="closePanel()" [disabled]="descSaving">Cerrar</button>
     </footer>

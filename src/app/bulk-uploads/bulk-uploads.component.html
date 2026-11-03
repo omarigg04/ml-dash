@@ -1,0 +1,368 @@
+<!-- Encabezado -->
+<div class="ds-page-head">
+  <div>
+    <h1>Cargas masivas</h1>
+    <p>Copia una publicación varias veces: cada fila lleva su propio título y fotos, y se publica de una en una.</p>
+  </div>
+  <div class="bk-head-tools">
+    <a class="ds-btn" routerLink="/publications"><mat-icon aria-hidden="true">arrow_back</mat-icon>Publicaciones</a>
+    <button type="button" class="ds-btn" *ngIf="rows.length" (click)="requestDiscard()" [disabled]="publishing">Descartar borrador</button>
+  </div>
+</div>
+
+<div class="bk-banner is-warn" role="note">
+  <mat-icon aria-hidden="true">warning_amber</mat-icon>
+  <span>{{ duplicateWarning }}</span>
+</div>
+
+<div *ngIf="draftUnavailable" class="bk-banner is-warn" role="status">
+  <mat-icon aria-hidden="true">info</mat-icon>
+  <span>No se pudo identificar tu cuenta: el borrador de esta página no se guardará en este navegador.</span>
+</div>
+
+<div *ngIf="draftRestored" class="bk-banner is-info" role="status">
+  <mat-icon aria-hidden="true">history</mat-icon>
+  <span>Se restauró tu borrador de este navegador. Las filas ya publicadas siguen marcadas y no se vuelven a enviar.</span>
+  <button type="button" class="bk-x" (click)="draftRestored = false" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+</div>
+
+<div *ngIf="banner" class="bk-banner" [class.is-ok]="banner.kind === 'ok'" [class.is-warn]="banner.kind === 'warn'" [class.is-error]="banner.kind === 'error'" role="status">
+  <mat-icon aria-hidden="true">info</mat-icon>
+  <span>{{ banner.text }}</span>
+  <button type="button" class="bk-x" (click)="banner = null" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+</div>
+
+<!-- Paso 1: origen y número de copias -->
+<section class="bk-card" aria-labelledby="bk-step1">
+  <h2 class="bk-h2" id="bk-step1">1. Elige la publicación y cuántas copias</h2>
+  <div class="bk-setup">
+    <div class="bk-field bk-search">
+      <label for="bk-q">Publicación de origen (título o ID)</label>
+      <div class="ds-search">
+        <mat-icon aria-hidden="true">search</mat-icon>
+        <input id="bk-q" type="search" autocomplete="off" placeholder="Busca por título o escribe MLM…" [(ngModel)]="query" (ngModelChange)="onQueryChange()" [disabled]="loadingSource">
+      </div>
+      <div *ngIf="searching" class="bk-muted" role="status">Buscando…</div>
+      <div *ngIf="searchError" class="bk-error" role="alert">{{ searchError }}</div>
+      <ul class="bk-hits" *ngIf="hits.length" role="listbox" aria-label="Resultados">
+        <li *ngFor="let h of hits; trackBy: trackByIndex">
+          <button type="button" role="option" (click)="pickSource(h.id, h.title)">
+            <img *ngIf="h.thumbnail" [src]="h.thumbnail" alt="" width="36" height="36">
+            <span class="bk-hit-t">{{ h.title }}</span>
+            <span class="bk-mono bk-muted">{{ h.id }} · {{ h.price | currency:'MXN':'symbol-narrow':'1.0-2' }} · {{ h.status }}</span>
+          </button>
+        </li>
+      </ul>
+      <div *ngIf="sourceId" class="bk-picked">
+        <span><b>Origen:</b> {{ sourceTitle }} <span class="bk-mono bk-muted">{{ sourceId }}</span></span>
+        <button type="button" class="bk-x" (click)="clearSource()" aria-label="Quitar origen"><mat-icon>close</mat-icon></button>
+      </div>
+      <div *ngIf="sourceError" class="bk-error" role="alert">{{ sourceError }}</div>
+    </div>
+
+    <div class="bk-field bk-copies">
+      <label for="bk-n">Número de copias</label>
+      <input id="bk-n" class="bk-input" type="number" [min]="minCopies" [max]="maxCopies" step="1" [(ngModel)]="copies" name="copies">
+      <span class="bk-muted">De {{ minCopies }} a {{ maxCopies }}</span>
+    </div>
+
+    <div class="bk-field" *ngIf="pickedVariations.length > 1">
+      <label for="bk-var">Variación a copiar</label>
+      <select id="bk-var" class="bk-input" [(ngModel)]="variationKey" name="variation">
+        <option *ngFor="let v of pickedVariations" [ngValue]="v.key">{{ v.label }}</option>
+      </select>
+    </div>
+
+    <button type="button" class="ds-btn primary bk-create" (click)="requestCreate()" [disabled]="!sourceId || loadingSource || publishing">
+      {{ loadingSource ? 'Leyendo original…' : 'Crear filas' }}
+    </button>
+  </div>
+  <p class="bk-muted bk-note" *ngIf="pickedVariations.length > 1">
+    Este original tiene {{ pickedVariations.length }} variaciones. Cada fila copia la variación elegida (su precio, stock, fotos y atributos) y se publica como una publicación independiente.
+  </p>
+</section>
+
+<!-- Pasos 2 a 4: filas -->
+<ng-container *ngIf="rows.length">
+
+  <div *ngIf="templateError" class="bk-banner is-error" role="alert">
+    <mat-icon aria-hidden="true">error</mat-icon>
+    <span>No se pudo leer el original para validar o publicar: {{ templateError }} Las filas ya publicadas siguen marcadas.</span>
+    <button type="button" class="ds-btn" (click)="retryTemplate()" [disabled]="loadingSource">Reintentar</button>
+  </div>
+
+  <div *ngIf="tpl && templateIssues.length" class="bk-banner is-error" role="alert">
+    <mat-icon aria-hidden="true">error</mat-icon>
+    <div>
+      <strong>Faltan datos heredados del original</strong>
+      <ul><li *ngFor="let i of templateIssues; trackBy: trackByIndex">{{ i }}</li></ul>
+    </div>
+  </div>
+
+  <section class="bk-card" aria-labelledby="bk-step2">
+    <div class="bk-bar">
+      <h2 class="bk-h2" id="bk-step2">2. Filas
+        <span class="bk-count">{{ rows.length }}</span>
+        <span class="bk-muted bk-origin" *ngIf="rowsSourceTitle">de «{{ rowsSourceTitle }}»</span>
+      </h2>
+      <div class="bk-tools">
+        <button type="button" class="ds-btn" (click)="addRow()" [disabled]="!canAddRow || publishing">
+          <mat-icon aria-hidden="true">add</mat-icon>Agregar fila
+        </button>
+        <button type="button" class="ds-btn primary" (click)="requestTitles()" [disabled]="titlesBusy || publishing || !unpublishedRows.length">
+          <mat-icon aria-hidden="true">auto_awesome</mat-icon>{{ titlesBusy ? 'Proponiendo…' : 'Proponer títulos para todas' }}
+        </button>
+      </div>
+    </div>
+
+    <p class="bk-muted bk-note">Usa el plan gratuito de Google Gemini. Google puede usar estos textos para mejorar sus productos y personas pueden revisarlos. Solo se envían datos de la publicación, nunca de compradores.</p>
+
+    <div *ngIf="titlesMessage" class="bk-note-box" [class.is-ok]="titlesMessage.kind === 'ok'" [class.is-warn]="titlesMessage.kind === 'warn'" [class.is-error]="titlesMessage.kind === 'error'" [attr.role]="titlesMessage.kind === 'error' ? 'alert' : 'status'">
+      {{ titlesMessage.text }}
+      <button type="button" class="bk-x" (click)="titlesMessage = null" aria-label="Cerrar mensaje"><mat-icon>close</mat-icon></button>
+    </div>
+
+    <form class="bk-apply" (submit)="$event.preventDefault(); applyToAll()">
+      <span class="bk-apply-l">Aplicar a todas:</span>
+      <label class="bk-inline"><span>Precio (MXN)</span><input class="bk-input bk-num" type="number" min="0" step="0.01" name="bp" [(ngModel)]="bulkPrice"></label>
+      <label class="bk-inline"><span>Stock</span><input class="bk-input bk-num" type="number" min="1" step="1" name="bs" [(ngModel)]="bulkStock"></label>
+      <button type="submit" class="ds-btn" [disabled]="!canApplyAll || publishing">Aplicar precio/stock a todas</button>
+    </form>
+
+    <!-- Datos heredados (compartidos) -->
+    <details class="bk-details" *ngIf="tpl">
+      <summary>Datos heredados del original (iguales en todas las filas)</summary>
+      <dl class="bk-dl">
+        <div><dt>Categoría</dt><dd>{{ tpl.categoryName || tpl.categoryId }} <span class="bk-muted" *ngIf="tpl.categoryPath">· {{ tpl.categoryPath }}</span></dd></div>
+        <div><dt>Tipo de publicación</dt><dd>{{ tpl.listingTypeId === 'gold_pro' ? 'Premium' : 'Clásica' }}<span class="bk-muted" *ngIf="tpl.listingTypeNote"> · {{ tpl.listingTypeNote }}</span></dd></div>
+        <div><dt>Envío</dt><dd>{{ tpl.freeShipping ? 'Envío gratis' : 'Sin envío gratis' }} · {{ tpl.localPickUp ? 'con retiro en persona' : 'sin retiro en persona' }}<span class="bk-muted" *ngIf="tpl.fulfillmentNote"> · {{ tpl.fulfillmentNote }}</span></dd></div>
+        <div><dt>Paquete</dt><dd class="bk-mono">{{ tpl.pkg.height }} × {{ tpl.pkg.width }} × {{ tpl.pkg.length }} cm · {{ tpl.pkg.weight }} {{ tpl.pkg.weightUnit }}</dd></div>
+        <div><dt>Garantía</dt><dd>{{ tpl.warrantyType }}<span *ngIf="tpl.warrantyTime"> · {{ tpl.warrantyTime }}</span></dd></div>
+        <div><dt>GTIN</dt><dd>{{ tpl.gtin ? tpl.gtin + ' (se copia)' : (tpl.gtinReasons.length ? 'Sin código: se envía el motivo «el producto no tiene código registrado»' : 'No aplica') }}</dd></div>
+        <div><dt>SKU</dt><dd>{{ tpl.skuCleared ? 'El original tiene SKU; no se copia (debe ser único).' : 'Sin SKU en el original.' }}</dd></div>
+        <div><dt>Atributos</dt><dd>{{ tpl.categoryAttributes.length }} de la categoría; se copian los que tiene el original.</dd></div>
+        <div><dt>Fotos máximas</dt><dd>{{ tpl.maxPictures }} por publicación<span class="bk-muted" *ngIf="tpl.pictureNote"> · {{ tpl.pictureNote }}</span></dd></div>
+        <div *ngIf="tplVariationNote"><dt>Variaciones</dt><dd>{{ tplVariationNote }}</dd></div>
+        <div><dt>Descripción</dt><dd class="bk-desc">{{ tpl.description || '(vacía)' }}</dd></div>
+      </dl>
+    </details>
+
+    <!-- Tabla en escritorio, tarjetas en móvil -->
+    <table class="bk-table">
+      <caption class="bk-sr">Filas a publicar</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="c-n">#</th>
+          <th scope="col" class="c-title">Título</th>
+          <th scope="col" class="c-price">Precio</th>
+          <th scope="col" class="c-stock">Stock</th>
+          <th scope="col" class="c-cond">Condición</th>
+          <th scope="col" class="c-photos">Fotos</th>
+          <th scope="col" class="c-status">Estado</th>
+          <th scope="col" class="c-act"><span class="bk-sr">Acciones</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let r of rows; let i = index; trackBy: trackByKey">
+          <tr class="bk-tr" [class.is-published]="r.status === 'published'" [attr.data-status]="r.status" [attr.data-row]="i + 1">
+            <td class="c-n" data-label="#">{{ i + 1 }}</td>
+            <td class="c-title" data-label="Título">
+              <input class="bk-input" type="text" [name]="'t' + r.key" [attr.aria-label]="'Título de la fila ' + (i + 1)"
+                [(ngModel)]="r.familyName" (ngModelChange)="onTitleInput(r)" [disabled]="isLocked(r)"
+                [class.is-invalid]="r.familyName.length > maxTitle" [attr.aria-invalid]="r.familyName.length > maxTitle">
+              <div class="bk-title-meta">
+                <span class="bk-counter" [class.is-bad]="r.familyName.length > maxTitle">{{ r.familyName.length }}/{{ maxTitle }}</span>
+                <span class="bk-ai" *ngIf="r.aiNote" [title]="r.aiNote">IA · {{ r.aiNote }}</span>
+              </div>
+              <ul class="bk-warns" *ngIf="r.status !== 'published' && warningsFor(r).length">
+                <li *ngFor="let w of warningsFor(r); trackBy: trackByIndex">Aviso: {{ w }}</li>
+              </ul>
+            </td>
+            <td class="c-price" data-label="Precio (MXN)">
+              <input class="bk-input bk-num" type="number" min="0" step="0.01" [name]="'p' + r.key" [attr.aria-label]="'Precio de la fila ' + (i + 1)"
+                [(ngModel)]="r.price" (ngModelChange)="onEdit(r)" [disabled]="isLocked(r)">
+            </td>
+            <td class="c-stock" data-label="Stock">
+              <input class="bk-input bk-num" type="number" min="1" step="1" [name]="'s' + r.key" [attr.aria-label]="'Stock de la fila ' + (i + 1)"
+                [(ngModel)]="r.quantity" (ngModelChange)="onEdit(r)" [disabled]="isLocked(r)">
+            </td>
+            <td class="c-cond" data-label="Condición">
+              <select class="bk-input" [name]="'c' + r.key" [attr.aria-label]="'Condición de la fila ' + (i + 1)" [(ngModel)]="r.condition" (ngModelChange)="onEdit(r)" [disabled]="isLocked(r)">
+                <option value="new">Nuevo</option>
+                <option value="used">Usado</option>
+              </select>
+            </td>
+            <td class="c-photos" data-label="Fotos">
+              <button type="button" class="bk-photo-btn" (click)="togglePhotos(r)" [attr.aria-expanded]="!!r.photosOpen" [attr.aria-label]="'Fotos de la fila ' + (i + 1) + ': ' + r.pictures.length">
+                <span class="bk-thumbs">
+                  <img *ngFor="let p of r.pictures | slice:0:3; trackBy: trackByIndex" [src]="p.url" alt="" width="28" height="28">
+                  <span *ngIf="!r.pictures.length" class="bk-muted">Sin fotos</span>
+                </span>
+                <span class="bk-mono">{{ r.pictures.length }}/{{ maxPictures }}</span>
+              </button>
+            </td>
+            <td class="c-status" data-label="Estado">
+              <span class="ds-badge" [ngClass]="statusTone(r.status)">{{ statusLabel(r.status) }}</span>
+              <ng-container *ngIf="r.status === 'published'">
+                <a *ngIf="r.permalink" class="bk-link" [href]="r.permalink" target="_blank" rel="noopener">{{ r.itemId }}</a>
+                <span *ngIf="!r.permalink" class="bk-mono">{{ r.itemId }}</span>
+                <div class="bk-err-t" *ngIf="r.descriptionState === 'failed'">
+                  La publicación se creó, pero la descripción falló{{ r.descriptionError ? ': ' + r.descriptionError : '' }}.
+                  <button type="button" class="bk-linkbtn" (click)="retryDescription(r)">Reintentar descripción</button>
+                </div>
+                <div class="bk-muted" *ngIf="r.descriptionState === 'retrying'">Guardando descripción…</div>
+              </ng-container>
+              <ng-container *ngIf="r.status === 'error' || r.status === 'unconfirmed'">
+                <div class="bk-err-t" role="alert">{{ r.error }}</div>
+                <ul class="bk-causes" *ngIf="r.causes.length">
+                  <li *ngFor="let c of r.causes; trackBy: trackByIndex"><span class="bk-mono">{{ c.code }}</span> {{ c.message }}</li>
+                </ul>
+                <button type="button" class="bk-linkbtn" *ngIf="r.status === 'unconfirmed'" (click)="confirmNotCreated(r)">Ya verifiqué: no existe</button>
+              </ng-container>
+              <ng-container *ngIf="r.validating"><div class="bk-muted" role="status">Validando…</div></ng-container>
+              <ng-container *ngIf="r.validation as v">
+                <div class="bk-val" [class.is-ok]="v.ok" [class.is-bad]="!v.ok">
+                  <strong>{{ v.ok ? 'Válida en Mercado Libre' : 'No válida' }}</strong>
+                  <ul *ngIf="v.errors.length"><li *ngFor="let e of v.errors; trackBy: trackByIndex"><span class="bk-mono" *ngIf="e.code">{{ e.code }}</span> {{ e.message }}</li></ul>
+                  <ul *ngIf="v.warnings.length" class="bk-val-w"><li *ngFor="let e of v.warnings; trackBy: trackByIndex">Aviso: {{ e.message }}</li></ul>
+                </div>
+              </ng-container>
+            </td>
+            <td class="c-act" data-label="Acciones">
+              <button type="button" class="bk-icon" (click)="duplicateRow(r)" [disabled]="!canAddRow || r.status === 'published' || publishing" [attr.aria-label]="'Duplicar la fila ' + (i + 1)" title="Duplicar fila"><mat-icon>content_copy</mat-icon></button>
+              <button type="button" class="bk-icon" (click)="deleteRow(r)" [disabled]="isLocked(r)" [attr.aria-label]="'Eliminar la fila ' + (i + 1)" title="Eliminar fila"><mat-icon>delete_outline</mat-icon></button>
+            </td>
+          </tr>
+          <tr class="bk-photos-tr" *ngIf="r.photosOpen">
+            <td colspan="8">
+              <div class="bk-photos" role="group" [attr.aria-label]="'Fotos de la fila ' + (i + 1)">
+                <ul class="bk-photo-list">
+                  <li *ngFor="let p of r.pictures; let k = index; trackBy: trackByIndex" [class.is-main]="k === 0">
+                    <img [src]="p.url" alt="" width="72" height="72">
+                    <span class="bk-main-tag" *ngIf="k === 0">Principal</span>
+                    <span class="bk-photo-ctl" *ngIf="!isLocked(r)">
+                      <button type="button" (click)="movePhoto(r, k, -1)" [disabled]="k === 0" [attr.aria-label]="'Mover foto ' + (k + 1) + ' a la izquierda'">‹</button>
+                      <button type="button" (click)="makeMain(r, k)" [disabled]="k === 0" [attr.aria-label]="'Hacer principal la foto ' + (k + 1)">★</button>
+                      <button type="button" (click)="movePhoto(r, k, 1)" [disabled]="k === r.pictures.length - 1" [attr.aria-label]="'Mover foto ' + (k + 1) + ' a la derecha'">›</button>
+                      <button type="button" (click)="removePhoto(r, k)" [attr.aria-label]="'Quitar foto ' + (k + 1)">✕</button>
+                    </span>
+                  </li>
+                </ul>
+                <div class="bk-photo-actions" *ngIf="!isLocked(r)">
+                  <label class="ds-btn" [class.is-off]="r.uploading || r.pictures.length >= maxPictures">
+                    <mat-icon aria-hidden="true">upload</mat-icon>{{ r.uploading ? 'Subiendo…' : 'Subir fotos' }}
+                    <input type="file" class="bk-sr" accept="image/jpeg,image/png" multiple (change)="onFiles(r, $event)" [disabled]="r.uploading || r.pictures.length >= maxPictures">
+                  </label>
+                  <button type="button" class="ds-btn" (click)="openGallery(r)"><mat-icon aria-hidden="true">photo_library</mat-icon>Elegir de la galería</button>
+                  <span class="bk-muted">Máximo 4 MB por foto · {{ r.pictures.length }}/{{ maxPictures }}</span>
+                </div>
+                <div class="bk-error" *ngIf="r.photoError" role="alert">{{ r.photoError }}</div>
+              </div>
+            </td>
+          </tr>
+        </ng-container>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Pasos 3 y 4: validar y publicar -->
+  <section class="bk-card bk-actions" aria-labelledby="bk-step3">
+    <h2 class="bk-h2" id="bk-step3">3. Validar y publicar</h2>
+    <p class="bk-muted bk-summary" role="status">
+      {{ counts.published }} publicada(s) · {{ counts.pending }} pendiente(s) · {{ counts.error }} con error · {{ counts.unconfirmed }} sin confirmar
+      <ng-container *ngIf="validCount"> · {{ validCount }} válida(s) en ML</ng-container>
+    </p>
+    <p class="bk-muted" *ngIf="anyTitleWarning">Hay avisos de títulos repetidos o casi iguales al original. No bloquean nada: decides tú.</p>
+    <div class="bk-btns">
+      <button type="button" class="ds-btn" (click)="validateAll()" [disabled]="!canValidate">
+        {{ validatingAll ? 'Validando…' : 'Validar todas' }}
+      </button>
+      <button type="button" class="ds-btn primary" (click)="requestPublish()" [disabled]="!canPublish">
+        Publicar {{ publishableValid.length }}
+      </button>
+      <button type="button" class="ds-btn" (click)="stop()" *ngIf="publishing" [disabled]="stopRequested">
+        {{ stopRequested ? 'Deteniendo…' : 'Detener' }}
+      </button>
+      <span class="bk-muted" *ngIf="publishing" role="status">Publicando de una en una; no cierres esta pestaña.</span>
+      <a class="ds-btn" routerLink="/publications" *ngIf="counts.published || counts.unconfirmed">Ver en Publicaciones</a>
+    </div>
+    <p class="bk-muted bk-note">«Validar todas» solo pregunta a Mercado Libre si aceptaría cada fila; no publica nada.</p>
+  </section>
+</ng-container>
+
+<!-- Selector de galería por fila -->
+<ng-container *ngIf="galleryRow as g">
+  <div class="bk-backdrop" (click)="closeGallery()"></div>
+  <div class="bk-modal bk-modal-wide" role="dialog" aria-modal="true" aria-labelledby="bk-g-t" #modalEl tabindex="-1" (keydown.escape)="closeGallery()">
+    <h2 id="bk-g-t">Elegir de la galería</h2>
+    <p class="bk-muted">Toca una foto para agregarla o quitarla de la fila ({{ g.pictures.length }}/{{ maxPictures }}).</p>
+    <p class="bk-muted" *ngIf="!galleryImages.length">Tu galería está vacía. Sube fotos o sincroniza el catálogo en <a routerLink="/gallery" (click)="closeGallery()">Galería</a>.</p>
+    <ul class="bk-gallery">
+      <li *ngFor="let p of galleryImages; trackBy: trackByIndex">
+        <button type="button" (click)="toggleGalleryPhoto(p)" [class.is-on]="inGallerySelection(p)" [attr.aria-pressed]="inGallerySelection(p)" [attr.aria-label]="'Foto ' + p.id">
+          <img [src]="p.url" alt="" width="84" height="84">
+        </button>
+      </li>
+    </ul>
+    <div class="bk-error" *ngIf="g.photoError" role="alert">{{ g.photoError }}</div>
+    <div class="bk-modal-actions"><button type="button" class="ds-btn primary" (click)="closeGallery()">Listo</button></div>
+  </div>
+</ng-container>
+
+<!-- Confirmaciones -->
+<ng-container *ngIf="modal">
+  <div class="bk-backdrop" (click)="closeModal()"></div>
+  <div class="bk-modal" [class.bk-modal-wide]="modal === 'publish'" role="dialog" aria-modal="true" aria-labelledby="bk-m-t" #modalEl tabindex="-1" (keydown.escape)="closeModal()">
+
+    <ng-container *ngIf="modal === 'publish'">
+      <h2 id="bk-m-t">Publicar {{ publishableValid.length }} publicación(es)</h2>
+      <div class="bk-m-scroll">
+        <table class="bk-m-table">
+          <caption class="bk-sr">Publicaciones que se enviarán</caption>
+          <thead><tr><th scope="col">Título</th><th scope="col">Precio</th><th scope="col">Stock</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let r of publishableValid; trackBy: trackByKey">
+              <td>{{ r.familyName }}</td>
+              <td class="bk-mono">{{ r.price | currency:'MXN':'symbol-narrow':'1.0-2' }}</td>
+              <td class="bk-mono">{{ r.quantity }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="bk-warn-text" role="note"><mat-icon aria-hidden="true">warning_amber</mat-icon><span>{{ duplicateWarning }}</span></p>
+      <p class="bk-muted">Se enviarán de una en una, con una pausa corta entre cada una. Puedes pulsar «Detener» en cualquier momento.</p>
+      <div class="bk-modal-actions">
+        <button type="button" class="ds-btn" (click)="closeModal()">Cancelar</button>
+        <button type="button" class="ds-btn primary" (click)="confirmPublish()">Publicar {{ publishableValid.length }} ahora</button>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="modal === 'replace'">
+      <h2 id="bk-m-t">¿Reemplazar las filas actuales?</h2>
+      <p>Ya tienes {{ rows.length }} fila(s) en el borrador<ng-container *ngIf="hasPublishedRows"> (algunas ya publicadas)</ng-container>. Crear filas nuevas las quita de esta pantalla; las publicaciones ya creadas en Mercado Libre no se tocan.</p>
+      <div class="bk-modal-actions">
+        <button type="button" class="ds-btn" (click)="closeModal()">Cancelar</button>
+        <button type="button" class="ds-btn primary" (click)="createRows()">Reemplazar y crear {{ copies }} fila(s)</button>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="modal === 'discard'">
+      <h2 id="bk-m-t">¿Descartar el borrador?</h2>
+      <p>Se borran las filas de este navegador<ng-container *ngIf="hasPublishedRows">; las publicaciones ya creadas en Mercado Libre no se tocan, pero esta pantalla dejará de recordarlas</ng-container>.</p>
+      <div class="bk-modal-actions">
+        <button type="button" class="ds-btn" (click)="closeModal()">Cancelar</button>
+        <button type="button" class="ds-btn primary" (click)="discard()">Descartar borrador</button>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="modal === 'titles'">
+      <h2 id="bk-m-t">Hay títulos que editaste</h2>
+      <p>{{ editedTargets.length }} fila(s) tienen un título escrito por ti. ¿Quieres que las propuestas también los reemplacen?</p>
+      <div class="bk-modal-actions">
+        <button type="button" class="ds-btn" (click)="closeModal()">Cancelar</button>
+        <button type="button" class="ds-btn" (click)="runTitles(true)">Reemplazar también los míos</button>
+        <button type="button" class="ds-btn primary" (click)="runTitles(false)">Solo las no editadas</button>
+      </div>
+    </ng-container>
+  </div>
+</ng-container>

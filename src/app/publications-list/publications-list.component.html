@@ -5,6 +5,7 @@
     <p>{{ subtitle }}</p>
   </div>
   <div class="head-tools">
+    <a class="ds-btn" routerLink="/publications/cargas-masivas">Cargas masivas</a>
     <button type="button" class="ds-btn" (click)="exportCsv()" [title]="exportTitle" [attr.aria-label]="'Exportar. ' + exportTitle">Exportar</button>
     <a class="ds-btn primary" routerLink="/publish"><mat-icon aria-hidden="true">add</mat-icon>Publicar</a>
   </div>
@@ -79,6 +80,7 @@
   (editRow)="openEdit($event)"
   (relistRow)="openRelist($event)"
   (duplicateRow)="onDuplicate($event)"
+  (duplicateManyRow)="onDuplicateMany($event)"
   (bulkPause)="openBulk('pause', $event)"
   (bulkPrice)="openBulk('price', $event)"
   (bulkDuplicate)="openBulk('duplicate', $event)">

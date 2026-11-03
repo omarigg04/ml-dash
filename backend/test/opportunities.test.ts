@@ -89,8 +89,10 @@ const getJson = async (base: string, p: string, uid?: number) => {
     return { status: r.status, body: await r.json().catch(() => null) as any };
 };
 
+// Estas pruebas cubren el proveedor Anthropic (opcional): se elige explícitamente y con un cliente falso.
 const setup = () => {
     seedBoth();
+    process.env['AI_PROVIDER'] = 'anthropic';
     const env = freshApp();
     const claude = require('../src/ai/claude');
     claude.__setAiClientForTests(fake.client);
@@ -103,7 +105,9 @@ beforeEach(() => {
     fake.next = () => msg(goodSuggest());
     process.env['AI_DAILY_LIMIT'] = '20';
     delete process.env['ANTHROPIC_API_KEY'];
-    try { require('../src/ai/claude').__setAiClientForTests(null); } catch { /* aún no cargado */ }
+    delete process.env['GEMINI_API_KEY'];
+    delete process.env['AI_PROVIDER'];
+    try { require('../src/ai/claude').__setAiClientForTests(null); require('../src/ai/gemini').__setGeminiClientForTests(null); } catch { /* aún no cargado */ }
 });
 
 const ITEM_A = `MLM${A}002`;   // 2 visitas/día x 90 = 180, 0 órdenes
@@ -152,7 +156,7 @@ test('item de otra cuenta se rechaza antes de cualquier llamada a Claude (y no g
     });
 });
 
-test('sin ANTHROPIC_API_KEY: 503 AI_NOT_CONFIGURED y el resto sigue funcionando', async () => {
+test('sin clave del proveedor: 503 AI_NOT_CONFIGURED y el resto sigue funcionando', async () => {
     seedBoth();
     const { app } = freshApp();
     require('../src/ai/claude').__setAiClientForTests(null);
@@ -381,4 +385,268 @@ test('copia cosmética vs variante real', () => {
     assert.equal(isCosmeticCopy('Funda iPhone 13 azul pack 2', 'Funda iPhone 13 azul'), false);
     assert.equal(isCosmeticCopy('Funda para iPhone 13 azul', 'Funda iPhone 13 azul'), true);
     assert.equal(isCosmeticCopy('Azul funda iPhone 13 original nueva', 'Funda iPhone 13 azul'), true);
+});
+
+// ---------------- Cargas masivas: POST /api/opportunities/bulk-titles ----------------
+const bulkOut = (titles: string[]) => msg({ titles: titles.map(t => ({ title: t, feature: 'rasgo real' })) });
+
+test('bulk-titles: modelo Haiku 5.5, esfuerzo bajo, sin fallbacks ni beta; filtra reglas y cifras inventadas', async () => {
+    const { app } = setup();
+    await withServer(app, async base => {
+        fake.next = () => bulkOut([
+            'Item Acme Negro de prueba',                 // ok
+            'Item Acme Negro de prueba',                 // repetido
+            'Y'.repeat(61),                              // largo
+            'El mejor Item Acme Negro',                  // superlativo
+            'Item Acme Negro escribe 5512345678',        // contacto
+            'Item Acme Negro 500 piezas',                // cifra inventada (500 no consta)
+            'Item Acme color Negro uso diario',          // ok
+        ]);
+        const r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 5 }, A);
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(fake.calls.length, 1);
+        const p = fake.calls[0];
+        assert.equal(p.model, 'claude-haiku-5-5');
+        assert.equal(p.output_config.effort, 'low');
+        assert.ok(p.output_config.format, 'zodOutputFormat');
+        for (const k of ['fallbacks', 'betas', 'thinking', 'temperature', 'top_p', 'top_k', 'tool_choice']) assert.ok(!(k in p), `no debe enviar ${k}`);
+        assert.notEqual(p.messages.at(-1).role, 'assistant');
+        assert.deepEqual(r.body.titles.map((t: any) => t.title), ['Item Acme Negro de prueba', 'Item Acme color Negro uso diario']);
+        assert.ok(r.body.titles.every((t: any) => t.title.length <= 60));
+        assert.equal(r.body.requested, 5);
+        assert.ok(r.body.warnings.some((w: string) => /Solo 2 de 5/.test(w)), r.body.warnings.join('|'));
+        assert.equal(r.body.usage.used, 1);
+        // el prompt: datos de la publicación delimitados, sin compradores ni lenguaje de evasión
+        const all = JSON.stringify(p).toLowerCase();
+        for (const bad of ['comprador_secreto', 'secreto@comprador.test', 'buyer', 'seller_id', 'evit', 'detecci', 'duplicad', 'esquiv']) assert.ok(!all.includes(bad), `el prompt contiene ${bad}`);
+        assert.match(p.messages[0].content, /<datos_publicacion>[\s\S]*<\/datos_publicacion>/);
+        assert.match(p.messages[0].content, /hasta 5 títulos/);
+    });
+});
+
+test('bulk-titles: count fuera de 1–20 o no entero -> 400 sin llamar a Claude ni gastar uso', async () => {
+    const { app } = setup();
+    await withServer(app, async base => {
+        for (const count of [0, 21, -1, 2.5, '5', null, undefined]) {
+            const r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count }, A);
+            assert.equal(r.status, 400, `count=${String(count)}`);
+        }
+        assert.equal((await post(base, '/api/opportunities/bulk-titles', { itemId: 'abc', count: 3 }, A)).status, 400);
+        assert.equal(fake.calls.length, 0);
+        assert.ok(![...kv.data.keys()].some(k => k.startsWith('ai_usage')));
+        for (const count of [1, 20]) {
+            fake.next = () => bulkOut(['Item Acme Negro de prueba']);
+            assert.equal((await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count }, A)).status, 200, `count=${count}`);
+        }
+    });
+});
+
+test('bulk-titles: item ajeno -> 403 antes de Claude y sin sesión -> 401', async () => {
+    const { app } = setup();
+    await withServer(app, async base => {
+        const r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_B, count: 3 }, A);
+        assert.equal(r.status, 403); assert.equal(r.body.code, 'NOT_YOUR_ITEM');
+        assert.equal(fake.calls.length, 0);
+        assert.ok(![...kv.data.keys()].some(k => k.startsWith('ai_usage')), 'no debe reservar uso');
+        assert.equal((await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 })).status, 401);
+        assert.equal(fake.calls.length, 0);
+    });
+});
+
+test('bulk-titles: sin clave del proveedor -> 503 AI_NOT_CONFIGURED', async () => {
+    seedBoth();
+    const { app } = freshApp();
+    require('../src/ai/claude').__setAiClientForTests(null);
+    await withServer(app, async base => {
+        const r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A);
+        assert.equal(r.status, 503); assert.equal(r.body.code, 'AI_NOT_CONFIGURED');
+    });
+});
+
+test('bulk-titles: límite diario por cuenta (429 sin llamar a Claude); claves KV con uid', async () => {
+    process.env['AI_DAILY_LIMIT'] = '1';
+    const { app } = setup();
+    await withServer(app, async base => {
+        fake.next = () => bulkOut(['Item Acme Negro de prueba']);
+        assert.equal((await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A)).status, 200);
+        const blocked = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A);
+        assert.equal(blocked.status, 429); assert.equal(blocked.body.code, 'AI_DAILY_LIMIT');
+        assert.equal(fake.calls.length, 1);
+        assert.equal((await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_B, count: 3 }, B)).status, 200);
+        assert.equal(fake.calls.length, 2);
+        const keys = [...kv.data.keys()].filter(k => k.startsWith('ai_usage'));
+        assert.ok(keys.some(k => k.startsWith(`ai_usage:${A}:`)) && keys.some(k => k.startsWith(`ai_usage:${B}:`)), keys.join());
+    });
+});
+
+test('bulk-titles: refusal -> 422 sin usar la salida; error de Claude devuelve el uso; KV caído falla cerrado', async () => {
+    const Anthropic = require('@anthropic-ai/sdk').default;
+    const { app } = setup();
+    await withServer(app, async base => {
+        fake.next = () => msg({ titles: [{ title: 'Item Acme Negro de prueba', feature: 'x' }] }, 'refusal');
+        let r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A);
+        assert.equal(r.status, 422); assert.equal(r.body.code, 'AI_REFUSAL');
+        assert.ok(!JSON.stringify(r.body).includes('Item Acme'));
+        fake.next = () => { throw new Anthropic.RateLimitError(429, {}, 'x', new Headers()); };
+        r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A);
+        assert.equal(r.status, 429); assert.equal(r.body.code, 'AI_RATE_LIMITED');
+        assert.equal(Number(kv.data.get([...kv.data.keys()].find(k => k.startsWith(`ai_usage:${A}`))!)), 1, 'solo el rechazo cobrado cuenta');
+        const before = fake.calls.length;
+        kv.failIncr = true;
+        r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A);
+        assert.equal(r.status, 503); assert.equal(r.body.code, 'STORE_UNAVAILABLE');
+        assert.equal(fake.calls.length, before);
+    });
+});
+
+test('callStructured sin opciones conserva Opus, fallbacks y beta', async () => {
+    const { app } = setup();
+    await withServer(app, async base => {
+        await post(base, '/api/opportunities/suggest', { itemId: ITEM_A }, A);
+        assert.equal(fake.calls[0].model, 'claude-opus-5-5');
+        assert.equal(fake.calls[0].fallbacks, 'default');
+        assert.deepEqual(fake.calls[0].betas, ['server-side-fallback-2026-07-01']);
+    });
+});
+
+// ---------------- Proveedor por defecto: Gemini (gratuito), con cliente falso y sin red ----------------
+const gem = {
+    calls: [] as any[],
+    next: (() => ({ output_text: JSON.stringify(goodSuggest()), usage: { total_input_tokens: 300, total_output_tokens: 120 } })) as () => any,
+    client: null as any,
+};
+gem.client = { interactions: { create: async (params: any, options?: any) => { gem.calls.push({ params, options }); return gem.next(); } } };
+const gemTitles = (titles: string[]) => ({ output_text: JSON.stringify({ titles: titles.map(t => ({ title: t, feature: 'rasgo' })) }), usage: { total_input_tokens: 10, total_output_tokens: 5 } });
+const setupGemini = () => {
+    seedBoth();
+    gem.calls = [];
+    gem.next = () => ({ output_text: JSON.stringify(goodSuggest()), usage: { total_input_tokens: 300, total_output_tokens: 120 } });
+    const env = freshApp();
+    // Cliente de Anthropic falso conectado, para comprobar que NUNCA se usa sin AI_PROVIDER=anthropic
+    require('../src/ai/claude').__setAiClientForTests(fake.client);
+    require('../src/ai/gemini').__setGeminiClientForTests(gem.client);
+    return env;
+};
+
+test('gemini (por defecto): suggest usa la Interactions API con esquema JSON, store:false y sin reintentos; nunca llama a Anthropic', async () => {
+    const { app } = setupGemini();
+    await withServer(app, async base => {
+        const r = await post(base, '/api/opportunities/suggest', { itemId: ITEM_A }, A);
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(gem.calls.length, 1);
+        assert.equal(fake.calls.length, 0, 'Anthropic no debe correr si AI_PROVIDER no es anthropic');
+        const { params, options } = gem.calls[0];
+        assert.equal(params.model, 'gemini-3.5-flash-lite');
+        assert.equal(params.store, false);
+        assert.equal(params.response_format.type, 'text');
+        assert.equal(params.response_format.mime_type, 'application/json');
+        assert.ok(params.response_format.schema.properties.titles, 'JSON Schema del esquema zod');
+        assert.ok(!('$schema' in params.response_format.schema));
+        assert.deepEqual(options.retries, { strategy: 'none' });
+        for (const k of ['fallbacks', 'betas', 'output_config']) assert.ok(!(k in params), `no debe enviar ${k}`);
+        // las reglas de rules.ts se aplican igual: el título de 70 caracteres se descarta, máximo 3
+        assert.ok(r.body.titles.every((t: any) => t.title.length <= 60));
+        assert.equal(r.body.droppedTitles, 1);
+        assert.equal(r.body.usage.used, 1);
+        // caché de 7 días: no vuelve a llamar
+        assert.equal((await post(base, '/api/opportunities/suggest', { itemId: ITEM_A }, A)).body.cached, true);
+        assert.equal(gem.calls.length, 1);
+        assert.equal(fake.calls.length, 0);
+    });
+});
+
+test('gemini: el prompt no incluye datos de compradores y GEMINI_MODEL se respeta', async () => {
+    process.env['GEMINI_MODEL'] = 'gemini-3.6-flash';
+    const { app } = setupGemini();
+    await withServer(app, async base => {
+        gem.next = () => gemTitles(['Item Acme Negro de prueba']);
+        await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A);
+        gem.next = () => ({ output_text: JSON.stringify({ ideas: [] }) });
+        await post(base, '/api/opportunities/ideas', {}, A);
+        gem.next = () => ({ output_text: JSON.stringify(goodSuggest()) });
+        await post(base, '/api/opportunities/suggest', { itemId: ITEM_A }, A);
+        assert.ok(gem.calls.length >= 3);
+        assert.equal(gem.calls[0].params.model, 'gemini-3.6-flash');
+        for (const c of gem.calls) {
+            const all = JSON.stringify(c.params).toLowerCase();
+            for (const secret of ['comprador_secreto', 'secreto@comprador.test', '5512345678', 'buyer', 'nickname', 'seller_id', 'phone']) {
+                assert.ok(!all.includes(secret), `el prompt contiene ${secret}`);
+            }
+        }
+    });
+    delete process.env['GEMINI_MODEL'];
+});
+
+test('gemini bulk-titles: filtros de reglas, count 1–20, ownership y límite por cuenta', async () => {
+    process.env['AI_DAILY_LIMIT'] = '1';
+    const { app } = setupGemini();
+    await withServer(app, async base => {
+        assert.equal((await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 21 }, A)).status, 400);
+        assert.equal((await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_B, count: 3 }, A)).status, 403);
+        assert.equal(gem.calls.length, 0);
+        gem.next = () => gemTitles(['Item Acme Negro de prueba', 'El mejor Item Acme Negro', 'Item Acme Negro 900 piezas']);
+        const r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A);
+        assert.equal(r.status, 200);
+        assert.deepEqual(r.body.titles.map((t: any) => t.title), ['Item Acme Negro de prueba']);
+        assert.equal(r.body.model, 'gemini-3.5-flash-lite');
+        assert.equal((await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A)).status, 429);
+        assert.equal(gem.calls.length, 1);
+        assert.equal(fake.calls.length, 0);
+    });
+});
+
+test('gemini: 429 de cuota -> AI_QUOTA_FREE amable, se devuelve el uso y no se reintenta', async () => {
+    const { app } = setupGemini();
+    await withServer(app, async base => {
+        gem.next = () => { throw Object.assign(new Error('You exceeded your current quota RESOURCE_EXHAUSTED prompt-secreto'), { status: 429 }); };
+        const r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A);
+        assert.equal(r.status, 429); assert.equal(r.body.code, 'AI_QUOTA_FREE');
+        assert.match(r.body.error, /cuota gratuita de hoy/);
+        assert.ok(!JSON.stringify(r.body).includes('prompt-secreto'));
+        assert.equal(gem.calls.length, 1, 'una sola llamada: nada de bucles de reintento');
+        assert.equal(Number(kv.data.get([...kv.data.keys()].find(k => k.startsWith(`ai_usage:${A}`))!)), 0, 'contador devuelto');
+        const s = await post(base, '/api/opportunities/suggest', { itemId: ITEM_A }, A);
+        assert.equal(s.body.code, 'AI_QUOTA_FREE');
+        assert.ok(![...kv.data.keys()].some(k => k.startsWith('ai_suggest')), 'no se cachea');
+    });
+});
+
+test('gemini: JSON inválido, que no cumple el esquema o vacío -> 502 AI_INVALID_OUTPUT', async () => {
+    const { app } = setupGemini();
+    await withServer(app, async base => {
+        for (const out of [{ output_text: '{"titles": [' }, { output_text: JSON.stringify({ titles: 'mal' }) }, { output_text: '' }, {}]) {
+            gem.next = () => out;
+            const r = await post(base, '/api/opportunities/bulk-titles', { itemId: ITEM_A, count: 3 }, A);
+            assert.equal(r.status, 502, JSON.stringify(out)); assert.equal(r.body.code, 'AI_INVALID_OUTPUT');
+        }
+    });
+});
+
+test('sin AI_PROVIDER nunca se llama a Anthropic aunque haya clave y cliente; solo con AI_PROVIDER=anthropic corre', async () => {
+    seedBoth();
+    const { app } = freshApp();
+    process.env['ANTHROPIC_API_KEY'] = 'sk-ant-falsa';
+    require('../src/ai/claude').__setAiClientForTests(fake.client);
+    await withServer(app, async base => {
+        const r = await post(base, '/api/opportunities/suggest', { itemId: ITEM_A }, A);
+        assert.equal(r.status, 503); assert.equal(r.body.code, 'AI_NOT_CONFIGURED');
+        assert.equal(fake.calls.length, 0);
+        assert.equal((await getJson(base, '/api/opportunities/candidates', A)).body.ai.configured, false);
+        process.env['AI_PROVIDER'] = 'otro';
+        assert.equal((await post(base, '/api/opportunities/suggest', { itemId: ITEM_A }, A)).body.code, 'AI_NOT_CONFIGURED');
+        assert.equal(fake.calls.length, 0);
+        process.env['AI_PROVIDER'] = 'anthropic';
+        assert.equal((await post(base, '/api/opportunities/suggest', { itemId: ITEM_A }, A)).status, 200);
+        assert.equal(fake.calls.length, 1);
+    });
+});
+
+test('mapGeminiError: cuota, auth, timeout y 5xx', () => {
+    const { mapGeminiError } = require('../src/ai/gemini');
+    assert.equal(mapGeminiError(Object.assign(new Error('x'), { status: 429 })).code, 'AI_QUOTA_FREE');
+    assert.equal(mapGeminiError(new Error('RESOURCE_EXHAUSTED: quota')).code, 'AI_QUOTA_FREE');
+    assert.equal(mapGeminiError(Object.assign(new Error('x'), { status: 403 })).code, 'AI_AUTH');
+    assert.equal(mapGeminiError(Object.assign(new Error('API key not valid'), { status: 400 })).code, 'AI_AUTH');
+    assert.equal(mapGeminiError(Object.assign(new Error('x'), { name: 'TimeoutError' })).code, 'AI_TIMEOUT');
+    assert.equal(mapGeminiError(Object.assign(new Error('x'), { status: 503 })).code, 'AI_OVERLOADED');
 });

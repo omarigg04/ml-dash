@@ -208,6 +208,10 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
   }
 
   // ---- Acciones por fila ----
+  onDuplicateMany(item: Publication): void {
+    this.router.navigate(['/publications/cargas-masivas'], { queryParams: { from: item.id } });
+  }
+
   onDuplicate(item: Publication): void {
     this.router.navigate(['/publish'], { queryParams: { mode: 'duplicate', from: item.id } });
   }

@@ -5,21 +5,21 @@ import { currentUid, NoAccountContextError } from '../auth/context';
 import { ITEM_ID_RE, safeError } from '../security';
 import { BadRequest, Ctx, DAY_MS, dayStr, fetchOrders, mlGet, startOfDayUtc } from './summary';
 import { AnalyticsItem, itemDaily, loadItemsWithVisits, sumRange, todayInTz } from './analytics';
-import { AiError, AiUsage, aiKeyConfigured, callStructured } from '../ai/claude';
+import { AiError, AiUsage, BULK_TITLES_MODEL, aiKeyConfigured, callStructured } from '../ai/provider';
 import { StoreUnavailableError, storeCount, storeDecr, storeGet, storeIncr, storeSet } from '../ai/kvstore';
 import {
-    FLAG_TEXT, IdeasSchema, MAX_IDEAS, MAX_TITLES, SuggestSchema,
-    IdeasOut, SuggestOut, descriptionFlags, filterTitles, isCosmeticCopy
+    BulkTitlesOut, BulkTitlesSchema, FLAG_TEXT, IdeasSchema, MAX_BULK_COPIES, MAX_IDEAS, MAX_TITLES, MIN_BULK_COPIES, SuggestSchema,
+    IdeasOut, SuggestOut, descriptionFlags, filterTitles, isCosmeticCopy, numbersNotInSource
 } from '../ai/rules';
 import {
-    IdeaSource, PromptContrast, SYSTEM_PROMPT, buildIdeasPrompt, buildSuggestPrompt, pickAttributes
+    BULK_TITLES_SYSTEM_PROMPT, IdeaSource, PromptContrast, SYSTEM_PROMPT, buildBulkTitlesPrompt, buildIdeasPrompt, buildSuggestPrompt, pickAttributes
 } from '../ai/prompts';
 
 const router = Router();
 const ML_API = 'https://api.mercadolibre.com';
 
 /**
- * Oportunidades: publicaciones con visitas que no venden + sugerencias de Claude (bajo demanda).
+ * Oportunidades: publicaciones con visitas que no venden + sugerencias de IA (bajo demanda; Gemini gratuito por defecto).
  * La app NUNCA publica ni cambia nada por sí sola: solo lee de ML y guarda en KV (caché, contador, cambios aplicados).
  */
 
@@ -83,7 +83,7 @@ async function reserveUse(uid: string): Promise<void> {
     }
 }
 const refundUse = (uid: string) => storeDecr(usageKey(uid)).catch(() => undefined);
-/** Errores en los que Claude ya procesó la solicitud (cuesta dinero): no se devuelve el uso. */
+/** Errores en los que la IA ya procesó la solicitud: no se devuelve el uso. (Una cuota agotada o un fallo de conexión sí lo devuelven.) */
 const BILLED_CODES = new Set(['AI_REFUSAL', 'AI_TRUNCATED', 'AI_INVALID_OUTPUT']);
 
 function sendError(res: Response, error: any, what: string): void {
@@ -106,7 +106,7 @@ function sendError(res: Response, error: any, what: string): void {
 }
 
 const requireAi = (): void => {
-    if (!aiKeyConfigured()) throw new AiError(503, 'AI_NOT_CONFIGURED', 'Falta configurar la clave de Claude (ANTHROPIC_API_KEY) en el servidor. El resto de la página sigue funcionando.');
+    if (!aiKeyConfigured()) throw new AiError(503, 'AI_NOT_CONFIGURED', 'Falta configurar la clave de la IA (GEMINI_API_KEY) en el servidor. El resto de la página sigue funcionando.');
 };
 
 const parseItemId = (v: unknown): string => {
@@ -376,6 +376,58 @@ router.post('/ideas', async (req: Request, res: Response) => {
         res.json({ ...body, cached: false, usage: await usageSnapshot(uid) });
     } catch (error) {
         sendError(res, error, 'ideas');
+    }
+});
+
+// ---------------- POST /bulk-titles (Cargas masivas) ----------------
+/**
+ * Una sola llamada barata (Haiku 5.5, esfuerzo bajo) con títulos para N filas de una misma publicación.
+ * Cuenta como un uso del límite diario. No se cachea: cada clic es una propuesta nueva.
+ */
+router.post('/bulk-titles', async (req: Request, res: Response) => {
+    try {
+        const uid = currentUid();
+        const itemId = parseItemId(req.body?.itemId);
+        const count = req.body?.count;
+        if (typeof count !== 'number' || !Number.isInteger(count) || count < MIN_BULK_COPIES || count > MAX_BULK_COPIES) {
+            throw new BadRequest(`count debe ser un entero entre ${MIN_BULK_COPIES} y ${MAX_BULK_COPIES}`);
+        }
+        requireAi();
+
+        const ctx = await newCtx();
+        const item = await readOwnItem(ctx, uid, itemId); // antes de cualquier llamada a Claude
+        const description = await readDescription(ctx, itemId);
+        const attributes = pickAttributes(item.attributes);
+        const prompt = buildBulkTitlesPrompt({
+            title: String(item.title ?? ''), price: item.price ?? null, condition: item.condition, attributes, description,
+        }, count);
+
+        await reserveUse(uid);
+        let out: { data: BulkTitlesOut; usage: AiUsage; model: string };
+        try {
+            out = await callStructured('bulk-titles', BulkTitlesSchema, BULK_TITLES_SYSTEM_PROMPT, prompt,
+                { model: BULK_TITLES_MODEL, effort: 'low', maxTokens: 8000 });   // model/effort/maxTokens: solo los usa AI_PROVIDER=anthropic
+        } catch (e) {
+            if (!(e instanceof AiError && BILLED_CODES.has(e.code))) await refundUse(uid);
+            throw e;
+        }
+
+        const corpus = [item.title, item.family_name, ...attributes.map(a => `${a.name} ${a.value}`), description].filter(Boolean).join(' ');
+        const { kept, dropped } = filterTitles(out.data.titles);
+        let invented = 0;
+        const titles = kept.filter(t => {
+            if (numbersNotInSource(t.title, corpus).length) { invented++; return false; }
+            return true;
+        }).slice(0, count).map(t => ({ title: t.title, feature: String(t.feature ?? ''), length: t.title.length }));
+
+        const warnings: string[] = [];
+        if (dropped.length) warnings.push(`Se descartaron ${dropped.length} título(s) por pasar de 60 caracteres, repetirse, traer datos de contacto o promesas no permitidas.`);
+        if (invented) warnings.push(`Se descartaron ${invented} título(s) con cifras que no constan en la publicación.`);
+        if (titles.length < count) warnings.push(`Solo ${titles.length} de ${count} títulos cumplieron las reglas; el resto quedó en blanco para que lo escribas.`);
+
+        res.json({ itemId, requested: count, titles, warnings, model: out.model, usage: await usageSnapshot(uid), tokens: out.usage });
+    } catch (error) {
+        sendError(res, error, 'bulk-titles');
     }
 });
 
