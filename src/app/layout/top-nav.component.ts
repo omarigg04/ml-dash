@@ -21,6 +21,12 @@ export class TopNavComponent {
     private themeService: ThemeService
   ) {}
 
+  /** Cuenta conectada (apodo, o el id si ML no lo dio) */
+  get accountName(): string {
+    const u = this.authService.getCurrentUser();
+    return u?.nickname || (u?.userId ? `ID ${u.userId}` : '');
+  }
+
   get isDark(): boolean {
     return this.themeService.getCurrentTheme() === 'dark';
   }

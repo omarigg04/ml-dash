@@ -30,3 +30,6 @@ jobs:
       - name: Type-check backend
         run: npx tsc --noEmit -p .
         working-directory: backend
+      - name: Backend tests (fake KV and ML, no network)
+        run: npm test
+        working-directory: backend

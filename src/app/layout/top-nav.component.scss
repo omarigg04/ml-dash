@@ -100,6 +100,25 @@
 .icon-btn { width: var(--ctl-h); padding: 0; flex: none; }
 .logout-btn { padding: 0 10px; flex: none; }
 
+.account {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 200px;
+  height: var(--ctl-h);
+  padding: 0 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-md);
+  background: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  font-weight: 500;
+
+  mat-icon { width: 16px; height: 16px; font-size: 16px; flex: none; }
+  .account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
 .menu-btn { display: none; }
 
 @media (max-width: 920px) {
@@ -107,6 +126,9 @@
   .brand { width: auto; }
   .brand-name,
   .logout-text { display: none; }
+  .account { max-width: 110px; padding: 0 8px; }
+  .gsearch { min-width: 0; }
+  .gsearch input { width: 100%; }
   .logout-btn { width: var(--ctl-h); padding: 0; }
   .gtop { gap: 8px; padding: 8px 10px; }
   .gsearch { margin: 0; max-width: none; }

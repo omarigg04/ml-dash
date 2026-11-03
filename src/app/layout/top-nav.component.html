@@ -36,6 +36,11 @@
     <mat-icon aria-hidden="true">{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
   </button>
 
+  <span class="account" *ngIf="accountName" [attr.title]="'Cuenta de MercadoLibre: ' + accountName">
+    <mat-icon aria-hidden="true">storefront</mat-icon>
+    <span class="account-name">{{ accountName }}</span>
+  </span>
+
   <button class="logout-btn" type="button" (click)="logout()" aria-label="Cerrar sesión">
     <mat-icon aria-hidden="true">logout</mat-icon>
     <span class="logout-text">Cerrar sesión</span>

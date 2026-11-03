@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { mlAuth } from '../auth/oauth';
+import { currentUid, NoAccountContextError } from '../auth/context';
 import { safeError } from '../security';
 import { MLOrder, MLShipment, MLShipmentCosts } from '../types';
 
@@ -120,16 +121,19 @@ interface ShipInfo { cost: number; status: string; }
 const shipCache = new Map<string, { v: ShipInfo; exp: number }>();
 const SHIP_CACHE_MAX = 5000;
 
+// Claves `uid:id`: el envío de una cuenta nunca se sirve a otra
+const shipKey = (id: string) => `${currentUid()}:${id}`;
+
 function cacheShip(id: string, v: ShipInfo): void {
     // Entregado/cancelado ya no cambia: se guarda mucho más tiempo que uno en tránsito
     const ttl = FINAL_SHIPMENT_STATUS.has(v.status) ? 6 * 3600_000 : 2 * 60_000;
     if (shipCache.size >= SHIP_CACHE_MAX) shipCache.delete(shipCache.keys().next().value as string);
-    shipCache.set(id, { v, exp: Date.now() + ttl });
+    shipCache.set(shipKey(id), { v, exp: Date.now() + ttl });
 }
 
 /** Costo que paga el vendedor (misma regla que GET /api/shipments/:id). null si no se pudo resolver. */
 async function shipmentInfo(ctx: Ctx, id: string): Promise<ShipInfo | null> {
-    const hit = shipCache.get(id);
+    const hit = shipCache.get(shipKey(id));
     if (hit && hit.exp > Date.now()) { ctx.cacheHits++; return hit.v; }
     try {
         const shipment = await mlGet<MLShipment>(ctx, `https://api.mercadolibre.com/shipments/${encodeURIComponent(id)}`);
@@ -213,7 +217,7 @@ router.get('/', async (req: Request, res: Response) => {
         if ((toT - windowFromT) / DAY_MS > MAX_SPAN_DAYS) throw new BadRequest('La ventana consultada es demasiado grande');
 
         const includeUnfulfilled = req.query['includeUnfulfilled'] === '1';
-        const key = [dayStr(fromT), dayStr(toT), dayStr(prevFromT), dayStr(prevToT), tz, includeUnfulfilled ? 'all' : 'ok'].join('|');
+        const key = [currentUid(), dayStr(fromT), dayStr(toT), dayStr(prevFromT), dayStr(prevToT), tz, includeUnfulfilled ? 'all' : 'ok'].join('|');
         const cached = responseCache.get(key);
         if (cached && cached.exp > Date.now()) {
             return res.json({ ...cached.body, meta: { ...cached.body.meta, ms: Date.now() - started, mlCalls: 0, responseCache: true } });
@@ -265,7 +269,7 @@ router.get('/', async (req: Request, res: Response) => {
     } catch (error: any) {
         if (error instanceof BadRequest) return res.status(400).json({ error: 'Invalid parameter', message: error.message });
         console.error('Error building summary:', safeError(error));
-        if (error?.message?.includes('No token available')) {
+        if (error instanceof NoAccountContextError || error?.message?.includes('No token available')) {
             return res.status(401).json({ error: 'Not authorized', message: 'Please authorize the app first by visiting /auth' });
         }
         res.status(500).json({ error: 'Failed to build summary' });
@@ -277,11 +281,13 @@ router.get('/', async (req: Request, res: Response) => {
  * Órdenes (últimos 30 días, no canceladas) cuyo envío aún no sale: pending / handling / ready_to_ship.
  * Alimenta la insignia de "Órdenes" en la barra lateral.
  */
-let pendingCache: { exp: number; body: any } | null = null;
+const pendingCache = new Map<string, { exp: number; body: any }>(); // por uid
 router.get('/pending', async (_req: Request, res: Response) => {
     const started = Date.now();
     try {
-        if (pendingCache && pendingCache.exp > Date.now()) return res.json(pendingCache.body);
+        const uid = currentUid();
+        const pendingHit = pendingCache.get(uid);
+        if (pendingHit && pendingHit.exp > Date.now()) return res.json(pendingHit.body);
         const token = await mlAuth.getToken();
         const ctx: Ctx = { token, deadline: started + TIME_BUDGET_MS, mlCalls: 0, cacheHits: 0, retries: 0 };
         const tz = 'America/Mexico_City';
@@ -297,10 +303,11 @@ router.get('/pending', async (_req: Request, res: Response) => {
             else if (PENDING_SHIPMENT_STATUS.has(info.status)) count++;
         }, ctx.deadline);
         const body = { count, partial: unknown > 0, meta: { ms: Date.now() - started, mlCalls: ctx.mlCalls } };
-        if (!body.partial) pendingCache = { exp: Date.now() + 60_000, body };
+        if (!body.partial) pendingCache.set(uid, { exp: Date.now() + 60_000, body });
         res.json(body);
     } catch (error: any) {
         console.error('Error counting pending shipments:', safeError(error));
+        if (error instanceof NoAccountContextError) return res.status(401).json({ error: 'Not authorized' });
         res.status(500).json({ error: 'Failed to count pending shipments' });
     }
 });

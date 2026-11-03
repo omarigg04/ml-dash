@@ -3,6 +3,7 @@ import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
 import { mlAuth } from '../auth/oauth';
+import { bindToCurrentAccount } from '../auth/context';
 
 const router = Router();
 
@@ -44,14 +45,15 @@ export const detectImageType = (buf: Buffer): { mime: string; ext: string } | nu
 
 /** Ejecuta multer y convierte sus errores (tamaño, tipo, partes) en 4xx claros en vez de 500. */
 const handleUpload = (req: Request, res: Response, next: NextFunction) => {
-    upload.single('file')(req, res, (err: any) => {
+    // multer termina desde eventos del stream de la petición: se fija la cuenta para el callback y lo que sigue
+    upload.single('file')(req, res, bindToCurrentAccount((err: any) => {
         if (!err) return next();
         const tooBig = err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE';
         res.status(tooBig ? 413 : 400).json({
             error: tooBig ? 'File too large' : 'Invalid upload',
             message: tooBig ? 'Image exceeds the 4 MB limit' : 'Only JPG, PNG and WEBP images are allowed'
         });
-    });
+    }));
 };
 
 /**

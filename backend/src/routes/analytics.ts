@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { mlAuth } from '../auth/oauth';
+import { currentUid, NoAccountContextError } from '../auth/context';
 import { ITEM_ID_RE, safeError } from '../security';
 import { BadRequest, Ctx, DAY_MS, mlGet, parseDay, dayStr, runPool } from './summary';
 
@@ -37,13 +38,14 @@ const todayInTz = (): string => new Intl.DateTimeFormat('en-CA', { timeZone: 'Am
 
 /** Visitas por día de una publicación en los últimos `last` días (ML: puede devolver last+1 con hoy y omite días sin datos). */
 async function itemDaily(ctx: Ctx, id: string, last: number): Promise<DayCount[] | null> {
-    const hit = visitsCache.get(id);
+    const vKey = `${currentUid()}:${id}`; // por cuenta
+    const hit = visitsCache.get(vKey);
     if (hit && hit.exp > Date.now() && hit.last >= last) { ctx.cacheHits++; return hit.days; }
     try {
         const data: any = await mlGet(ctx, `${ML_API}/items/${encodeURIComponent(id)}/visits/time_window`, { last, unit: 'day' });
         const days: DayCount[] = (Array.isArray(data?.results) ? data.results : [])
             .map((x: any) => ({ date: String(x.date).slice(0, 10), total: Number(x.total) || 0 }));
-        visitsCache.set(id, { exp: Date.now() + VISITS_TTL_MS, days, last });
+        visitsCache.set(vKey, { exp: Date.now() + VISITS_TTL_MS, days, last });
         return days;
     } catch (error) {
         console.warn(`analytics: visitas de ${id} no disponibles: ${safeError(error)}`);
@@ -72,7 +74,7 @@ router.get('/items', async (req: Request, res: Response) => {
 
         const dFrom = dayStr(fromT), dTo = dayStr(toT);
         const last30From = dayStr(todayT - 29 * DAY_MS);
-        const key = [dFrom, dTo, [...new Set(rawIds)].sort().join(',')].join('|');
+        const key = [currentUid(), dFrom, dTo, [...new Set(rawIds)].sort().join(',')].join('|');
         const cached = responseCache.get(key);
         if (cached && cached.exp > Date.now()) {
             return res.json({ ...cached.body, meta: { ...cached.body.meta, ms: Date.now() - started, mlCalls: 0, responseCache: true } });
@@ -143,7 +145,7 @@ router.get('/items', async (req: Request, res: Response) => {
     } catch (error: any) {
         if (error instanceof BadRequest) return res.status(400).json({ error: 'Invalid parameter', message: error.message });
         console.error('Error building analytics items:', safeError(error));
-        if (error?.message?.includes('No token available')) {
+        if (error instanceof NoAccountContextError || error?.message?.includes('No token available')) {
             return res.status(401).json({ error: 'Not authorized', message: 'Please authorize the app first by visiting /auth' });
         }
         res.status(500).json({ error: 'Failed to build analytics' });

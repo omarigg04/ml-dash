@@ -7,8 +7,11 @@ import { CachingService } from './caching.service';
 export interface AuthStatus {
   authenticated: boolean;
   userId: number | null;
+  nickname?: string | null;
   connected: boolean;
 }
+
+const LAST_ACCOUNT_KEY = 'ml_dash_last_account';
 
 /**
  * Sesión basada en el login de MercadoLibre (OAuth en el backend).
@@ -32,11 +35,31 @@ export class AuthService {
       const status = await firstValueFrom(
         this.http.get<AuthStatus>(`${environment.apiUrl}/auth/status`)
       );
+      if (status.authenticated) this.resetDataIfAccountChanged(status.userId);
       this.currentUserSubject.next(status.authenticated ? status : null);
       return status.authenticated;
     } catch (error) {
       this.currentUserSubject.next(null);
       return false;
+    }
+  }
+
+  /**
+   * Navegador compartido entre tiendas: si la cuenta que inició sesión no es la última que usó este
+   * navegador (o no hay registro), se borra todo lo guardado (galería, filtros, borradores, cola, caché)
+   * ANTES de que ninguna pantalla cargue datos. Una sesión expirada no pasa por aquí (no borra borradores).
+   */
+  private resetDataIfAccountChanged(userId: number | null): void {
+    if (userId === null || userId === undefined) return;
+    try {
+      const last = localStorage.getItem(LAST_ACCOUNT_KEY);
+      if (last !== String(userId)) {
+        this.cachingService.clearAllUserData();
+        localStorage.setItem(LAST_ACCOUNT_KEY, String(userId));
+      }
+    } catch {
+      // Sin almacenamiento no hay nada que mezclar; se limpia lo que se pueda
+      this.cachingService.clearAllUserData();
     }
   }
 

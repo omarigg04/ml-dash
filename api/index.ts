@@ -5,6 +5,8 @@ import axios from 'axios';
 import { safeError, safeReturnPath, csrfProtection } from '../backend/src/security';
 import { mlAuth, UserNotAllowedError, TokenStorageError } from '../backend/src/auth/oauth';
 import { createSession, getSession, clearSession, getCookie } from '../backend/src/auth/session';
+import { runWithAccount, localDevUid } from '../backend/src/auth/context';
+import { getAccountNickname } from '../backend/src/auth/account';
 import ordersRouter from '../backend/src/routes/orders';
 import shipmentsRouter from '../backend/src/routes/shipments';
 import itemsRouter from '../backend/src/routes/items';
@@ -72,8 +74,15 @@ const PUBLIC_PATHS = [
   '/api/auth/status',
   '/api/auth/logout',
 ];
+// La cuenta de la petición viaja en AsyncLocalStorage: mlAuth.getToken() y las cachés la leen de ahí.
+// Sin cuenta no hay contexto y todo lo que toque ML falla cerrado (401).
 app.use((req, res, next) => {
-  if (noAuth || PUBLIC_PATHS.includes(req.path) || getSession(req)) {
+  const session = getSession(req);
+  const uid = noAuth ? localDevUid() : session?.uid;
+  if (uid !== null && uid !== undefined) {
+    return runWithAccount(uid, next);
+  }
+  if (PUBLIC_PATHS.includes(req.path)) {
     return next();
   }
   res.status(401).json({ error: 'Unauthorized', code: 'SESSION_REQUIRED', message: 'Please log in with MercadoLibre' });
@@ -90,11 +99,22 @@ app.get('/api', (req, res) => {
 // Session + store connection status for the frontend (never exposes tokens)
 app.get('/api/auth/status', async (req, res) => {
   const session = getSession(req);
-  res.json({
-    authenticated: noAuth || !!session,
-    userId: session?.uid ?? null,
+  const uid = noAuth ? localDevUid() : session?.uid ?? null;
+  const authenticated = uid !== null;
+  let connected = false;
+  let nickname: string | null = null;
+  if (authenticated) {
     // Solo con sesión: el estado de KV/token no se expone a anónimos
-    connected: session || noAuth ? await mlAuth.isConnected() : false,
+    try {
+      connected = await mlAuth.isConnected();
+      if (connected) nickname = await getAccountNickname();
+    } catch { /* sin cuenta válida en contexto: no conectado */ }
+  }
+  res.json({
+    authenticated,
+    userId: uid !== null ? Number(uid) : null,
+    nickname,
+    connected,
   });
 });
 

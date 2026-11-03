@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { mlAuth } from '../auth/oauth';
+import { currentUid } from '../auth/context';
 import { ITEM_ID_RE, CATEGORY_ID_RE, safeError } from '../security';
 
 const router = Router();
@@ -13,13 +14,15 @@ interface CacheEntry {
     data: any[];
     timestamp: number;
     sellerId: string;
+    uid: string;
 }
 
+// Caché POR CUENTA: la clave y las entradas llevan el uid de la petición (currentUid lanza si no hay cuenta)
 const itemsCache = new Map<string, CacheEntry>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
 function getCacheKey(sellerId: string, status?: string, listingType?: string): string {
-    return `${sellerId}_${status || 'all'}_${listingType || 'all'}`;
+    return `${currentUid()}_${sellerId}_${status || 'all'}_${listingType || 'all'}`;
 }
 
 function getFromCache(sellerId: string, status?: string, listingType?: string): any[] | null {
@@ -46,27 +49,23 @@ function saveToCache(sellerId: string, data: any[], status?: string, listingType
     itemsCache.set(key, {
         data,
         timestamp: Date.now(),
-        sellerId
+        sellerId,
+        uid: currentUid()
     });
     console.log(`💾 Cached ${data.length} items with key:`, key);
 }
 
 function clearItemsCache(sellerId?: string): void {
-    if (sellerId) {
-        // Clear only for specific seller
-        const keysToDelete: string[] = [];
-        itemsCache.forEach((value, key) => {
-            if (value.sellerId === sellerId) {
-                keysToDelete.push(key);
-            }
-        });
-        keysToDelete.forEach(key => itemsCache.delete(key));
-        console.log(`🗑️ Cleared ${keysToDelete.length} cache entries for seller:`, sellerId);
-    } else {
-        // Clear all
-        itemsCache.clear();
-        console.log('🗑️ All items cache cleared');
-    }
+    // Solo se borran las entradas de la cuenta actual; nunca las de otra
+    const uid = currentUid();
+    const keysToDelete: string[] = [];
+    itemsCache.forEach((value, key) => {
+        if (value.uid === uid && (!sellerId || value.sellerId === sellerId)) {
+            keysToDelete.push(key);
+        }
+    });
+    keysToDelete.forEach(key => itemsCache.delete(key));
+    console.log(`🗑️ Cleared ${keysToDelete.length} items cache entries`);
 }
 
 // ============================================

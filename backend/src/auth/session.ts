@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import { Request, Response } from 'express';
+import { isAllowedId } from './allowlist';
 
 export const SESSION_COOKIE = 'ml_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
@@ -37,11 +38,8 @@ const sign = (data: string): string | null => {
     return key ? crypto.createHmac('sha256', key).update(data).digest('base64url') : null;
 };
 
-// Misma interpretación que oauth.ts: comparación exacta del id como cadena. Falla cerrado si falta.
-const isAllowedUser = (uid: unknown): boolean => {
-    const allowed = process.env['ALLOWED_ML_USER_ID'];
-    return !!allowed && typeof uid === 'number' && String(uid) === allowed;
-};
+// Misma lista que oauth.ts (allowlist.ts). Falla cerrado: un id retirado de la lista invalida su sesión.
+const isAllowedUser = (uid: unknown): boolean => typeof uid === 'number' && isAllowedId(uid);
 
 export const getCookie = (req: Request, name: string): string | undefined => {
     const raw = (req.headers.cookie || '')

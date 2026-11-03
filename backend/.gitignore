@@ -24,3 +24,4 @@ certs/
 # OS
 .DS_Store
 Thumbs.db
+tokens.*.json
