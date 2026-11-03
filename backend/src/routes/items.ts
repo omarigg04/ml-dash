@@ -348,7 +348,7 @@ router.post('/:id/description', async (req: Request, res: Response) => {
  * - status: filter by status (active, paused, closed, etc.)
  * - listing_type: filter by listing type (gold_pro, gold_special, etc.)
  * - q: search query (filters items by title on frontend)
- * - sort: sort order (price_asc, price_desc, date_asc, date_desc, title_asc, title_desc, stock_*, sales_*)
+ * - sort: sort order (price_asc, price_desc, date_asc, date_desc, title_asc, title_desc, stock_*, sales_*, revenue_*, status_*)
  * - max_stock (stock < N), min_sales (vendidos >= N), no_sales=1: no existen en ML; se aplican sobre
  *   el listado completo cacheado (misma carga que sort/q), por lo que paging.total es el total filtrado real.
  */
@@ -424,6 +424,10 @@ router.get('/', async (req: Request, res: Response) => {
                             case 'stock_desc': return b.available_quantity - a.available_quantity;
                             case 'sales_asc': return (a.sold_quantity || 0) - (b.sold_quantity || 0);
                             case 'sales_desc': return (b.sold_quantity || 0) - (a.sold_quantity || 0);
+                            case 'revenue_asc': return (a.price * (a.sold_quantity || 0)) - (b.price * (b.sold_quantity || 0));
+                            case 'revenue_desc': return (b.price * (b.sold_quantity || 0)) - (a.price * (a.sold_quantity || 0));
+                            case 'status_asc': return String(a.status).localeCompare(String(b.status));
+                            case 'status_desc': return String(b.status).localeCompare(String(a.status));
                             default: return 0;
                         }
                     });
@@ -654,6 +658,14 @@ router.get('/', async (req: Request, res: Response) => {
                         return (a.sold_quantity || 0) - (b.sold_quantity || 0);
                     case 'sales_desc':
                         return (b.sold_quantity || 0) - (a.sold_quantity || 0);
+                    case 'revenue_asc':
+                        return (a.price * (a.sold_quantity || 0)) - (b.price * (b.sold_quantity || 0));
+                    case 'revenue_desc':
+                        return (b.price * (b.sold_quantity || 0)) - (a.price * (a.sold_quantity || 0));
+                    case 'status_asc':
+                        return String(a.status).localeCompare(String(b.status));
+                    case 'status_desc':
+                        return String(b.status).localeCompare(String(a.status));
                     default:
                         return 0;
                 }

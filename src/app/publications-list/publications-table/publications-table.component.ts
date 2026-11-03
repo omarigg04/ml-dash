@@ -6,7 +6,7 @@ import { environment } from '../../../environments/environment';
 import { csvCell } from '../../shared/csv';
 import { UserPreferencesService } from '../../services/user-preferences.service';
 import {
-  ITEM_STATUS, LISTING_TYPES, LOW_STOCK, PagingInfo, Publication, SORT_OPTIONS, STATUS_OPTIONS, Tone,
+  ITEM_STATUS, LISTING_TYPES, LOW_STOCK, PagingInfo, Publication, HEADER_SORT_OPTIONS, SORT_OPTIONS, STATUS_OPTIONS, Tone,
   conversion, intFmt, money, pctFmt, revenue
 } from '../publication.model';
 
@@ -49,7 +49,7 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
 
   // Filtros
   searchQuery = '';
-  statusFilter = '';
+  statusFilter = 'active';
   listingTypeFilter = '';
   maxStock: number | null = null;
   noSales = false;
@@ -127,10 +127,11 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
   private async loadPrefs(): Promise<void> {
     const saved = await this.prefs.getPublicationFilters();
     if (!saved) return;
-    if (STATUS_OPTIONS.some(o => o.value === saved.statusFilter)) this.statusFilter = saved.statusFilter;
+    // "Todas" no se recuerda: al entrar se parte de Activas salvo que se haya elegido otro estado
+    if (saved.statusFilter && STATUS_OPTIONS.some(o => o.value === saved.statusFilter)) this.statusFilter = saved.statusFilter;
     if (saved.listingTypeFilter === 'gold_special' || saved.listingTypeFilter === 'gold_pro') this.listingTypeFilter = saved.listingTypeFilter;
     // El antiguo "Más relevantes" ('') pasa a la vista por defecto
-    this.sortBy = SORT_OPTIONS.some(o => o.value === saved.sortBy) ? saved.sortBy : 'sales_desc';
+    this.sortBy = [...SORT_OPTIONS, ...HEADER_SORT_OPTIONS].some(o => o.value === saved.sortBy) ? saved.sortBy : 'sales_desc';
     if (PAGE_SIZES.includes(saved.pageSize as number)) this.pageSize = saved.pageSize as number;
     if (typeof saved.maxStock === 'number' && saved.maxStock >= 0) this.maxStock = saved.maxStock;
     this.noSales = saved.noSales === true;
@@ -152,7 +153,7 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
     let params = new HttpParams()
       .set('offset', String(this.page * this.pageSize))
       .set('limit', String(this.pageSize))
-      .set('sort', this.compact ? 'sales_desc' : this.sortBy);
+      .set('sort', this.compact || this.isLocalSort ? 'sales_desc' : this.sortBy);
     // Inicio resume lo que está a la venta hoy; lo pausado se ve en Publicaciones
     if (this.compact) params = params.set('status', 'active');
     if (!this.compact) {
@@ -213,14 +214,28 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
   // ---------- Vista de filas ----------
   /** Filas visibles: "Sin visitas" se aplica solo sobre las cargadas y con visitas reales (0). */
   get visibleRows(): Publication[] {
-    return this.noVisits ? this.rows.filter(r => r.visits === 0) : this.rows;
+    const rows = this.noVisits ? this.rows.filter(r => r.visits === 0) : this.rows;
+    if (!this.isLocalSort) return rows;
+    const [key, dir] = this.sortBy.split('_');
+    const val = (r: Publication) => (key === 'visits' ? r.visits ?? null : conversion(r));
+    // Sin dato (visitas sin cargar, conversión "—") siempre al final
+    return [...rows].sort((a, b) => {
+      const x = val(a), y = val(b);
+      if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
+      return dir === 'asc' ? x - y : y - x;
+    });
   }
+
+  /** Visitas y conversión no existen en el listado del servidor: ordenan solo la página cargada. */
+  get isLocalSort(): boolean { return /^(visits|conv)_/.test(this.sortBy); }
 
   get hasServerFilters(): boolean {
     return !!(this.statusFilter || this.listingTypeFilter || this.searchQuery || this.maxStock != null || this.noSales);
   }
 
-  get hasAnyFilter(): boolean { return this.hasServerFilters || this.noVisits; }
+  get hasAnyFilter(): boolean {
+    return this.statusFilter !== 'active' || !!(this.listingTypeFilter || this.searchQuery || this.maxStock != null || this.noSales || this.noVisits);
+  }
 
   get rangeLabel(): string {
     if (this.noVisits) {
@@ -247,7 +262,7 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
 
   // ---------- Filtros ----------
   get statusLabel(): string { return this.statusOptions.find(o => o.value === this.statusFilter)?.label ?? 'Todas'; }
-  get sortLabel(): string { return this.sortOptions.find(o => o.value === this.sortBy)?.label ?? 'Por ventas'; }
+  get sortLabel(): string { return [...this.sortOptions, ...HEADER_SORT_OPTIONS].find(o => o.value === this.sortBy)?.label ?? 'Por ventas'; }
   get typeLabel(): string { return LISTING_TYPES[this.listingTypeFilter] ?? ''; }
 
   private filtersChanged(): void {
@@ -282,8 +297,22 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
   setStatus(v: string): void { this.statusFilter = v; this.closeMenu(); this.filtersChanged(); }
   setSort(v: string): void { this.sortBy = v; this.closeMenu(); this.filtersChanged(); }
 
-  toggleSalesSort(): void {
-    this.sortBy = this.sortBy === 'sales_desc' ? 'sales_asc' : 'sales_desc';
+  isSort(key: string): boolean { return this.sortBy.startsWith(key + '_'); }
+  ariaSort(key: string): string {
+    if (!this.isSort(key)) return 'none';
+    return this.sortBy.endsWith('_asc') ? 'ascending' : 'descending';
+  }
+  get sortIcon(): string { return this.sortBy.endsWith('_asc') ? 'expand_less' : 'expand_more'; }
+
+  /** Primer clic: A-Z en texto, mayor a menor en números. Segundo clic: invierte. */
+  toggleSort(key: string): void {
+    if (this.compact) return;
+    const first = key === 'title' || key === 'status' ? 'asc' : 'desc';
+    const other = first === 'asc' ? 'desc' : 'asc';
+    const wasLocal = this.isLocalSort;
+    this.sortBy = this.sortBy === `${key}_${first}` ? `${key}_${other}` : `${key}_${first}`;
+    // Entre visitas y conversión la página ya está cargada: no se vuelve a pedir
+    if (this.isLocalSort && wasLocal) { this.savePrefs(); return; }
     this.filtersChanged();
   }
 
@@ -303,7 +332,7 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
   setNoVisits(on: boolean): void { this.noVisits = on; this.closeMenu(); this.selected.clear(); }
 
   clearAllFilters(): void {
-    this.statusFilter = ''; this.listingTypeFilter = ''; this.maxStock = null; this.noSales = false; this.noVisits = false;
+    this.statusFilter = 'active'; this.listingTypeFilter = ''; this.maxStock = null; this.noSales = false; this.noVisits = false;
     this.searchQuery = '';
     if (this.route.snapshot.queryParamMap.has('q')) {
       this.router.navigate([], { queryParams: {}, replaceUrl: true });

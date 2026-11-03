@@ -18,7 +18,7 @@
           <input matEndDate formControlName="end" placeholder="Hasta">
         </mat-date-range-input>
         <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-        <mat-date-range-picker #picker panelClass="custom-datepicker-panel"></mat-date-range-picker>
+        <mat-date-range-picker #picker panelClass="custom-datepicker-panel" (closed)="applyCustomRange()"></mat-date-range-picker>
       </mat-form-field>
       <button type="button" class="ds-btn" (click)="applyCustomRange()"
         [disabled]="!customRangeForm.value.start || !customRangeForm.value.end">Aplicar</button>

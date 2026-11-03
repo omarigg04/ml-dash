@@ -83,20 +83,46 @@
               <input type="checkbox" [checked]="allVisibleSelected" [indeterminate]="someVisibleSelected"
                 (change)="toggleAll()" aria-label="Seleccionar todas las publicaciones visibles">
             </th>
-            <th scope="col" class="c-prod">Producto</th>
-            <th scope="col" class="c-status">Estado</th>
-            <th scope="col" class="r c-sales" [attr.aria-sort]="sortBy === 'sales_desc' ? 'descending' : (sortBy === 'sales_asc' ? 'ascending' : 'none')">
-              <button type="button" class="sort" [class.on]="sortBy.startsWith('sales_')" (click)="toggleSalesSort()"
-                [disabled]="compact" title="Ordenar por ventas">Ventas
-                <mat-icon aria-hidden="true" *ngIf="sortBy === 'sales_desc'">expand_more</mat-icon>
-                <mat-icon aria-hidden="true" *ngIf="sortBy === 'sales_asc'">expand_less</mat-icon>
+            <th scope="col" class="c-prod" [attr.aria-sort]="ariaSort('title')">
+              <button type="button" class="sort" [class.on]="isSort('title')" (click)="toggleSort('title')" [disabled]="compact" title="Ordenar por título">Producto
+                <mat-icon aria-hidden="true" *ngIf="isSort('title')">{{ sortIcon }}</mat-icon>
               </button>
             </th>
-            <th scope="col" class="r">Precio</th>
-            <th scope="col" class="r">Stock</th>
-            <th scope="col" class="r">Visitas</th>
-            <th scope="col" class="r" title="Aproximada: ventas históricas / visitas que conserva MercadoLibre. Sale — si no son comparables.">Conv.</th>
-            <th scope="col" class="r" title="Aproximado: precio actual × unidades vendidas">Ingreso</th>
+            <th scope="col" class="c-status" [attr.aria-sort]="ariaSort('status')">
+              <button type="button" class="sort" [class.on]="isSort('status')" (click)="toggleSort('status')" [disabled]="compact" title="Ordenar por estado">Estado
+                <mat-icon aria-hidden="true" *ngIf="isSort('status')">{{ sortIcon }}</mat-icon>
+              </button>
+            </th>
+            <th scope="col" class="r c-sales" [attr.aria-sort]="ariaSort('sales')">
+              <button type="button" class="sort" [class.on]="isSort('sales')" (click)="toggleSort('sales')" [disabled]="compact" title="Ordenar por ventas">Ventas
+                <mat-icon aria-hidden="true" *ngIf="isSort('sales')">{{ sortIcon }}</mat-icon>
+              </button>
+            </th>
+            <th scope="col" class="r" [attr.aria-sort]="ariaSort('price')">
+              <button type="button" class="sort" [class.on]="isSort('price')" (click)="toggleSort('price')" [disabled]="compact" title="Ordenar por precio">Precio
+                <mat-icon aria-hidden="true" *ngIf="isSort('price')">{{ sortIcon }}</mat-icon>
+              </button>
+            </th>
+            <th scope="col" class="r" [attr.aria-sort]="ariaSort('stock')">
+              <button type="button" class="sort" [class.on]="isSort('stock')" (click)="toggleSort('stock')" [disabled]="compact" title="Ordenar por stock">Stock
+                <mat-icon aria-hidden="true" *ngIf="isSort('stock')">{{ sortIcon }}</mat-icon>
+              </button>
+            </th>
+            <th scope="col" class="r" [attr.aria-sort]="ariaSort('visits')">
+              <button type="button" class="sort" [class.on]="isSort('visits')" (click)="toggleSort('visits')" [disabled]="compact" title="Ordena solo esta página: las visitas no vienen en el listado completo">Visitas
+                <mat-icon aria-hidden="true" *ngIf="isSort('visits')">{{ sortIcon }}</mat-icon>
+              </button>
+            </th>
+            <th scope="col" class="r" [attr.aria-sort]="ariaSort('conv')">
+              <button type="button" class="sort" [class.on]="isSort('conv')" (click)="toggleSort('conv')" [disabled]="compact" title="Aproximada: ventas históricas / visitas que conserva MercadoLibre. Sale — si no son comparables. Ordena solo esta página.">Conv.
+                <mat-icon aria-hidden="true" *ngIf="isSort('conv')">{{ sortIcon }}</mat-icon>
+              </button>
+            </th>
+            <th scope="col" class="r" [attr.aria-sort]="ariaSort('revenue')">
+              <button type="button" class="sort" [class.on]="isSort('revenue')" (click)="toggleSort('revenue')" [disabled]="compact" title="Aproximado: precio actual × unidades vendidas">Ingreso
+                <mat-icon aria-hidden="true" *ngIf="isSort('revenue')">{{ sortIcon }}</mat-icon>
+              </button>
+            </th>
             <th scope="col" class="c-act" *ngIf="!compact"><span class="sr-only">Acciones</span></th>
           </tr>
         </thead>

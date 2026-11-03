@@ -56,6 +56,17 @@ export const SORT_OPTIONS = [
   { value: 'stock_desc', label: 'Mayor stock' },
   { value: 'title_asc', label: 'Título A-Z' },
   { value: 'title_desc', label: 'Título Z-A' },
+  { value: 'revenue_desc', label: 'Mayor ingreso' },
+  { value: 'revenue_asc', label: 'Menor ingreso' },
+];
+/** Órdenes que solo se eligen desde el encabezado de la columna. */
+export const HEADER_SORT_OPTIONS = [
+  { value: 'status_asc', label: 'Estado A-Z' },
+  { value: 'status_desc', label: 'Estado Z-A' },
+  { value: 'visits_desc', label: 'Más visitas (esta página)' },
+  { value: 'visits_asc', label: 'Menos visitas (esta página)' },
+  { value: 'conv_desc', label: 'Mayor conversión (esta página)' },
+  { value: 'conv_asc', label: 'Menor conversión (esta página)' },
 ];
 
 export const LOW_STOCK = 20;

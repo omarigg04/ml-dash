@@ -18,13 +18,14 @@
         <label class="radio"><input type="radio" name="pm" value="percent" [(ngModel)]="priceMode"> Cambio en %</label>
         <label class="radio"><input type="radio" name="pm" value="fixed" [(ngModel)]="priceMode"> Precio fijo</label>
         <label class="field">
-          <span>{{ priceMode === 'percent' ? 'Porcentaje (ej. -10 baja 10%, 5 sube 5%)' : 'Nuevo precio (MXN)' }}</span>
+          <span>{{ priceMode === 'percent' ? 'Opcional: mismo % a todas (ej. -10 baja 10%)' : 'Opcional: mismo precio a todas (MXN)' }}</span>
           <input type="number" step="0.01" inputmode="decimal" [(ngModel)]="priceValue" name="pv"
             [attr.aria-invalid]="priceValue !== '' && !priceInputValid">
         </label>
+        <button type="button" class="ds-btn fill" (click)="fillAll()" [disabled]="!priceInputValid">Llenar todas</button>
       </fieldset>
       <p class="modal-note" *ngIf="step === 'confirm'">
-        Se enviarán {{ sendable.length }} cambios de {{ rows.length }} publicaciones; el resto se omite. Revisa el antes → después y confirma.
+        Escribe el precio de cada publicación. Se enviarán {{ sendable.length }} cambios de {{ rows.length }}; las que no cambian se omiten.
       </p>
     </ng-container>
 
@@ -51,7 +52,15 @@
             <ng-container *ngIf="plan(r) as p">
               <span class="b-price" *ngIf="r.current != null">
                 <span class="before">{{ money(r.current) }}</span> →
-                <b>{{ (r.after ?? p.after) != null ? money(r.after ?? p.after) : '—' }}</b>
+                <input *ngIf="step === 'confirm'" class="b-input" type="number" step="0.01" min="0.01" inputmode="decimal"
+                  [(ngModel)]="r.edit" [ngModelOptions]="{ standalone: true }"
+                  [attr.aria-label]="'Nuevo precio de ' + r.item.title"
+                  [attr.aria-invalid]="p.kind === 'invalid'">
+                <b *ngIf="step !== 'confirm'">{{ (r.after ?? p.after) != null ? money(r.after ?? p.after) : '—' }}</b>
+              </span>
+              <span class="b-state" *ngIf="step === 'confirm' && changePct(r) as pct"
+                [class.warn]="pct <= -30 || pct >= 50" [class.muted]="pct > -30 && pct < 50">
+                {{ pct > 0 ? '+' : '' }}{{ pct }}%<ng-container *ngIf="pct <= -30 || pct >= 50"> · cambio grande, revísalo</ng-container>
               </span>
               <span class="b-state muted" *ngIf="p.kind === 'same'">Sin cambio: se omite</span>
               <span class="b-state warn" *ngIf="p.kind === 'invalid' && p.note">{{ p.note }}</span>

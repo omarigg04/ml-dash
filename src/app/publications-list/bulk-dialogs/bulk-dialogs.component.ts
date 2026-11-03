@@ -19,6 +19,8 @@ interface BulkRow {
   current?: number;
   /** Precio nuevo enviado (solo Editar precio) */
   after?: number;
+  /** Precio que el usuario escribió para esta publicación */
+  edit?: string;
 }
 interface Plan { kind: 'send' | 'same' | 'invalid' | 'skip' | 'loading'; after?: number; note?: string; }
 
@@ -124,7 +126,7 @@ export class BulkDialogsComponent implements OnChanges {
         r.current = d.price;
         if (d.locks?.price) { r.state = 'skip'; r.note = `Se omite: ${d.locks.price}`; }
         else if (d.variations?.length) { r.state = 'skip'; r.note = 'Se omite: tiene variantes, edita el precio por variante.'; }
-        else r.state = 'ready';
+        else { r.state = 'ready'; r.edit = String(d.price); }
       } catch (err) {
         r.state = 'skip';
         r.note = `Se omite: no se pudo verificar la publicación (${errorReason(err)})`;
@@ -141,12 +143,28 @@ export class BulkDialogsComponent implements OnChanges {
     if (r.state === 'loading') return { kind: 'loading' };
     if (r.state === 'skip') return { kind: 'skip', note: r.note };
     if (r.state !== 'ready') return { kind: 'skip' };
-    if (!this.priceInputValid || r.current == null) return { kind: 'invalid' };
-    const n = Number(this.priceValue);
-    const after = this.priceMode === 'fixed' ? n : Math.round(r.current * (1 + n / 100) * 100) / 100;
+    if (r.current == null || String(r.edit ?? '').trim() === '') return { kind: 'invalid', note: 'Escribe un precio' };
+    const after = Math.round(Number(r.edit) * 100) / 100;
+    if (!Number.isFinite(after)) return { kind: 'invalid', note: 'Precio inválido' };
     if (!(after >= 0.01 && after <= 99999999)) return { kind: 'invalid', note: 'Precio fuera de rango (0.01 – 99,999,999)' };
     if (after === r.current) return { kind: 'same', after, note: 'Sin cambio' };
     return { kind: 'send', after };
+  }
+
+  /** Llena el precio de cada publicación; después se puede ajustar una por una. */
+  fillAll(): void {
+    if (!this.priceInputValid) return;
+    const n = Number(this.priceValue);
+    this.rows.filter(r => r.state === 'ready' && r.current != null).forEach(r => {
+      r.edit = String(this.priceMode === 'fixed' ? n : Math.round((r.current as number) * (1 + n / 100) * 100) / 100);
+    });
+  }
+
+  /** Cambio en % frente al precio actual; null si no se va a enviar. */
+  changePct(r: BulkRow): number | null {
+    const p = this.plan(r);
+    if (p.kind !== 'send' || !r.current) return null;
+    return Math.round(((p.after as number) - r.current) / r.current * 100);
   }
 
   async confirmPrice(): Promise<void> {

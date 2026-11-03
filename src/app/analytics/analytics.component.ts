@@ -138,7 +138,9 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   applyCustomRange(): void {
     const { start, end } = this.customRangeForm.value;
     if (!start || !end) return;
-    const from = ymd(start), to = ymd(end);
+    // El datepicker usa el adaptador de Moment: entrega Moment, no Date
+    const toDate = (d: any): Date => (typeof d?.toDate === 'function' ? d.toDate() : d);
+    const from = ymd(toDate(start)), to = ymd(toDate(end));
     if (from > to) { this.rangeError = 'La fecha inicial no puede ser posterior a la final.'; return; }
     if (diffDays(from, to) + 1 > 92) { this.rangeError = 'El rango máximo es de 92 días.'; return; }
     this.rangeError = '';
