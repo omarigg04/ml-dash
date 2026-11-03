@@ -348,7 +348,9 @@ router.post('/:id/description', async (req: Request, res: Response) => {
  * - status: filter by status (active, paused, closed, etc.)
  * - listing_type: filter by listing type (gold_pro, gold_special, etc.)
  * - q: search query (filters items by title on frontend)
- * - sort: sort order (price_asc, price_desc, date_asc, date_desc, title_asc, title_desc)
+ * - sort: sort order (price_asc, price_desc, date_asc, date_desc, title_asc, title_desc, stock_*, sales_*, revenue_*, status_*)
+ * - max_stock (stock < N), min_sales (vendidos >= N), no_sales=1: no existen en ML; se aplican sobre
+ *   el listado completo cacheado (misma carga que sort/q), por lo que paging.total es el total filtrado real.
  */
 router.get('/', async (req: Request, res: Response) => {
     try {
@@ -361,6 +363,21 @@ router.get('/', async (req: Request, res: Response) => {
         const listingType = req.query['listing_type'] as string;
         const searchQuery = (req.query['q'] as string || '').toLowerCase();
         const sortBy = req.query['sort'] as string;
+        // Filtros que ML no ofrece: se aplican sobre el listado completo (misma carga cacheada que sort/q).
+        const numParam = (k: string): number | undefined => {
+            const raw = req.query[k];
+            if (raw === undefined || raw === '') return undefined;
+            const n = Number(raw);
+            return Number.isFinite(n) ? n : undefined;
+        };
+        const maxStock = numParam('max_stock');
+        const minSales = numParam('min_sales');
+        const noSales = req.query['no_sales'] === '1' || req.query['no_sales'] === 'true';
+        const fullMode = !!(searchQuery || sortBy || maxStock !== undefined || minSales !== undefined || noSales);
+        const applyExtraFilters = (list: any[]): any[] => list.filter(it =>
+            (maxStock === undefined || it.available_quantity < maxStock) &&
+            (minSales === undefined || (it.sold_quantity || 0) >= minSales) &&
+            (!noSales || (it.sold_quantity || 0) === 0));
 
         // Step 1: Get seller ID
         const userResponse = await axios.get('https://api.mercadolibre.com/users/me', {
@@ -377,16 +394,16 @@ router.get('/', async (req: Request, res: Response) => {
         console.log('  - Sort by:', sortBy || 'default');
 
         // Check cache first (when sorting or searching)
-        if (searchQuery || sortBy) {
+        if (fullMode) {
             console.log('🔍 Checking cache...');
             const cachedItems = getFromCache(sellerId, status, listingType);
             if (cachedItems) {
                 console.log('✅ Using cached items!');
-                let filteredItems = cachedItems;
+                let filteredItems = applyExtraFilters(cachedItems);
 
                 // Apply search filter
                 if (searchQuery) {
-                    filteredItems = cachedItems.filter(item =>
+                    filteredItems = filteredItems.filter(item =>
                         item.title.toLowerCase().includes(searchQuery) ||
                         item.id.toLowerCase().includes(searchQuery)
                     );
@@ -407,6 +424,10 @@ router.get('/', async (req: Request, res: Response) => {
                             case 'stock_desc': return b.available_quantity - a.available_quantity;
                             case 'sales_asc': return (a.sold_quantity || 0) - (b.sold_quantity || 0);
                             case 'sales_desc': return (b.sold_quantity || 0) - (a.sold_quantity || 0);
+                            case 'revenue_asc': return (a.price * (a.sold_quantity || 0)) - (b.price * (b.sold_quantity || 0));
+                            case 'revenue_desc': return (b.price * (b.sold_quantity || 0)) - (a.price * (a.sold_quantity || 0));
+                            case 'status_asc': return String(a.status).localeCompare(String(b.status));
+                            case 'status_desc': return String(b.status).localeCompare(String(a.status));
                             default: return 0;
                         }
                     });
@@ -456,7 +477,7 @@ router.get('/', async (req: Request, res: Response) => {
         let totalItems = 0;
 
         // Fetch ALL items when searching OR sorting (to ensure correct order)
-        if (searchQuery || sortBy) {
+        if (fullMode) {
             if (searchQuery) {
                 console.log('  - Search mode: fetching all items for comprehensive search');
             } else if (sortBy) {
@@ -565,46 +586,48 @@ router.get('/', async (req: Request, res: Response) => {
             batches.push(batchIds);
         }
 
-        const allItems = [];
-
-        for (const batchIds of batches) {
-            const detailsResponse = await axios.get(
-                `https://api.mercadolibre.com/items?ids=${batchIds.join(',')}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            const batchItems = detailsResponse.data
-                .filter((item: any) => item.code === 200) // Only successful responses
-                .map((item: any) => ({
-                    id: item.body.id,
-                    title: item.body.title,
-                    price: item.body.price,
-                    available_quantity: item.body.available_quantity,
-                    sold_quantity: item.body.sold_quantity || 0,
-                    status: item.body.status,
-                    thumbnail: item.body.thumbnail || item.body.pictures?.[0]?.url || null,
-                    listing_type_id: item.body.listing_type_id,
-                    condition: item.body.condition,
-                    permalink: item.body.permalink,
-                    date_created: item.body.date_created,
-                    last_updated: item.body.last_updated,
-                    // Include full data for duplicate feature
-                    fullData: item.body
-                }));
-
-            allItems.push(...batchItems);
-        }
+        // Detalles en paralelo acotado (4 lotes de 20 a la vez) para no pasar el límite de 10s de Vercel
+        const batchResults: any[][] = new Array(batches.length);
+        let nextBatch = 0;
+        const detailWorker = async () => {
+            for (let i = nextBatch++; i < batches.length; i = nextBatch++) {
+                const detailsResponse = await axios.get(
+                    `https://api.mercadolibre.com/items?ids=${batches[i].join(',')}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                batchResults[i] = detailsResponse.data
+                    .filter((item: any) => item.code === 200) // Only successful responses
+                    .map((item: any) => ({
+                        id: item.body.id,
+                        title: item.body.title,
+                        price: item.body.price,
+                        available_quantity: item.body.available_quantity,
+                        sold_quantity: item.body.sold_quantity || 0,
+                        status: item.body.status,
+                        thumbnail: item.body.thumbnail || item.body.pictures?.[0]?.url || null,
+                        listing_type_id: item.body.listing_type_id,
+                        condition: item.body.condition,
+                        permalink: item.body.permalink,
+                        date_created: item.body.date_created,
+                        last_updated: item.body.last_updated,
+                        // Include full data for duplicate feature
+                        fullData: item.body
+                    }));
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(4, batches.length) }, detailWorker));
+        const allItems: any[] = batchResults.flat();
 
         // Save to cache (only when fetching all items for sorting/searching)
-        if (searchQuery || sortBy) {
+        if (fullMode) {
             saveToCache(sellerId, allItems, status, listingType);
         }
 
         // Step 5: Apply search filter (if searching)
-        let filteredItems = allItems;
+        let filteredItems = applyExtraFilters(allItems);
 
         if (searchQuery) {
-            filteredItems = allItems.filter(item =>
+            filteredItems = filteredItems.filter(item =>
                 item.title.toLowerCase().includes(searchQuery) ||
                 item.id.toLowerCase().includes(searchQuery)
             );
@@ -635,6 +658,14 @@ router.get('/', async (req: Request, res: Response) => {
                         return (a.sold_quantity || 0) - (b.sold_quantity || 0);
                     case 'sales_desc':
                         return (b.sold_quantity || 0) - (a.sold_quantity || 0);
+                    case 'revenue_asc':
+                        return (a.price * (a.sold_quantity || 0)) - (b.price * (b.sold_quantity || 0));
+                    case 'revenue_desc':
+                        return (b.price * (b.sold_quantity || 0)) - (a.price * (a.sold_quantity || 0));
+                    case 'status_asc':
+                        return String(a.status).localeCompare(String(b.status));
+                    case 'status_desc':
+                        return String(b.status).localeCompare(String(a.status));
                     default:
                         return 0;
                 }
@@ -645,7 +676,7 @@ router.get('/', async (req: Request, res: Response) => {
         let paginatedItems = filteredItems;
         let adjustedPaging = itemsResponse.data.paging;
 
-        if (searchQuery || sortBy) {
+        if (fullMode) {
             // Manual pagination for search/sorted results
             const start = offset;
             const end = offset + limit;
@@ -725,34 +756,38 @@ router.get('/visits', async (req: Request, res: Response) => {
         // Get access token for authentication
         const token = await mlAuth.getToken();
 
-        // Object to store all visit counts
-        const visitsData: { [key: string]: number } = {};
+        // null = ML falló para ese item (no es lo mismo que 0 visitas)
+        const visitsData: { [key: string]: number | null } = {};
 
-        // Fetch visits for each item individually
-        // ML API only allows one item at a time: /visits/items?ids=MLM123
-        const promises = ids.map(async (itemId) => {
-            try {
-                const response = await axios.get(
-                    `https://api.mercadolibre.com/visits/items?ids=${encodeURIComponent(itemId)}`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        }
+        const fetchVisits = async (itemId: string): Promise<number | null> => {
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    const response = await axios.get(
+                        `https://api.mercadolibre.com/visits/items?ids=${encodeURIComponent(itemId)}`,
+                        { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }
+                    );
+                    const visitCount = response.data?.[itemId];
+                    return typeof visitCount === 'number' ? visitCount : 0;
+                } catch (error: any) {
+                    // Un solo reintento, y solo ante 429
+                    if (error?.response?.status === 429 && attempt === 0) {
+                        await new Promise(r => setTimeout(r, 600));
+                        continue;
                     }
-                );
-
-                // Response format: { "MLM123": 42 }
-                const visitCount = response.data[itemId];
-                visitsData[itemId] = visitCount !== undefined ? visitCount : 0;
-            } catch (error: any) {
-                // If fails, set to 0
-                visitsData[itemId] = 0;
+                    return null;
+                }
             }
-        });
+            return null;
+        };
 
-        // Wait for all requests to complete
-        await Promise.all(promises);
+        // Concurrencia acotada (~10) para no disparar el rate limit de ML
+        const queue = [...ids];
+        const worker = async () => {
+            for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+                visitsData[id] = await fetchVisits(id);
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(10, ids.length) }, worker));
 
         // Return combined results in same format: { "MLM123": 42, "MLM456": 15, ... }
         res.json(visitsData);
@@ -763,6 +798,34 @@ router.get('/visits', async (req: Request, res: Response) => {
             error: 'Failed to fetch visit counts',
             details: error.message
         });
+    }
+});
+
+/**
+ * GET /api/items/visits/daily?last=30
+ * Visitas por día de toda la cuenta (ML: /users/{seller}/items_visits/time_window).
+ * Responde { last, total, results: [{ date, total }] }.
+ * IMPORTANT: debe ir antes de las rutas /:id.
+ */
+router.get('/visits/daily', async (req: Request, res: Response) => {
+    const last = Math.min(Math.max(parseInt(String(req.query['last'] ?? '30'), 10) || 30, 1), 60);
+    try {
+        const token = await mlAuth.getToken();
+        const me = await axios.get(`${ML_API}/users/me`, { headers: authHeaders(token) });
+        const sellerId = me.data.id;
+        const r = await axios.get(`${ML_API}/users/${sellerId}/items_visits/time_window`, {
+            headers: authHeaders(token),
+            params: { last, unit: 'day' }
+        });
+        const results = (Array.isArray(r.data?.results) ? r.data.results : []).map((x: any) => ({
+            date: String(x.date),
+            total: Number(x.total) || 0
+        })).sort((a: any, b: any) => a.date.localeCompare(b.date)).slice(-last); // ML los devuelve desordenados (y a veces last+1 con hoy)
+        res.json({ last, total: Number(r.data?.total_visits) || results.reduce((a: number, x: any) => a + x.total, 0), results });
+    } catch (error: any) {
+        const { status, body } = mlErrorResponse(error, 'No se pudieron obtener las visitas diarias');
+        console.error('Error fetching daily visits:', body.error);
+        res.status(status).json(body);
     }
 });
 
@@ -963,7 +1026,7 @@ async function putUserProductStock(token: string, item: any, quantity: number): 
 
 /**
  * PUT /api/items/:id
- * Body: { price?, available_quantity?, variations?: [{id, available_quantity?, price?}], description? }
+ * Body: { status?: 'paused'|'active', price?, available_quantity?, variations?: [{id, available_quantity?, price?}], description? }
  * Solo envía a ML lo que cambió. Si falla el item no toca la descripción; si falla la
  * descripción responde 207 con el resultado parcial.
  */
@@ -983,7 +1046,11 @@ router.put('/:id', async (req: Request, res: Response) => {
     const hasStock = body.available_quantity !== undefined && body.available_quantity !== null;
     const hasVars = Array.isArray(body.variations) && body.variations.length > 0;
     const hasDesc = typeof body.description === 'string';
+    const hasStatus = body.status !== undefined && body.status !== null;
 
+    if (hasStatus && body.status !== 'paused' && body.status !== 'active') {
+        return void bad("El estado solo puede ser 'paused' o 'active'", 'invalid_status');
+    }
     if (hasPrice && !okPrice(body.price)) {
         return void bad('El precio debe ser un número entre 0.01 y 99,999,999', 'invalid_price');
     }
@@ -1004,7 +1071,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (hasDesc && body.description.length > 50000) {
         return void bad('La descripción es demasiado larga', 'invalid_description');
     }
-    if (!hasPrice && !hasStock && !hasVars && !hasDesc) {
+    if (!hasPrice && !hasStock && !hasVars && !hasDesc && !hasStatus) {
         return void bad('No hay cambios para guardar', 'no_changes');
     }
 
@@ -1015,6 +1082,11 @@ router.put('/:id', async (req: Request, res: Response) => {
         if ((hasPrice && locks.price) || ((hasStock || hasVars) && locks.stock) || (hasDesc && locks.description)) {
             const msg = (hasPrice && locks.price) || ((hasStock || hasVars) && locks.stock) || locks.description || 'Campo bloqueado';
             return void res.status(409).json({ error: msg, status: 409, causes: [{ code: 'field_locked', message: msg }] });
+        }
+
+        if (hasStatus && !['active', 'paused'].includes(current.status)) {
+            const msg = `No se puede cambiar el estado de una publicación en estado "${current.status}".`;
+            return void res.status(409).json({ error: msg, status: 409, causes: [{ code: 'status_locked', message: msg }] });
         }
 
         const itemVars: any[] = current.variations || [];
@@ -1031,6 +1103,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
         // Solo cambios reales
         const payload: any = {};
+        if (hasStatus && body.status !== current.status) payload.status = body.status;
         if (hasPrice && body.price !== current.price) payload.price = body.price;
         if (hasStock && body.available_quantity !== current.available_quantity) {
             payload.available_quantity = body.available_quantity;

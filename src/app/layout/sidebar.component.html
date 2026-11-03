@@ -11,7 +11,9 @@
           (click)="navigated.emit()"
         >
           <mat-icon *ngIf="item.icon" class="nav-icon" aria-hidden="true">{{ item.icon }}</mat-icon>
-          <span>{{ item.label }}</span>
+          <span class="nav-label">{{ item.label }}</span>
+          <span class="nav-count" *ngIf="item.badge === 'pending' && pendingShipments"
+            [attr.aria-label]="pendingShipments + ' por enviar'" [title]="pendingShipments + ' órdenes por enviar'">{{ pendingShipments }}</span>
         </a>
       </li>
     </ul>

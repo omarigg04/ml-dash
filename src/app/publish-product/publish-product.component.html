@@ -12,6 +12,13 @@
   <span>Modo duplicado de <b class="pf-mono">{{ sourceId }}</b><ng-container *ngIf="sourceStatus"> · estado del original: {{ sourceStatus }}</ng-container>. Los datos se leyeron de MercadoLibre hace un momento.</span>
 </div>
 
+<div *ngIf="queuePos as q" class="pf-banner is-info" role="status">
+  <mat-icon aria-hidden="true">queue</mat-icon>
+  <span>Duplicando {{ q.index }} de {{ q.total }}. Revisa y publica esta; las demás siguen en cola, no se publica nada automáticamente.</span>
+  <button type="button" class="ds-btn" *ngIf="q.nextId" (click)="goNextInQueue()">Siguiente: {{ q.index + 1 }} de {{ q.total }}</button>
+  <button type="button" class="ds-btn" (click)="cancelQueue()">Cancelar cola</button>
+</div>
+
 <div *ngIf="draftRestored" class="pf-banner is-warn" role="status">
   <mat-icon aria-hidden="true">history</mat-icon>
   <span>Se restauró un borrador guardado en este navegador.</span>

@@ -14,7 +14,6 @@ import { CachingInterceptor } from './interceptors/caching.interceptor';
 import { NavBarComponent } from './nav-bar/nav-bar.component';
 import { DatePipe } from '@angular/common';
 import { AgChartsAngularModule } from 'ag-charts-angular';
-import { BarChartComponent } from './bar-chart/bar-chart.component';
 import { VentasBarsComponent } from './ventas-bars/ventas-bars.component';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MatFormFieldModule } from '@angular/material/form-field'; // Importa el módulo del Form Field
@@ -26,6 +25,8 @@ import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { PublishProductComponent } from './publish-product/publish-product.component';
 import { PublicationsListComponent } from './publications-list/publications-list.component';
+import { PublicationsTableComponent } from './publications-list/publications-table/publications-table.component';
+import { BulkDialogsComponent } from './publications-list/bulk-dialogs/bulk-dialogs.component';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -44,6 +45,7 @@ import { LayoutComponent } from './layout/layout.component';
 import { ImageGalleryComponent } from './image-gallery/image-gallery.component';
 import { ToastComponent } from './shared/toast/toast.component';
 import { SettingsComponent } from './settings/settings.component';
+import { HomeComponent } from './home/home.component';
 import { AnalyticsComponent } from './analytics/analytics.component';
 import { NotFoundComponent } from './not-found/not-found.component';
 
@@ -55,10 +57,11 @@ registerLocaleData(localeEsMx, 'es-MX');
     LoginComponent,
     DashboardComponent,
     NavBarComponent,
-    BarChartComponent,
     VentasBarsComponent,
     PublishProductComponent,
     PublicationsListComponent,
+    PublicationsTableComponent,
+    BulkDialogsComponent,
     SidebarComponent,
     TopNavComponent,
     LayoutComponent,
@@ -67,6 +70,7 @@ registerLocaleData(localeEsMx, 'es-MX');
     SettingsComponent,
     ImageSourceSelectorComponent,
     AnalyticsComponent,
+    HomeComponent,
     NotFoundComponent,
   ],
   imports: [

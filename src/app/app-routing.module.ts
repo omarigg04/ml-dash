@@ -4,7 +4,7 @@ import { AuthGuard } from './guards/auth.guard';
 import { LoginComponent } from './auth/login/login.component';
 import { LayoutComponent } from './layout/layout.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
-import { BarChartComponent } from './bar-chart/bar-chart.component';
+import { HomeComponent } from './home/home.component';
 import { AnalyticsComponent } from './analytics/analytics.component';
 import { PublishProductComponent } from './publish-product/publish-product.component';
 import { PublicationsListComponent } from './publications-list/publications-list.component';
@@ -24,13 +24,14 @@ const routes: Routes = [
     component: LayoutComponent,
     canActivate: [AuthGuard],
     children: [
+      { path: 'inicio', component: HomeComponent },
       { path: 'analytics', component: AnalyticsComponent },
       { path: 'orders', component: DashboardComponent },
       { path: 'publish', component: PublishProductComponent },
       { path: 'publications', component: PublicationsListComponent },
       { path: 'gallery', component: ImageGalleryComponent },
       { path: 'settings', component: SettingsComponent },
-      { path: '', redirectTo: 'analytics', pathMatch: 'full' }
+      { path: '', redirectTo: 'inicio', pathMatch: 'full' }
     ]
   },
   // 404 - Page not found

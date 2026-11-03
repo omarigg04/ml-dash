@@ -1,130 +1,91 @@
 <!-- Encabezado de página -->
-<div class="ds-page-head">
+<div class="ds-page-head pub-head">
   <div>
     <h1>Publicaciones</h1>
-    <p>{{ isLoading ? 'Cargando publicaciones…' : (loadError ? 'No se pudieron cargar' : (dataSource.length === totalItems ? totalItems + ' publicaciones' : dataSource.length + ' de ' + totalItems + ' publicaciones')) }}</p>
+    <p>{{ subtitle }}</p>
   </div>
   <div class="head-tools">
-    <label class="ds-search">
-      <mat-icon aria-hidden="true">search</mat-icon>
-      <input type="search" placeholder="Buscar por título o ID" aria-label="Buscar publicaciones por título o ID"
-        [value]="searchQuery" (input)="onSearchInput($any($event.target).value)" (keyup.enter)="onSearch()">
-      <button type="button" class="clear-search" *ngIf="searchQuery" (click)="clearSearch()" aria-label="Limpiar búsqueda">
-        <mat-icon>close</mat-icon>
-      </button>
-    </label>
-    <button type="button" class="ds-btn filters-toggle" (click)="filtersOpen = !filtersOpen"
-      [attr.aria-expanded]="filtersOpen" aria-controls="pub-filters">
-      <mat-icon aria-hidden="true">tune</mat-icon>
-      Filtros<span class="filters-count" *ngIf="activeFilterCount">{{ activeFilterCount }}</span>
-    </button>
+    <button type="button" class="ds-btn" (click)="exportCsv()" [title]="exportTitle" [attr.aria-label]="'Exportar. ' + exportTitle">Exportar</button>
+    <a class="ds-btn primary" routerLink="/publish"><mat-icon aria-hidden="true">add</mat-icon>Publicar</a>
   </div>
 </div>
 
-<!-- Filtros: chips de estado + tipo + orden -->
-<div id="pub-filters" class="filters" [class.is-open]="filtersOpen">
-  <div class="chips" role="group" aria-label="Filtrar por estado">
-    <button type="button" class="ds-chip" *ngFor="let o of statusOptions" [attr.aria-pressed]="statusFilter === o.value"
-      (click)="setStatus(o.value)">{{ o.label }}</button>
-  </div>
-  <div class="selects">
-    <label>
-      <select class="ds-select" [(ngModel)]="listingTypeFilter" (change)="onListingTypeFilterChange()" aria-label="Tipo de publicación">
-        <option *ngFor="let o of listingTypeOptions" [value]="o.value">{{ o.label }}</option>
-      </select>
-    </label>
-    <label>
-      <select class="ds-select" [(ngModel)]="sortBy" (change)="onSortChange()" aria-label="Ordenar por">
-        <option *ngFor="let o of sortOptions" [value]="o.value">{{ o.label }}</option>
-      </select>
-    </label>
-    <button type="button" class="ds-btn" *ngIf="hasActiveFilters() || sortBy" (click)="clearFilters()">Limpiar filtros</button>
-  </div>
-</div>
-
-<!-- Aviso de resultado de Republicar -->
+<!-- Aviso de resultado de Republicar / Editar -->
 <div *ngIf="notice" class="notice" [class.is-error]="notice.kind === 'error'" role="status">
   <span>{{ notice.text }}</span>
   <button type="button" (click)="notice = null" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
 </div>
 
-<div class="card pub-card">
-  <!-- Cargando -->
-  <div *ngIf="isLoading" class="skeleton" role="status" aria-label="Cargando publicaciones">
-    <div class="skeleton-row" *ngFor="let r of skeletonRows"></div>
-  </div>
-
-  <!-- Error -->
-  <div *ngIf="!isLoading && loadError" class="ds-state is-error" role="alert">
-    <mat-icon aria-hidden="true">error_outline</mat-icon>
-    <strong>No pudimos cargar tus publicaciones</strong>
-    <span>Revisa tu conexión con Mercado Libre e inténtalo de nuevo.</span>
-    <button type="button" class="ds-btn primary" (click)="loadPublications()">Reintentar</button>
-  </div>
-
-  <!-- Vacío: sin resultados con filtros -->
-  <div *ngIf="!isLoading && !loadError && dataSource.length === 0 && hasActiveFilters()" class="ds-state">
-    <mat-icon aria-hidden="true">search_off</mat-icon>
-    <strong>Sin resultados con estos filtros</strong>
-    <span>Prueba con otro texto o quita algún filtro.</span>
-    <button type="button" class="ds-btn" (click)="clearFilters()">Limpiar filtros</button>
-  </div>
-
-  <!-- Vacío: no hay publicaciones -->
-  <div *ngIf="!isLoading && !loadError && dataSource.length === 0 && !hasActiveFilters()" class="ds-state">
-    <mat-icon aria-hidden="true">inventory_2</mat-icon>
-    <strong>Aún no tienes publicaciones</strong>
-    <span>Crea tu primera publicación para comenzar.</span>
-    <a class="ds-btn primary" routerLink="/publish">Crear publicación</a>
-  </div>
-
-  <ng-container *ngIf="!isLoading && !loadError && dataSource.length > 0">
-    <!-- Tabla (escritorio) -->
-    <ag-grid-angular class="ag-theme-quartz grid-table" [rowData]="dataSource" [columnDefs]="columnDefs"
-      [defaultColDef]="defaultColDef" [localeText]="localeText" [getRowId]="getRowId" [rowHeight]="56"
-      [animateRows]="false" [suppressCellFocus]="true" (cellClicked)="onCellClicked($event)">
-    </ag-grid-angular>
-
-    <!-- Tarjetas (móvil <= 640px) -->
-    <div class="pub-cards">
-      <article class="pub-cardrow" *ngFor="let item of dataSource; trackBy: trackById">
-        <div class="pc-top">
-          <img *ngIf="item.thumbnail" class="pub-thumb" [src]="item.thumbnail" alt="" loading="lazy">
-          <span *ngIf="!item.thumbnail" class="pub-thumb pub-thumb-empty" aria-hidden="true"></span>
-          <div class="pc-main">
-            <a class="pc-title" [href]="item.permalink" target="_blank" rel="noopener">{{ item.title }}</a>
-            <span class="pub-id">{{ item.id }}</span>
+<!-- Fila superior: visitas por día + stock por agotarse -->
+<div class="split">
+  <section class="card" aria-labelledby="pv-title">
+    <div class="card-h">
+      <h3 id="pv-title">Visitas por día</h3>
+      <p>Últimos 30 días, toda la cuenta</p>
+    </div>
+    <div class="card-b">
+      <div *ngIf="daysLoading" class="chart-skel" role="status" aria-label="Cargando visitas"></div>
+      <div *ngIf="!daysLoading && daysError" class="ds-state is-error" role="alert">
+        <strong>No se pudieron cargar las visitas</strong>
+        <span>Mercado Libre no respondió.</span>
+        <button type="button" class="ds-btn" (click)="loadDays()">Reintentar</button>
+      </div>
+      <ng-container *ngIf="!daysLoading && !daysError">
+        <div class="chart-wrap" role="img" [attr.aria-label]="chartLabel">
+          <ag-charts-angular class="chart" [options]="chartOptions"></ag-charts-angular>
+        </div>
+        <details class="data">
+          <summary>Ver datos como tabla</summary>
+          <div class="data-scroll">
+            <table>
+              <caption class="sr-only">Visitas por día</caption>
+              <thead><tr><th scope="col">Día</th><th scope="col">Visitas</th></tr></thead>
+              <tbody><tr *ngFor="let d of days"><td>{{ fmtDay(d.date) }}</td><td>{{ int(d.visits) }}</td></tr></tbody>
+            </table>
           </div>
-          <span class="ds-badge" [ngClass]="'tone-' + statusInfo(item.status).tone">{{ statusInfo(item.status).label }}</span>
-        </div>
-        <div class="pc-stats">
-          <span class="pc-price">{{ item.price | currency }}</span>
-          <span>{{ item.available_quantity }} disp.</span>
-          <span>{{ item.sold_quantity || 0 }} vend.</span>
-          <span>{{ item.visits == null ? '…' : item.visits }} visitas</span>
-          <span>{{ conversion(item) == null ? '—' : pct(conversion(item)!) }} conv.</span>
-          <span><b class="pc-rev">{{ revenue(item) | currency }}</b> ingreso</span>
-        </div>
-        <div class="pc-actions">
-          <span class="pc-type">{{ listingLabel(item.listing_type_id) }}</span>
-          <span class="pc-btns">
-            <button type="button" class="ds-btn row-btn" *ngIf="item.status !== 'closed'" (click)="openEdit(item)">Editar</button>
-            <button type="button" class="ds-btn row-btn" (click)="onDuplicate(item)">Duplicar</button>
-            <button type="button" class="ds-btn row-btn" *ngIf="item.status === 'closed'" (click)="openRelist(item)">Republicar</button>
-          </span>
-        </div>
-      </article>
+        </details>
+      </ng-container>
     </div>
+  </section>
 
-    <!-- Cargar más (paginación del servidor) -->
-    <div class="more" *ngIf="hasMore || loadMoreError">
-      <span class="more-error" *ngIf="loadMoreError" role="alert">No se pudieron cargar más publicaciones.</span>
-      <button type="button" class="ds-btn" (click)="loadMore()" [disabled]="isLoadingMore">
-        {{ isLoadingMore ? 'Cargando…' : (loadMoreError ? 'Reintentar' : 'Cargar más (' + (totalItems - dataSource.length) + ')') }}
-      </button>
+  <section class="card" aria-labelledby="ps-title">
+    <div class="card-h">
+      <h3 id="ps-title">Stock por agotarse</h3>
+      <p>Unidades disponibles, activas con ventas</p>
     </div>
-  </ng-container>
+    <div class="card-b">
+      <div *ngIf="stockLoading" class="mini-skel" role="status" aria-label="Cargando stock"></div>
+      <div *ngIf="!stockLoading && stockError" class="ds-state is-error" role="alert">
+        <strong>No se pudo cargar</strong>
+        <button type="button" class="ds-btn" (click)="refreshStockList()">Reintentar</button>
+      </div>
+      <p class="mini-empty" *ngIf="!stockLoading && !stockError && stockRows.length === 0">Ninguna publicación activa con ventas.</p>
+      <ul class="mini-list" *ngIf="!stockLoading && !stockError && stockRows.length > 0">
+        <li *ngFor="let r of stockRows">
+          <div class="mini-main">
+            <a class="mini-t" [href]="r.permalink" target="_blank" rel="noopener" [title]="r.title">{{ r.title }}</a>
+            <div class="bar" [style.width.%]="r.pct" aria-hidden="true"></div>
+          </div>
+          <span class="mini-n">{{ int(r.stock) }}</span>
+        </li>
+      </ul>
+    </div>
+  </section>
 </div>
+
+<!-- Tabla -->
+<app-publications-table
+  (loaded)="onTableLoaded($event)"
+  (editRow)="openEdit($event)"
+  (relistRow)="openRelist($event)"
+  (duplicateRow)="onDuplicate($event)"
+  (bulkPause)="openBulk('pause', $event)"
+  (bulkPrice)="openBulk('price', $event)"
+  (bulkDuplicate)="openBulk('duplicate', $event)">
+</app-publications-table>
+
+<!-- Acciones masivas (todo se confirma antes de enviar) -->
+<app-bulk-dialogs [mode]="bulkMode" [items]="bulkItems" (closed)="closeBulk()" (itemUpdated)="onBulkItemUpdated($event)"></app-bulk-dialogs>
 
 <!-- Confirmación de Republicar -->
 <ng-container *ngIf="relistTarget as t">

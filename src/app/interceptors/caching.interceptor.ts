@@ -30,6 +30,11 @@ export class CachingInterceptor implements HttpInterceptor {
       return next.handle(req);
     }
 
+    // /summary ya se cachea en el backend (y un resultado parcial no debe quedar fijo al reintentar)
+    if (/\/summary(\/|\?|$)/.test(req.url)) {
+      return next.handle(req);
+    }
+
     // Solo cachear peticiones GET
     if (req.method !== 'GET') {
       return next.handle(req);
