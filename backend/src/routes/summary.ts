@@ -25,24 +25,24 @@ const CHART_DAYS = 14;              // la gráfica de Inicio muestra los último
 const TIME_BUDGET_MS = 8000;        // deja margen bajo el corte de 10 s de Vercel
 const SHIP_CONCURRENCY = 5;
 const MAX_RETRIES = 3;
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FINAL_SHIPMENT_STATUS = new Set(['delivered', 'cancelled', 'not_delivered', 'returned']);
 const PENDING_SHIPMENT_STATUS = new Set(['pending', 'handling', 'ready_to_ship']);
 
 // ---------- Utilidades de fecha (zona horaria IANA, sin dependencias) ----------
-class BadRequest extends Error {}
+export class BadRequest extends Error {}
 
-function parseDay(value: unknown, name: string): number {
+export function parseDay(value: unknown, name: string): number {
     if (typeof value !== 'string' || !DATE_RE.test(value)) throw new BadRequest(`${name} debe ser una fecha YYYY-MM-DD`);
     const t = Date.parse(value + 'T00:00:00Z');
     if (isNaN(t) || new Date(t).toISOString().slice(0, 10) !== value) throw new BadRequest(`${name} no es una fecha válida`);
     return t; // medianoche UTC del día, solo para aritmética de días
 }
 
-const dayStr = (utcMidnight: number): string => new Date(utcMidnight).toISOString().slice(0, 10);
+export const dayStr = (utcMidnight: number): string => new Date(utcMidnight).toISOString().slice(0, 10);
 
-function validTimeZone(tz: unknown): string {
+export function validTimeZone(tz: unknown): string {
     if (tz === undefined || tz === '') return 'America/Mexico_City';
     if (typeof tz !== 'string' || tz.length > 64 || !/^[A-Za-z0-9_+\-\/]+$/.test(tz)) throw new BadRequest('tz inválida');
     try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); } catch { throw new BadRequest('tz inválida'); }
@@ -59,8 +59,18 @@ function dayInTz(iso: string, tz: string): string {
     return f.format(new Date(iso)); // en-CA => YYYY-MM-DD
 }
 
+const hourFormatters = new Map<string, Intl.DateTimeFormat>();
+function hourInTz(iso: string, tz: string): number {
+    let f = hourFormatters.get(tz);
+    if (!f) {
+        f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', hour: '2-digit' });
+        hourFormatters.set(tz, f);
+    }
+    return Number(f.format(new Date(iso))) % 24;
+}
+
 /** Instante UTC (ms) en que empieza `day` (YYYY-MM-DD) en la zona `tz`. */
-function startOfDayUtc(day: string, tz: string): number {
+export function startOfDayUtc(day: string, tz: string): number {
     const base = Date.parse(day + 'T00:00:00Z');
     let guess = base;
     for (let i = 0; i < 2; i++) {
@@ -76,7 +86,7 @@ function startOfDayUtc(day: string, tz: string): number {
 }
 
 // ---------- Llamadas a ML con conteo, reintento en 429 y presupuesto ----------
-interface Ctx {
+export interface Ctx {
     token: string;
     deadline: number;
     mlCalls: number;
@@ -84,9 +94,9 @@ interface Ctx {
     retries: number;
 }
 
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-async function mlGet<T>(ctx: Ctx, url: string, params?: Record<string, any>): Promise<T> {
+export async function mlGet<T>(ctx: Ctx, url: string, params?: Record<string, any>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
         ctx.mlCalls++;
         try {
@@ -144,7 +154,7 @@ async function shipmentInfo(ctx: Ctx, id: string): Promise<ShipInfo | null> {
     }
 }
 
-async function runPool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>, deadline: number): Promise<void> {
+export async function runPool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>, deadline: number): Promise<void> {
     let next = 0;
     const worker = async () => {
         while (next < items.length) {
@@ -156,7 +166,7 @@ async function runPool<T>(items: T[], limit: number, fn: (item: T) => Promise<vo
 }
 
 // ---------- Órdenes ----------
-async function fetchOrders(ctx: Ctx, fromIso: string, toIso: string): Promise<{ orders: MLOrder[]; truncated: boolean }> {
+async function fetchOrders(ctx: Ctx, fromIso: string, toIso: string, includeUnfulfilled = false): Promise<{ orders: MLOrder[]; truncated: boolean }> {
     const me = await mlGet<{ id: number }>(ctx, 'https://api.mercadolibre.com/users/me');
     const orders: MLOrder[] = [];
     let offset = 0;
@@ -173,8 +183,8 @@ async function fetchOrders(ctx: Ctx, fromIso: string, toIso: string): Promise<{ 
         if (!paging || results.length === 0 || offset >= paging.total) break;
         if (orders.length >= MAX_ORDERS || Date.now() > ctx.deadline - 2000) { truncated = true; break; }
     }
-    // Misma regla que Analytics por defecto: se excluyen las órdenes con fulfilled === false (canceladas)
-    return { orders: orders.filter(o => (o as any).fulfilled !== false), truncated };
+    // Por defecto se excluyen las órdenes con fulfilled === false (canceladas); Analytics puede pedir incluirlas
+    return { orders: includeUnfulfilled ? orders : orders.filter(o => (o as any).fulfilled !== false), truncated };
 }
 
 // Resultado completo cacheado unos segundos (cambiar de pestaña y volver no repite todo)
@@ -202,7 +212,8 @@ router.get('/', async (req: Request, res: Response) => {
         const windowFromT = Math.min(prevFromT, chartFromT, fromT);
         if ((toT - windowFromT) / DAY_MS > MAX_SPAN_DAYS) throw new BadRequest('La ventana consultada es demasiado grande');
 
-        const key = [dayStr(fromT), dayStr(toT), dayStr(prevFromT), dayStr(prevToT), tz].join('|');
+        const includeUnfulfilled = req.query['includeUnfulfilled'] === '1';
+        const key = [dayStr(fromT), dayStr(toT), dayStr(prevFromT), dayStr(prevToT), tz, includeUnfulfilled ? 'all' : 'ok'].join('|');
         const cached = responseCache.get(key);
         if (cached && cached.exp > Date.now()) {
             return res.json({ ...cached.body, meta: { ...cached.body.meta, ms: Date.now() - started, mlCalls: 0, responseCache: true } });
@@ -213,15 +224,16 @@ router.get('/', async (req: Request, res: Response) => {
 
         const fromIso = new Date(startOfDayUtc(dayStr(windowFromT), tz)).toISOString();
         const toIso = new Date(startOfDayUtc(dayStr(toT + DAY_MS), tz) - 1).toISOString();
-        const { orders, truncated } = await fetchOrders(ctx, fromIso, toIso);
+        const { orders, truncated } = await fetchOrders(ctx, fromIso, toIso, includeUnfulfilled);
 
         const dFrom = dayStr(fromT), dTo = dayStr(toT), dChart = dayStr(chartFromT);
         const rows = orders.map(o => ({
             id: o.id,
             day: dayInTz(o.date_created, tz),
+            hour: hourInTz(o.date_created, tz),
             total_amount: o.total_amount,
             order_items: o.order_items.map(i => ({
-                id: i.item.id, title: i.item.title, quantity: i.quantity, sale_fee: i.sale_fee
+                id: i.item.id, title: i.item.title, quantity: i.quantity, sale_fee: i.sale_fee, unit_price: i.unit_price
             })),
             shipId: o.shipping?.id ? String(o.shipping.id) : null,
             listCost: null as number | null,

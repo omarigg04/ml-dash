@@ -14,7 +14,6 @@ import { CachingInterceptor } from './interceptors/caching.interceptor';
 import { NavBarComponent } from './nav-bar/nav-bar.component';
 import { DatePipe } from '@angular/common';
 import { AgChartsAngularModule } from 'ag-charts-angular';
-import { BarChartComponent } from './bar-chart/bar-chart.component';
 import { VentasBarsComponent } from './ventas-bars/ventas-bars.component';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MatFormFieldModule } from '@angular/material/form-field'; // Importa el módulo del Form Field
@@ -58,7 +57,6 @@ registerLocaleData(localeEsMx, 'es-MX');
     LoginComponent,
     DashboardComponent,
     NavBarComponent,
-    BarChartComponent,
     VentasBarsComponent,
     PublishProductComponent,
     PublicationsListComponent,

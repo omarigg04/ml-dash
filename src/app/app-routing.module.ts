@@ -4,7 +4,6 @@ import { AuthGuard } from './guards/auth.guard';
 import { LoginComponent } from './auth/login/login.component';
 import { LayoutComponent } from './layout/layout.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
-import { BarChartComponent } from './bar-chart/bar-chart.component';
 import { HomeComponent } from './home/home.component';
 import { AnalyticsComponent } from './analytics/analytics.component';
 import { PublishProductComponent } from './publish-product/publish-product.component';

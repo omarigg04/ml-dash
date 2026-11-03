@@ -1,3 +1,381 @@
-<div class="analytics-container">
-  <app-bar-chart></app-bar-chart>
+<!-- Encabezado + selector de período (afecta KPIs y las tarjetas 1 y 2) -->
+<div class="ds-page-head">
+  <div>
+    <h1>Analytics</h1>
+    <p>{{ periodLabel || 'Resumen de ventas' }}</p>
+  </div>
+
+  <div class="period-controls">
+    <div class="seg" role="group" aria-label="Período de comparación">
+      <button type="button" *ngFor="let p of periods" [attr.aria-pressed]="comparison && selectedPeriod === p.key"
+        (click)="selectPeriod(p.key)">{{ p.label }}</button>
+    </div>
+
+    <div class="custom-range">
+      <mat-form-field appearance="outline" class="compact-date-field" subscriptSizing="dynamic">
+        <mat-date-range-input aria-label="Rango personalizado" [formGroup]="customRangeForm" [rangePicker]="picker" [max]="maxDate">
+          <input matStartDate formControlName="start" placeholder="Desde">
+          <input matEndDate formControlName="end" placeholder="Hasta">
+        </mat-date-range-input>
+        <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+        <mat-date-range-picker #picker panelClass="custom-datepicker-panel"></mat-date-range-picker>
+      </mat-form-field>
+      <button type="button" class="ds-btn" (click)="applyCustomRange()"
+        [disabled]="!customRangeForm.value.start || !customRangeForm.value.end">Aplicar</button>
+    </div>
+
+    <mat-checkbox [(ngModel)]="showUnfulfilled" (change)="onUnfulfilledToggle()" color="primary">Incluir canceladas</mat-checkbox>
+  </div>
 </div>
+<p class="range-error" *ngIf="rangeError" role="alert">{{ rangeError }}</p>
+
+<!-- Tira de KPIs -->
+<section class="card kpi-strip" aria-label="Indicadores del período">
+  <ng-container *ngIf="periodState === 'loading'">
+    <div class="kpi" *ngFor="let n of skeletonKpis"><span class="sk sk-label"></span><span class="sk sk-value"></span><span class="sk sk-delta"></span></div>
+  </ng-container>
+  <ng-container *ngIf="periodState === 'ready'">
+    <div class="kpi" *ngFor="let k of kpis" [class.kpi-highlight]="k.highlight">
+      <span class="kpi-label">{{ k.label }}</span>
+      <span class="kpi-value">{{ k.kind === 'money' ? money(k.value) : int(k.value) }}</span>
+      <span class="kpi-delta" [ngClass]="deltaClass(k)" *ngIf="k.delta !== null">
+        {{ k.delta > 0 ? '+' : '' }}{{ k.delta | number:'1.1-1' }}% vs anterior
+      </span>
+      <span class="kpi-delta neutral" *ngIf="k.delta === null">
+        {{ k.value === null ? 'Faltan costos de envío' : (comparison ? 'Sin base anterior' : 'Rango completo') }}
+      </span>
+    </div>
+  </ng-container>
+  <div *ngIf="periodState === 'error'" class="ds-state is-error kpi-error" role="alert">
+    <strong>No pudimos cargar tus ventas</strong>
+    <span>Revisa tu conexión con Mercado Libre e inténtalo de nuevo.</span>
+    <button type="button" class="ds-btn primary" (click)="retryPeriod()">Reintentar</button>
+  </div>
+</section>
+<p class="note" *ngIf="periodState === 'ready' && shippingMissing > 0" role="status">
+  Faltan los costos de envío de {{ shippingMissing }} {{ shippingMissing === 1 ? 'orden' : 'órdenes' }} del período (Mercado Libre no respondió a tiempo):
+  ganancia real y envíos se muestran como «—» y la gráfica de ganancia deja esos días sin barra. Recarga para completarlos.
+</p>
+
+<!-- ============ 1 y 2: dinero del período ============ -->
+<div class="grid grid-2-1">
+  <!-- 1. Ventas y ganancia en el tiempo -->
+  <section class="card" aria-labelledby="t1">
+    <div class="card-h">
+      <div>
+        <h2 id="t1">¿Cómo van tus ventas y tu ganancia en el tiempo?</h2>
+        <p>{{ comparison ? 'Período actual vs anterior, día a día' + (pair.groupBy === 'week' ? ' (agrupado por semana)' : '') : 'Rango seleccionado' + (single.weekly ? ', agrupado por semana' : '') }}</p>
+      </div>
+      <div class="seg seg-sm" role="group" aria-label="Métrica" *ngIf="comparison">
+        <button type="button" [attr.aria-pressed]="metric === 'sales'" (click)="setMetric('sales')">Ventas</button>
+        <button type="button" [attr.aria-pressed]="metric === 'net'" (click)="setMetric('net')">Ganancia real</button>
+      </div>
+    </div>
+    <div class="card-b">
+      <div *ngIf="periodState === 'loading'" class="sk sk-chart" role="status" aria-label="Cargando gráfica"></div>
+      <div *ngIf="periodState === 'error'" class="ds-state is-error" role="alert">
+        <strong>No pudimos cargar la gráfica</strong>
+        <button type="button" class="ds-btn primary" (click)="retryPeriod()">Reintentar</button>
+      </div>
+      <div *ngIf="periodState === 'ready' && !hasPeriodOrders" class="ds-state">
+        <strong>Sin ventas en este período</strong>
+        <span>Prueba con otro período o incluye las órdenes canceladas.</span>
+      </div>
+      <ng-container *ngIf="periodState === 'ready' && hasPeriodOrders">
+        <ag-charts-angular class="chart chart-lg" [options]="periodChart"
+          role="img" [attr.aria-label]="'Gráfica de ' + (metric === 'net' && comparison ? 'ganancia real' : 'ventas') + ': ' + periodLabel"></ag-charts-angular>
+        <p class="note" *ngIf="netHasGaps">Los días sin barra en «Ganancia real» no tienen el costo de envío resuelto; no son $0.</p>
+        <details class="data">
+          <summary>Ver datos como tabla</summary>
+          <div class="data-scroll">
+            <table *ngIf="comparison">
+              <caption class="sr-only">{{ metric === 'net' ? 'Ganancia real' : 'Ventas' }} por día, {{ periodLabel }}</caption>
+              <thead><tr><th scope="col">Día (anterior / actual)</th><th scope="col">{{ pair.prev.name }}</th><th scope="col">{{ pair.cur.name }}</th></tr></thead>
+              <tbody><tr *ngFor="let b of cmp"><td>{{ b.label }}</td><td>{{ money(b.p1) }}</td><td>{{ money(b.p2) }}</td></tr></tbody>
+            </table>
+            <table *ngIf="!comparison">
+              <caption class="sr-only">Ventas y ganancia real, {{ periodLabel }}</caption>
+              <thead><tr><th scope="col">{{ single.weekly ? 'Semana' : 'Día' }}</th><th scope="col">Ventas</th><th scope="col">Ganancia real</th></tr></thead>
+              <tbody><tr *ngFor="let b of single.buckets"><td>{{ b.label }}</td><td>{{ money(b.sales) }}</td><td>{{ money(b.net) }}</td></tr></tbody>
+            </table>
+          </div>
+        </details>
+      </ng-container>
+    </div>
+  </section>
+
+  <!-- 2. A dónde se va tu dinero -->
+  <section class="card" aria-labelledby="t2">
+    <div class="card-h">
+      <div>
+        <h2 id="t2">¿A dónde se va tu dinero?</h2>
+        <p>De {{ money(curMetrics?.sales ?? null) }} vendidos, {{ periodLabel ? (comparison ? pair.cur.name : periodLabel) : 'el período' }}</p>
+      </div>
+    </div>
+    <div class="card-b">
+      <div *ngIf="periodState === 'loading'" class="sk sk-chart sk-sm" role="status" aria-label="Cargando desglose"></div>
+      <div *ngIf="periodState === 'error'" class="ds-state is-error" role="alert">
+        <strong>No se pudo cargar</strong>
+        <button type="button" class="ds-btn" (click)="retryPeriod()">Reintentar</button>
+      </div>
+      <div *ngIf="periodState === 'ready' && !breakdown" class="ds-state"><strong>Sin ventas en este período</strong></div>
+      <ng-container *ngIf="periodState === 'ready' && breakdown">
+        <div class="stack" role="img"
+          [attr.aria-label]="breakdownLabel">
+          <ng-container *ngFor="let s of breakdown">
+            <span class="stack-seg" *ngIf="s.pct !== null && s.pct > 0" [class.is-unknown]="s.key === 'unknown'"
+              [style.flex-grow]="s.pct" [style.background]="s.key === 'unknown' ? null : sliceVar(s)"
+              [title]="s.label + ': ' + pct(s.pct)">
+              <span *ngIf="s.pct >= 9" class="stack-lbl" [class.on-light]="s.key === 'sat'">{{ pct(s.pct, 0) }}</span>
+            </span>
+          </ng-container>
+        </div>
+        <ul class="legend-rows">
+          <li *ngFor="let s of breakdown">
+            <span class="sw" [class.is-unknown]="s.key === 'unknown'" [style.background]="s.key === 'unknown' ? null : sliceVar(s)" aria-hidden="true"></span>
+            <span class="lg-name">{{ s.label }}<small *ngIf="s.key === 'sat'">{{ satNote }}</small></span>
+            <span class="lg-num">{{ money(s.value) }}</span>
+            <span class="lg-pct">{{ s.pct === null ? '—' : pct(s.pct) }}</span>
+          </li>
+        </ul>
+        <p class="note" *ngIf="shippingMissing > 0">Faltan costos de envío de {{ shippingMissing }} {{ shippingMissing === 1 ? 'orden' : 'órdenes' }}: el envío y la ganancia no se calculan hasta tenerlos (no se cuentan como $0).</p>
+      </ng-container>
+    </div>
+  </section>
+</div>
+
+<!-- ============ Ventana de análisis ============ -->
+<div class="window-bar">
+  <div>
+    <h2 class="win-title">Conversión y publicaciones</h2>
+    <p class="win-sub">Ventana de análisis: {{ windowLabel }} ({{ windowDays }} días terminando hoy). No depende del período de arriba.</p>
+  </div>
+  <div class="seg" role="group" aria-label="Ventana de análisis">
+    <button type="button" *ngFor="let d of windowOptions" [attr.aria-pressed]="windowDays === d" (click)="setWindow(d)">{{ d }} días</button>
+  </div>
+</div>
+<p class="note" *ngIf="winState === 'ready' && winShippingMissing > 0" role="status">
+  En esta ventana faltan costos de envío de {{ winShippingMissing }} {{ winShippingMissing === 1 ? 'orden' : 'órdenes' }}: las reglas de comisión+envío y margen solo usan las órdenes con envío conocido.
+</p>
+<p class="note" *ngIf="itemsState === 'ready' && visitsPartial" role="status">
+  Mercado Libre no devolvió las visitas de algunas publicaciones o de la cuenta{{ itemsData?.truncated ? ' (hay más publicaciones de las que se consultan)' : '' }}; lo que falta se muestra como «—», no como 0.
+</p>
+
+<!-- 3. Embudo / conversión real -->
+<section class="card" aria-labelledby="t3">
+  <div class="card-h">
+    <div>
+      <h2 id="t3">¿Cuántas visitas se convierten en órdenes?</h2>
+      <p>Visitas y órdenes de la misma ventana ({{ windowLabel }}). Conversión = órdenes ÷ visitas.</p>
+    </div>
+  </div>
+  <div class="card-b">
+    <div *ngIf="winState === 'loading' || itemsState === 'loading'" class="sk sk-chart" role="status" aria-label="Cargando conversión"></div>
+    <div *ngIf="winState === 'error'" class="ds-state is-error" role="alert">
+      <strong>No pudimos cargar las órdenes de la ventana</strong>
+      <button type="button" class="ds-btn primary" (click)="retryWindow()">Reintentar</button>
+    </div>
+    <ng-container *ngIf="winState === 'ready' && itemsState !== 'loading' && funnel">
+      <div class="funnel">
+        <div class="stat"><span class="stat-l">Visitas</span><span class="stat-v">{{ int(funnel.visits) }}</span><span class="stat-s">a tus publicaciones</span></div>
+        <span class="stat-arrow" aria-hidden="true">→</span>
+        <div class="stat"><span class="stat-l">Órdenes</span><span class="stat-v">{{ int(funnel.orders) }}</span><span class="stat-s">{{ int(funnel.units) }} unidades</span></div>
+        <span class="stat-arrow" aria-hidden="true">=</span>
+        <div class="stat stat-hl"><span class="stat-l">Conversión real</span><span class="stat-v">{{ rate(funnel.conversion) }}</span><span class="stat-s">{{ funnel.conversion === null ? 'sin visitas disponibles' : 'de cada 100 visitas, ' + (funnel.conversion * 100 | number:'1.1-1') + ' compran' }}</span></div>
+      </div>
+      <div *ngIf="itemsState === 'error' || funnel.visits === null" class="ds-state is-error" role="alert">
+        <strong>No se pudieron obtener las visitas</strong>
+        <button type="button" class="ds-btn" (click)="retryWindow()">Reintentar</button>
+      </div>
+      <ng-container *ngIf="funnel.visits !== null">
+        <div class="mini-chart-title">Visitas por día</div>
+        <ag-charts-angular class="chart chart-sm" [options]="visitsChart" role="img" [attr.aria-label]="'Visitas por día, ' + windowLabel"></ag-charts-angular>
+        <div class="mini-chart-title">Órdenes por día</div>
+        <ag-charts-angular class="chart chart-sm" [options]="ordersChart" role="img" [attr.aria-label]="'Órdenes por día, ' + windowLabel"></ag-charts-angular>
+        <p class="note">Mercado Libre no reporta los días sin visitas; aquí se muestran como 0 ({{ funnel.daysWithoutVisitData }} de {{ funnel.days.length }} días). Las barras diarias son pocas por el volumen bajo: la cifra de arriba es la que resume la ventana.</p>
+        <details class="data">
+          <summary>Ver datos como tabla</summary>
+          <div class="data-scroll">
+            <table>
+              <caption class="sr-only">Visitas y órdenes por día</caption>
+              <thead><tr><th scope="col">Día</th><th scope="col">Visitas</th><th scope="col">Órdenes</th></tr></thead>
+              <tbody><tr *ngFor="let d of funnel.days"><td>{{ fmtDay(d.day) }}</td><td>{{ int(d.visits) }}</td><td>{{ int(d.orders) }}</td></tr></tbody>
+            </table>
+          </div>
+        </details>
+      </ng-container>
+    </ng-container>
+  </div>
+</section>
+
+<!-- 4. Qué publicaciones convierten más y menos -->
+<section class="card" aria-labelledby="t4">
+  <div class="card-h">
+    <div>
+      <h2 id="t4">¿Qué publicaciones convierten más y menos?</h2>
+      <p>Solo publicaciones con al menos {{ minRankVisits }} visitas en la ventana ({{ windowLabel }}); con menos visitas el porcentaje es ruido.</p>
+    </div>
+  </div>
+  <div class="card-b">
+    <div *ngIf="itemsState === 'loading'" class="sk sk-chart sk-sm" role="status" aria-label="Cargando ranking"></div>
+    <div *ngIf="itemsState === 'error'" class="ds-state is-error" role="alert">
+      <strong>No se pudieron obtener las visitas por publicación</strong>
+      <button type="button" class="ds-btn" (click)="retryWindow()">Reintentar</button>
+    </div>
+    <ng-container *ngIf="itemsState === 'ready' && ranking">
+      <p class="mini-empty" *ngIf="ranking.eligible === 0">Ninguna publicación llegó a {{ minRankVisits }} visitas en esta ventana. Prueba con una ventana más larga.</p>
+      <div class="two-col" *ngIf="ranking.eligible > 0">
+        <div>
+          <h3 class="list-h">Más convierten</h3>
+          <p class="mini-empty" *ngIf="!ranking.best.length">Ninguna con visitas suficientes tuvo órdenes en la ventana.</p>
+          <ol class="mini-list" *ngIf="ranking.best.length">
+            <li *ngFor="let r of ranking.best; trackBy: trackById">
+              <div class="mini-main">
+                <a class="mini-t" [href]="r.permalink" target="_blank" rel="noopener" [title]="r.title">{{ r.title }}</a>
+                <div class="bar" [style.width.%]="barWidth(r.conversion, maxConv(ranking.best))" [style.background]="'var(--v-visits)'"></div>
+                <span class="mini-s">{{ r.orders }} {{ r.orders === 1 ? 'orden' : 'órdenes' }} / {{ int(r.visits) }} visitas</span>
+              </div>
+              <span class="mini-n">{{ rate(r.conversion) }}</span>
+            </li>
+          </ol>
+        </div>
+        <div>
+          <h3 class="list-h">Menos convierten</h3>
+          <p class="mini-empty" *ngIf="!ranking.worst.length">No hay otras publicaciones con visitas suficientes.</p>
+          <ol class="mini-list" *ngIf="ranking.worst.length">
+            <li *ngFor="let r of ranking.worst; trackBy: trackById">
+              <div class="mini-main">
+                <a class="mini-t" [href]="r.permalink" target="_blank" rel="noopener" [title]="r.title">{{ r.title }}</a>
+                <div class="bar bar-low" [style.width.%]="r.conversion > 0 ? barWidth(r.conversion, maxConv(ranking.best.concat(ranking.worst))) : 2"></div>
+                <span class="mini-s">{{ r.orders }} {{ r.orders === 1 ? 'orden' : 'órdenes' }} / {{ int(r.visits) }} visitas</span>
+              </div>
+              <span class="mini-n">{{ rate(r.conversion) }}</span>
+            </li>
+          </ol>
+        </div>
+      </div>
+      <p class="note" *ngIf="ranking.eligible > 0">{{ ranking.eligible }} {{ ranking.eligible === 1 ? 'publicación cumple' : 'publicaciones cumplen' }} el mínimo de {{ minRankVisits }} visitas.</p>
+    </ng-container>
+  </div>
+</section>
+
+<div class="grid grid-2-1">
+  <!-- 5. Día de la semana y hora -->
+  <section class="card" aria-labelledby="t5">
+    <div class="card-h">
+      <div>
+        <h2 id="t5">¿Qué días y a qué hora compran?</h2>
+        <p>Órdenes en {{ windowLabel }} · n = {{ patterns?.n ?? 0 }} · hora de {{ tz }}</p>
+      </div>
+    </div>
+    <div class="card-b">
+      <div *ngIf="winState === 'loading'" class="sk sk-chart" role="status" aria-label="Cargando patrones"></div>
+      <div *ngIf="winState === 'error'" class="ds-state is-error" role="alert">
+        <strong>No se pudo cargar</strong>
+        <button type="button" class="ds-btn" (click)="retryWindow()">Reintentar</button>
+      </div>
+      <ng-container *ngIf="winState === 'ready' && patterns">
+        <div *ngIf="patterns.n === 0" class="ds-state"><strong>Sin órdenes en la ventana</strong><span>Prueba con una ventana más larga.</span></div>
+        <ng-container *ngIf="patterns.n > 0">
+          <p class="warn" *ngIf="smallSample" role="note">
+            <strong>Muestra pequeña (n = {{ patterns.n }}, se recomiendan {{ minPatternOrders }} o más).</strong>
+            Con tan pocas órdenes la diferencia entre un día y otro puede ser casualidad: no tomes decisiones con esto.
+          </p>
+          <div class="mini-chart-title">Por día de la semana</div>
+          <ag-charts-angular class="chart chart-sm" [options]="dowChart" role="img" [attr.aria-label]="'Órdenes por día de la semana, n = ' + patterns.n"></ag-charts-angular>
+          <div class="mini-chart-title">Por franja de 4 horas</div>
+          <ag-charts-angular class="chart chart-sm" [options]="hourChart" role="img" [attr.aria-label]="'Órdenes por franja horaria, n = ' + patterns.n"></ag-charts-angular>
+          <details class="data">
+            <summary>Ver datos como tabla</summary>
+            <div class="data-scroll">
+              <table>
+                <caption class="sr-only">Órdenes por día de la semana y por franja horaria</caption>
+                <thead><tr><th scope="col">Día / franja</th><th scope="col">Órdenes</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let d of patterns.byDow"><td>{{ d.label }}</td><td>{{ d.orders }}</td></tr>
+                  <tr *ngFor="let h of patterns.byHour"><td>{{ h.label }}</td><td>{{ h.orders }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </ng-container>
+      </ng-container>
+    </div>
+  </section>
+
+  <!-- 6. Clásica vs Premium -->
+  <section class="card" aria-labelledby="t6">
+    <div class="card-h">
+      <div>
+        <h2 id="t6">¿Cuánto ingreso deja cada tipo de publicación?</h2>
+        <p>Clásica vs Premium, ventas de {{ windowLabel }}. (No hay categoría de producto en las órdenes reducidas.)</p>
+      </div>
+    </div>
+    <div class="card-b">
+      <div *ngIf="winState === 'loading' || itemsState === 'loading'" class="sk sk-chart sk-sm" role="status" aria-label="Cargando tipos"></div>
+      <div *ngIf="itemsState === 'error'" class="ds-state is-error" role="alert">
+        <strong>No se pudo cargar</strong>
+        <button type="button" class="ds-btn" (click)="retryWindow()">Reintentar</button>
+      </div>
+      <ng-container *ngIf="itemsState === 'ready' && types">
+        <div *ngIf="!types.rows.length" class="ds-state"><strong>Sin ventas en la ventana</strong></div>
+        <ul class="type-rows" *ngIf="types.rows.length">
+          <li *ngFor="let t of types.rows">
+            <div class="type-head"><strong>{{ t.label }}</strong><span class="mini-n">{{ money(t.revenue) }}</span></div>
+            <div class="bar" [style.width.%]="barWidth(t.revenue, maxTypeRevenue)" [style.background]="t.type === 'gold_pro' ? 'var(--v-orders)' : 'var(--v-visits)'"></div>
+            <span class="mini-s">{{ t.orders }} {{ t.orders === 1 ? 'orden' : 'órdenes' }} · {{ t.units }} uds. · comisión {{ pct(t.feePct) }} del precio</span>
+          </li>
+        </ul>
+        <p class="note" *ngIf="types.unmatchedOrders > 0">{{ types.unmatchedOrders }} ventas de publicaciones que ya no se pueden consultar no se incluyen.</p>
+        <p class="note" *ngIf="types.rows.length === 1">Solo hubo ventas de un tipo en la ventana: no hay comparación posible.</p>
+      </ng-container>
+    </div>
+  </section>
+</div>
+
+<!-- 7. Tips -->
+<section class="card" aria-labelledby="t7">
+  <div class="card-h">
+    <div>
+      <h2 id="t7">¿Qué podrías revisar?</h2>
+      <p>Sugerencias automáticas por reglas fijas (sin IA), con los números que las activaron. Son pistas para revisar, no diagnósticos.</p>
+    </div>
+  </div>
+  <div class="card-b">
+    <div *ngIf="winState === 'loading' || itemsState === 'loading'" class="sk sk-chart sk-sm" role="status" aria-label="Calculando sugerencias"></div>
+    <div *ngIf="winState === 'ready' && itemsState === 'error'" class="ds-state is-error" role="alert">
+      <strong>Sin visitas no se pueden evaluar las sugerencias</strong>
+      <button type="button" class="ds-btn" (click)="retryWindow()">Reintentar</button>
+    </div>
+    <ng-container *ngIf="tipsResult">
+      <div *ngIf="!tipsResult.tips.length" class="ds-state">
+        <strong>Ninguna regla se cumple con datos suficientes</strong>
+        <span>No hay sugerencias para {{ windowLabel }}.</span>
+      </div>
+      <div class="tips">
+        <article class="tip" *ngFor="let t of tipsResult.tips">
+          <h3>{{ t.title }} <span class="ds-badge tone-warning">{{ t.total }}</span></h3>
+          <p>{{ t.advice }}</p>
+          <ul>
+            <li *ngFor="let it of t.items; trackBy: trackById">
+              <a [href]="it.permalink" target="_blank" rel="noopener">{{ it.title }}<span class="sr-only"> (abre en Mercado Libre)</span></a>
+              <small>{{ it.id }} · {{ it.fact }}</small>
+            </li>
+          </ul>
+          <small class="more" *ngIf="t.total > t.items.length">y {{ t.total - t.items.length }} más</small>
+        </article>
+      </div>
+      <p class="note" *ngFor="let s of tipsResult.skipped">{{ s }}</p>
+      <details class="data">
+        <summary>Cómo se deciden estas sugerencias</summary>
+        <ul class="rules">
+          <li>Muchas visitas y pocas ventas: activas con ≥ {{ thresholds.highVisits.minVisits }} visitas y conversión &lt; {{ thresholds.highVisits.maxConversion * 100 }}% (ventana de al menos {{ thresholds.minWindowDays }} días).</li>
+          <li>Poco stock con ventas: ≤ {{ thresholds.lowStock.maxStock }} disponibles y ≥ {{ thresholds.lowStock.minUnitsSold }} unidades vendidas en la ventana.</li>
+          <li>Sin visitas: activas, publicadas hace ≥ {{ thresholds.noVisits.days }} días y 0 visitas en los últimos {{ thresholds.noVisits.days }}.</li>
+          <li>Comisión + envío ≥ {{ thresholds.feesShare.minShare * 100 }}% de la venta, con ≥ {{ thresholds.feesShare.minOrders }} órdenes de envío conocido.</li>
+          <li>Margen ≤ {{ thresholds.lowMargin.maxMargin * 100 }}% tras comisión, envío y SAT, con ≥ {{ thresholds.lowMargin.minOrders }} órdenes de envío conocido.</li>
+        </ul>
+      </details>
+    </ng-container>
+  </div>
+</section>

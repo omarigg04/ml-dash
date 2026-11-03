@@ -5,8 +5,9 @@ import { satRetention } from '../shared/order-math';
 export interface SummaryRow {
   id: number;
   day: string; // YYYY-MM-DD en la zona horaria pedida
+  hour: number; // 0-23 en esa misma zona
   total_amount: number;
-  order_items: { id: string; title: string; quantity: number; sale_fee: number }[];
+  order_items: { id: string; title: string; quantity: number; sale_fee: number; unit_price: number }[];
   listCost: number | null;
 }
 

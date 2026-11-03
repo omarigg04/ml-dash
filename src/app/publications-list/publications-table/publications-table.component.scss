@@ -1,4 +1,5 @@
-:host { display: block; min-width: 0; }
+:host { display: block; min-width: 0; --stock-low: #b04f00; /* ámbar oscuro: 5.3:1 sobre blanco (el --warning claro se leía casi negro) */ }
+:host-context(body.dark-theme) { --stock-low: hsl(var(--warning)); /* #F5C26B: 10:1 sobre la tarjeta oscura */ }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
@@ -85,7 +86,7 @@ table.pubs tbody tr:hover td { background: hsl(var(--secondary)); }
 table.pubs tr.sel td { background: color-mix(in srgb, hsl(var(--primary)) 7%, hsl(var(--card))); }
 table.pubs .r, table.pubs td.num { text-align: right; }
 table.pubs td.num { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-table.pubs td.num.low { color: hsl(var(--warning)); font-weight: 500; }
+table.pubs td.num.low { color: var(--stock-low); font-weight: 600; }
 .c-check { width: 36px; padding-right: 0 !important; }
 .c-status { width: 130px; }
 .c-sales { width: 92px; }
@@ -202,7 +203,7 @@ tr:hover .row-menu, .row-menu:focus-visible, .row-menu[aria-expanded="true"] { o
     display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center;
     font-family: var(--mono); font-size: 12px; color: hsl(var(--muted-foreground)); font-variant-numeric: tabular-nums;
     b { color: hsl(var(--foreground)); font-weight: 600; }
-    .low { color: hsl(var(--warning)); font-weight: 500; }
+    .low { color: var(--stock-low); font-weight: 600; }
   }
 }
 

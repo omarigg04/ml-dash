@@ -11,6 +11,7 @@ import itemsRouter from '../backend/src/routes/items';
 import imagesRouter from '../backend/src/routes/images';
 import categoriesRouter from '../backend/src/routes/categories';
 import summaryRouter from '../backend/src/routes/summary';
+import analyticsRouter from '../backend/src/routes/analytics';
 
 // Load environment variables
 dotenv.config();
@@ -205,6 +206,7 @@ app.use('/api/items', itemsRouter);
 app.use('/api/images', imagesRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api/summary', summaryRouter);
+app.use('/api/analytics', analyticsRouter);
 console.log('✅ All routes registered (including /api/categories)');
 
 // Error handling middleware
