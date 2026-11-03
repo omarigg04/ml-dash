@@ -32,6 +32,7 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
   @Output() editRow = new EventEmitter<Publication>();
   @Output() relistRow = new EventEmitter<Publication>();
   @Output() duplicateRow = new EventEmitter<Publication>();
+  @Output() duplicateManyRow = new EventEmitter<Publication>();
   @Output() bulkPause = new EventEmitter<Publication[]>();
   @Output() bulkPrice = new EventEmitter<Publication[]>();
   @Output() bulkDuplicate = new EventEmitter<Publication[]>();
@@ -423,10 +424,11 @@ export class PublicationsTableComponent implements OnInit, OnChanges, OnDestroy 
     if (this.menu && !(this.menuEl?.nativeElement.contains(ev.target as Node))) this.closeMenu(false);
   };
 
-  rowAction(kind: 'edit' | 'duplicate' | 'relist', item: Publication): void {
+  rowAction(kind: 'edit' | 'duplicate' | 'duplicateMany' | 'relist', item: Publication): void {
     this.closeMenu(false);
     if (kind === 'edit') this.editRow.emit(item);
     if (kind === 'duplicate') this.duplicateRow.emit(item);
+    if (kind === 'duplicateMany') this.duplicateManyRow.emit(item);
     if (kind === 'relist') this.relistRow.emit(item);
   }
 

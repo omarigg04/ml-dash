@@ -35,6 +35,11 @@ export class CachingInterceptor implements HttpInterceptor {
       return next.handle(req);
     }
 
+    // Oportunidades: lecturas del momento por cuenta (candidatas, cambios aplicados); nunca desde caché del navegador
+    if (/\/opportunities(\/|\?|$)/.test(req.url)) {
+      return next.handle(req);
+    }
+
     // Solo cachear peticiones GET
     if (req.method !== 'GET') {
       return next.handle(req);

@@ -31,7 +31,8 @@ export const kv = {
     data: new Map<string, string>(),
     log: [] as { cmd: string; key: string }[],
     failReads: false,
-    reset() { this.data.clear(); this.log = []; this.failReads = false; },
+    failIncr: false,
+    reset() { this.data.clear(); this.log = []; this.failReads = false; this.failIncr = false; },
     writes() { return this.log.filter(l => l.cmd === 'SET' || l.cmd === 'DEL'); },
     put(key: string, value: any) { this.data.set(key, typeof value === 'string' ? value : JSON.stringify(value)); },
     get(key: string) { const v = this.data.get(key); return v ? JSON.parse(v) : null; },
@@ -49,6 +50,9 @@ globalThis.fetch = (async (input: any, init?: any) => {
         result = kv.data.get(key) ?? null;
     } else if (cmd === 'SET') { kv.data.set(key, value); result = 'OK'; }
     else if (cmd === 'DEL') { result = kv.data.delete(key) ? 1 : 0; }
+    else if (cmd === 'INCR') { if (kv.failIncr) return new Response('boom', { status: 500 }); result = Number(kv.data.get(key) ?? 0) + 1; kv.data.set(key, String(result)); }
+    else if (cmd === 'DECR') { result = Number(kv.data.get(key) ?? 0) - 1; kv.data.set(key, String(result)); }
+    else if (cmd === 'EXPIRE') { result = 1; }
     else if (cmd === 'PING') result = 'PONG';
     return new Response(JSON.stringify({ result }), { status: 200 });
 }) as any;

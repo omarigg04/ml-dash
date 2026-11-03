@@ -236,6 +236,7 @@
     <ng-container *ngSwitchCase="'row'">
       <button type="button" role="menuitem" *ngIf="m.item && m.item.status !== 'closed'" (click)="rowAction('edit', m.item)">Editar</button>
       <button type="button" role="menuitem" *ngIf="m.item" (click)="rowAction('duplicate', m.item)">Duplicar</button>
+        <button type="button" role="menuitem" *ngIf="m.item" (click)="rowAction('duplicateMany', m.item)">Duplicar varias veces</button>
       <button type="button" role="menuitem" *ngIf="m.item && m.item.status === 'closed'" (click)="rowAction('relist', m.item)">Republicar</button>
     </ng-container>
   </ng-container>

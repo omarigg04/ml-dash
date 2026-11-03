@@ -170,7 +170,7 @@ export async function runPool<T>(items: T[], limit: number, fn: (item: T) => Pro
 }
 
 // ---------- Órdenes ----------
-async function fetchOrders(ctx: Ctx, fromIso: string, toIso: string, includeUnfulfilled = false): Promise<{ orders: MLOrder[]; truncated: boolean }> {
+export async function fetchOrders(ctx: Ctx, fromIso: string, toIso: string, includeUnfulfilled = false): Promise<{ orders: MLOrder[]; truncated: boolean }> {
     const me = await mlGet<{ id: number }>(ctx, 'https://api.mercadolibre.com/users/me');
     const orders: MLOrder[] = [];
     let offset = 0;
