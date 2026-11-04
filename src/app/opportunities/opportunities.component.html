@@ -150,7 +150,7 @@
   <ng-container *ngIf="changesState === 'ready' && changes as c">
     <div class="ds-state" *ngIf="c.changes.length === 0">
       <strong>Todavía no registras cambios</strong>
-      <span>Cuando copies un título y marques «Ya lo cambié», o guardes una descripción, aparecerá aquí.</span>
+      <span>Cuando apliques un título o guardes una descripción, aparecerá aquí.</span>
     </div>
     <ul class="chg-list" *ngIf="c.changes.length">
       <li class="chg" *ngFor="let ch of c.changes; trackBy: trackById">
@@ -184,7 +184,7 @@
         <h2 id="sug-title">Sugerencias para esta publicación</h2>
         <p class="drawer-sub">{{ sel.title }} · {{ sel.id }}</p>
       </div>
-      <button type="button" class="drawer-x" (click)="closePanel()" [disabled]="descSaving" aria-label="Cerrar panel"><mat-icon aria-hidden="true">close</mat-icon></button>
+      <button type="button" class="drawer-x" (click)="closePanel()" [disabled]="descSaving || !!titleApplying" aria-label="Cerrar panel"><mat-icon aria-hidden="true">close</mat-icon></button>
     </header>
 
     <div class="drawer-body">
@@ -207,17 +207,26 @@
         <!-- Títulos -->
         <section aria-labelledby="sec-titles">
           <h3 id="sec-titles">Títulos sugeridos</h3>
-          <p class="op-note">Título actual: <b>{{ s.current.title }}</b> ({{ s.current.title.length }}/60). La app no cambia títulos: cópialo y cámbialo tú en Mercado Libre. ML restringe editar el título de publicaciones con ventas, así que puede que no te deje; en ese caso conviene crear una publicación nueva.</p>
+          <p class="op-note">Título actual: <b>{{ s.current.title }}</b> ({{ s.current.title.length }}/60).</p>
+          <p class="op-lock" *ngIf="s.titleLock" role="status"><mat-icon aria-hidden="true">lock</mat-icon><span>{{ s.titleLock }} Puedes copiar estas ideas para una publicación nueva.</span></p>
           <div class="empty-mini" *ngIf="s.titles.length === 0">Ninguna opción cumplió las reglas (máx. 60 caracteres, sin contacto ni promesas). Prueba Regenerar.</div>
           <div class="opt" *ngFor="let t of s.titles; trackBy: trackByIndex">
             <p class="opt-title">{{ t.title }} <span class="idea-len">{{ t.length }}/60</span></p>
             <p class="opt-reason">{{ t.reason }}</p>
             <div class="idea-actions">
               <button type="button" class="ds-btn" (click)="copy(t.title)">{{ copied === t.title ? 'Copiado' : 'Copiar' }}</button>
-              <button type="button" class="ds-btn" (click)="markTitleChanged(t.title)" [disabled]="!!titleApplying || !!titleNotice[t.title]">
-                {{ titleApplying === t.title ? 'Registrando…' : 'Ya lo cambié en MercadoLibre' }}
-              </button>
+              <span class="op-meta" *ngIf="t.title === s.current.title">Título actual</span>
+              <button type="button" class="ds-btn primary" *ngIf="!s.titleLock && t.title !== s.current.title && titleConfirm !== t.title" (click)="askApplyTitle(t.title)" [disabled]="!!titleApplying">Aplicar</button>
             </div>
+            <div class="opt-confirm" *ngIf="titleConfirm === t.title && !s.titleLock">
+              <p>Se cambiará en Mercado Libre:</p>
+              <p class="chg-text"><span class="chg-b">{{ s.current.title }}</span> → <b>{{ t.title }}</b></p>
+              <div class="idea-actions">
+                <button type="button" class="ds-btn" (click)="cancelApplyTitle()" [disabled]="!!titleApplying">Cancelar</button>
+                <button type="button" class="ds-btn primary" (click)="confirmApplyTitle(t.title)" [disabled]="!!titleApplying">{{ titleApplying === t.title ? 'Aplicando…' : 'Confirmar cambio' }}</button>
+              </div>
+            </div>
+            <p class="err" *ngIf="titleError[t.title]" role="alert">{{ titleError[t.title] }}</p>
             <p class="opt-notice" *ngIf="titleNotice[t.title]" role="status">{{ titleNotice[t.title] }}</p>
           </div>
         </section>

@@ -24,6 +24,7 @@ export interface Suggestion {
   itemId: string; generatedAt: string; cached: boolean;
   metrics: { windowDays: number; visits: number; orders: number; units: number; conversionPct: number };
   current: { title: string; description: string; price: number | null };
+  titleLock: string | null;
   titles: { title: string; reason: string; length: number }[];
   droppedTitles: number;
   description: { text: string; reason: string; flags: { code: string; text: string }[] };
@@ -84,8 +85,10 @@ export class OpportunitiesComponent implements OnInit {
   panelError: ApiError | null = null;
   suggestion: Suggestion | null = null;
   copied = '';
+  titleConfirm = '';
   titleApplying = '';
   titleNotice: Record<string, string> = {};
+  titleError: Record<string, string> = {};
   descDraft = '';
   descStep: 'edit' | 'review' = 'edit';
   descSaving = false;
@@ -174,7 +177,7 @@ export class OpportunitiesComponent implements OnInit {
   }
 
   closePanel(): void {
-    if (this.descSaving) return;
+    if (this.descSaving || this.titleApplying) return;
     this.selected = null;
     this.panel = 'idle';
     this.resetPanelResults();
@@ -184,6 +187,8 @@ export class OpportunitiesComponent implements OnInit {
     this.suggestion = null;
     this.panelError = null;
     this.titleNotice = {};
+    this.titleError = {};
+    this.titleConfirm = '';
     this.titleApplying = '';
     this.copied = '';
     this.descDraft = '';
@@ -192,7 +197,7 @@ export class OpportunitiesComponent implements OnInit {
     this.descDone = '';
   }
 
-  // ---------------- Títulos: copiar y registrar ----------------
+  // ---------------- Títulos: copiar y aplicar ----------------
   async copy(text: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
@@ -206,21 +211,51 @@ export class OpportunitiesComponent implements OnInit {
     setTimeout(() => { if (this.copied === text) this.copied = ''; }, 2000);
   }
 
-  async markTitleChanged(title: string): Promise<void> {
+  askApplyTitle(title: string): void {
+    if (this.titleApplying || this.suggestion?.titleLock) return;
+    delete this.titleError[title];
+    this.titleConfirm = title;
+  }
+
+  cancelApplyTitle(): void { if (!this.titleApplying) this.titleConfirm = ''; }
+
+  /** Cambia el título en Mercado Libre. El servidor vuelve a comprobar las ventas con el item fresco. */
+  async confirmApplyTitle(title: string): Promise<void> {
     const s = this.suggestion;
-    if (!s || this.titleApplying) return;
+    if (!s || this.titleApplying || s.titleLock) return;
+    const before = s.current.title;
     this.titleApplying = title;
+    let shown = '';
     try {
-      const r: any = await firstValueFrom(this.http.post(`${this.api}/applied`, { itemId: s.itemId, field: 'title', before: s.current.title, after: title }));
-      this.titleNotice[title] = r?.record?.verified
-        ? 'Registrado. Mercado Libre ya muestra ese título.'
-        : 'Registrado, pero Mercado Libre todavía no muestra ese título (puede tardar). Los resultados se medirán desde hoy.';
-      this.loadChanges();
+      const r: any = await firstValueFrom(this.http.put(`${environment.apiUrl}/items/${encodeURIComponent(s.itemId)}`, { title }));
+      shown = String(r?.updated?.title ?? '');
     } catch (e) {
-      this.titleNotice[title] = 'No se pudo registrar el cambio: ' + this.toApiError(e as HttpErrorResponse).message;
-    } finally {
+      const err = e as HttpErrorResponse;
+      const causes: string[] = (err.error?.causes || []).map((c: any) => c.message || c.code).filter(Boolean);
+      const message = causes.join(' ') || err.error?.error || 'No se pudo guardar en Mercado Libre.';
+      if (err.error?.causes?.some((c: any) => c.code === 'field_locked')) s.titleLock = message;
+      else this.titleError[title] = message;
+      this.titleConfirm = '';
       this.titleApplying = '';
+      return;
     }
+    const verified = shown === title;
+    let notice = verified
+      ? 'Título cambiado en Mercado Libre y registrado en «Cambios y resultados».'
+      : 'Mercado Libre aceptó el cambio, pero todavía muestra otro título. Revísalo en un momento.';
+    if (verified) {
+      s.current.title = title;
+      if (this.selected) this.selected.title = title;
+    }
+    try {
+      await firstValueFrom(this.http.post(`${this.api}/applied`, { itemId: s.itemId, field: 'title', before, after: title }));
+    } catch (e) {
+      notice = (verified ? 'Título cambiado en Mercado Libre' : 'Mercado Libre aceptó el cambio') + ', pero no se pudo registrar el seguimiento: ' + this.toApiError(e as HttpErrorResponse).message;
+    }
+    this.titleNotice = { [title]: notice };
+    this.titleConfirm = '';
+    this.titleApplying = '';
+    this.loadChanges();
   }
 
   // ---------------- Descripción: revisar, guardar vía PUT /api/items/:id y registrar ----------------

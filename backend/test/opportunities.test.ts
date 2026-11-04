@@ -12,12 +12,14 @@ const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') 
 const VPD: Record<string, number> = { '1': 4, '2': 2, '3': 1 };   // visitas por día por publicación (#1, #2, #3)
 const BUYER = { id: 99, nickname: 'COMPRADOR_SECRETO', email: 'secreto@comprador.test', phone: { number: '5512345678' } };
 const sellerOf = (id: string) => Number(/^MLM(\d{3})/.exec(id)![1]);
+let lastPut: any = null;
+const itemOver: Record<string, any> = {};   // cambios por publicación para pruebas de título
 const fullItem = (id: string) => ({
     id, seller_id: sellerOf(id), title: `Item of ${sellerOf(id)} #${id.slice(-1)}`, price: 100 * Number(id.slice(-1)),
     available_quantity: 5, sold_quantity: 3, status: 'active', listing_type_id: 'gold_special', condition: 'new',
     permalink: `https://ml.test/${id}`, date_created: '2024-01-01T00:00:00Z', shipping: { free_shipping: true },
     attributes: [{ id: 'BRAND', name: 'Marca', value_name: 'Acme' }, { id: 'COLOR', name: 'Color', value_name: 'Negro' }],
-    variations: [], buyer_secret: BUYER.email,
+    variations: [], buyer_secret: BUYER.email, ...itemOver[id],
 });
 
 axios.defaults.adapter = async (config: any) => {
@@ -30,7 +32,16 @@ axios.defaults.adapter = async (config: any) => {
     const ok = (data: any) => ({ data, status: 200, statusText: 'OK', headers: {}, config });
     if (uid !== null) {
         let m: RegExpExecArray | null;
-        if ((m = /^\/items\/(MLM\d+)$/.exec(p))) { ml.calls.push({ method: 'GET', url: p, token: bearer, uid }); return ok(fullItem(m[1])); }
+        if ((m = /^\/items\/(MLM\d+)$/.exec(p))) {
+            const method = String(config.method || 'get').toUpperCase();
+            ml.calls.push({ method, url: p, token: bearer, uid });
+            if (method === 'PUT') {
+                const sent = JSON.parse(config.data);
+                if (!itemOver[m[1]]?.ignoreTitle) itemOver[m[1]] = { ...itemOver[m[1]], ...sent };
+                lastPut = sent;
+            }
+            return ok(fullItem(m[1]));
+        }
         if ((m = /^\/items\/(MLM\d+)\/description$/.exec(p))) { ml.calls.push({ method: 'GET', url: p, token: bearer, uid }); return ok({ plain_text: 'Descripción actual del producto.' }); }
         if ((m = /^\/items\/(MLM\d+)\/visits\/time_window$/.exec(p))) {
             ml.calls.push({ method: 'GET', url: p, token: bearer, uid });
@@ -101,6 +112,8 @@ const setup = () => {
 
 beforeEach(() => {
     resetAll();
+    for (const k of Object.keys(itemOver)) delete itemOver[k];
+    lastPut = null;
     fake.calls = [];
     fake.next = () => msg(goodSuggest());
     process.env['AI_DAILY_LIMIT'] = '20';
@@ -649,4 +662,75 @@ test('mapGeminiError: cuota, auth, timeout y 5xx', () => {
     assert.equal(mapGeminiError(Object.assign(new Error('API key not valid'), { status: 400 })).code, 'AI_AUTH');
     assert.equal(mapGeminiError(Object.assign(new Error('x'), { name: 'TimeoutError' })).code, 'AI_TIMEOUT');
     assert.equal(mapGeminiError(Object.assign(new Error('x'), { status: 503 })).code, 'AI_OVERLOADED');
+});
+
+// ---- Cambiar el título: solo sin ventas ----
+const putItem = async (base: string, id: string, body: any, uid: number) => {
+    const r = await fetch(`${base}/api/items/${id}`, { method: 'PUT', headers: { 'content-type': 'application/json', cookie: sessionCookie(uid) }, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => null) as any };
+};
+
+test('título: con 1 venta o más el servidor lo rechaza y no escribe en ML', async () => {
+    const { app } = setup();
+    await withServer(app, async base => {
+        const id = `MLM${A}002`;
+        for (const over of [{ sold_quantity: 1 }, { sold_quantity: 0, variations: [{ id: 1, sold_quantity: 2 }] }, { sold_quantity: undefined }]) {
+            itemOver[id] = over;
+            lastPut = null;
+            const r = await putItem(base, id, { title: 'Título nuevo permitido' }, A);
+            assert.equal(r.status, 409);
+            assert.equal(r.body.causes[0].code, 'field_locked');
+            assert.equal(lastPut, null, 'no hubo escritura');
+        }
+    });
+});
+
+test('título: sin ventas se envía solo el título y se devuelve el que muestra ML', async () => {
+    const { app } = setup();
+    await withServer(app, async base => {
+        const id = `MLM${A}002`;
+        itemOver[id] = { sold_quantity: 0 };
+        const r = await putItem(base, id, { title: '  Título   nuevo permitido ' }, A);
+        assert.equal(r.status, 200);
+        assert.deepEqual(lastPut, { title: 'Título nuevo permitido' });
+        assert.equal(r.body.updated.title, 'Título nuevo permitido');
+        // Si ML no lo refleja, la respuesta trae el título real para que el front no afirme que cambió
+        itemOver[id] = { sold_quantity: 0, title: 'Otro', ignoreTitle: true };
+        const silent = await putItem(base, id, { title: 'Título que ML ignora' }, A);
+        assert.equal(silent.body.updated.title, 'Otro');
+    });
+});
+
+test('título: inválidos, otros campos sin afectar y publicaciones bloqueadas por estado', async () => {
+    const { app } = setup();
+    await withServer(app, async base => {
+        const id = `MLM${A}002`;
+        itemOver[id] = { sold_quantity: 0 };
+        for (const title of ['', '   ', 'X'.repeat(61), 'Llama al 5512345678', 'Visita mitienda.com', 123]) {
+            assert.equal((await putItem(base, id, { title }, A)).status, 400);
+        }
+        assert.equal(lastPut, null);
+        itemOver[id] = { sold_quantity: 0, status: 'under_review' };
+        assert.equal((await putItem(base, id, { title: 'Título válido' }, A)).status, 409);
+        // Con ventas, precio sí se puede: el bloqueo es solo del título
+        itemOver[id] = { sold_quantity: 5 };
+        assert.equal((await putItem(base, id, { price: 150 }, A)).status, 200);
+        assert.deepEqual(lastPut, { price: 150 });
+    });
+});
+
+test('suggest: titleLock sale del item fresco, también con resultado guardado', async () => {
+    const { app } = setup();
+    process.env['ANTHROPIC_API_KEY'] = 'k';
+    await withServer(app, async base => {
+        const id = `MLM${A}002`;
+        itemOver[id] = { sold_quantity: 0 };
+        const first = await post(base, '/api/opportunities/suggest', { itemId: id }, A);
+        assert.equal(first.body.titleLock, null);
+        itemOver[id] = { sold_quantity: 1, title: 'Título vigente' };
+        const again = await post(base, '/api/opportunities/suggest', { itemId: id }, A);
+        assert.equal(again.body.cached, true);
+        assert.match(again.body.titleLock, /1 venta/);
+        assert.equal(again.body.current.title, 'Título vigente');
+    });
 });

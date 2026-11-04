@@ -132,6 +132,15 @@
 .opt { padding: 10px; border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); display: flex; flex-direction: column; gap: 4px; }
 .opt-title { margin: 0; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
 .opt-reason { margin: 0; font-size: 12.5px; color: hsl(var(--muted-foreground)); line-height: 1.45; }
+.op-lock {
+  display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; padding: 8px 10px; font-size: 12.5px; line-height: 1.45;
+  border-radius: var(--radius-md); background: hsl(var(--warning-light)); color: hsl(var(--warning));
+  mat-icon { flex: none; width: 16px; height: 16px; font-size: 16px; }
+}
+.opt-confirm {
+  margin-top: 8px; padding: 10px; font-size: 13px; border: 1px solid hsl(var(--border)); border-radius: var(--radius-md);
+  p { margin: 0 0 6px; }
+}
 .opt-notice { margin: 4px 0 0; font-size: 12.5px; color: hsl(var(--success)); }
 .empty-mini { font-size: 12.5px; color: hsl(var(--muted-foreground)); padding: 8px; border: 1px dashed hsl(var(--border)); border-radius: var(--radius-md); }
 .checks { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }

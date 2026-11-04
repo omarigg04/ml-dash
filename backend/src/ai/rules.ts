@@ -88,6 +88,20 @@ export function filterTitles<T extends { title: string }>(list: T[]): { kept: T[
     return { kept, dropped };
 }
 
+// ---------------- Regla de negocio: el título solo se cambia sin ventas ----------------
+/**
+ * Razón por la que no se puede cambiar el título, o null si se puede.
+ * Usa las ventas históricas (sold_quantity) del item leído de ML, no las de una ventana de días.
+ * Si ML no informa las ventas, se bloquea: sin ese dato no se puede garantizar la regla.
+ */
+export function titleLockReason(item: any): string | null {
+    if (typeof item?.sold_quantity !== 'number') return 'No se pudo confirmar que no tenga ventas, así que no se puede cambiar el título.';
+    const byVariation = (item.variations || []).reduce((n: number, v: any) => n + (Number(v?.sold_quantity) || 0), 0);
+    const sold = Math.max(item.sold_quantity, byVariation);
+    if (sold >= 1) return `Ya tiene ${sold} ${sold === 1 ? 'venta' : 'ventas'}: a las publicaciones con ventas no se les cambia el título.`;
+    return null;
+}
+
 // ---------------- Cercanía entre títulos (evita proponer "el mismo producto con otro título") ----------------
 const STOP = new Set(['de', 'la', 'el', 'los', 'las', 'y', 'para', 'con', 'sin', 'en', 'por', 'un', 'una', 'del', 'al', 'a', 'o']);
 export const titleTokens = (t: string): Set<string> =>
