@@ -48,6 +48,17 @@ router.get('/:id', async (req: Request, res: Response) => {
             }
         } catch (costError: any) {
             console.warn(`Shipment ${id} costs unavailable:`, costError.response?.status || costError.message);
+            // Misma regla que /api/summary: list_cost solo es válido si ML responde que /costs no aplica.
+            // Con un límite o un fallo de red no se adivina el costo.
+            const costStatus = costError.response?.status;
+            if (!(costStatus >= 400 && costStatus < 500 && costStatus !== 429)) {
+                res.status(503).json({
+                    error: 'Shipping cost unavailable',
+                    code: 'SHIPPING_COST_UNAVAILABLE',
+                    message: 'No se pudo obtener el costo de envío. Inténtalo de nuevo.',
+                });
+                return;
+            }
         }
         const listCost = sellerCost ?? shipment.shipping_option?.list_cost ?? shipment.list_cost ?? 0;
 

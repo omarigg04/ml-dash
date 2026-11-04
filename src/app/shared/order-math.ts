@@ -13,3 +13,12 @@ export function orderSaleFee(order: { order_items: { quantity: number; sale_fee:
 export function satRetention(totalAmount: number): number {
   return (totalAmount / (1 + IVA_RATE)) * SAT_RETENTION_RATE;
 }
+
+/** Ganancia de una orden. null si no se conoce el costo de envío: nunca se calcula como si fuera $0. */
+export function orderNet(
+  order: { total_amount: number; order_items: { quantity: number; sale_fee: number }[] },
+  shippingCost: number | null,
+): number | null {
+  if (shippingCost === null) return null;
+  return order.total_amount - orderSaleFee(order) - satRetention(order.total_amount) - shippingCost;
+}
