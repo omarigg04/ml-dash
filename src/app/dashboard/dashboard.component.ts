@@ -5,7 +5,7 @@ import { DatePipe } from '@angular/common';
 import { Order } from '../interfaces/Order.interface';
 import { environment } from '../../environments/environment';
 import { GRID_LOCALE_ES } from '../shared/grid-locale';
-import { orderSaleFee, satRetention } from '../shared/order-math';
+import { orderNet, orderSaleFee, satRetention } from '../shared/order-math';
 
 interface ShipmentInfo {
   id: number;
@@ -288,11 +288,11 @@ export class DashboardComponent implements OnInit {
     return satRetention(order.total_amount);
   }
 
-  // null mientras el envío carga: evita que la ganancia "salte" (M7)
+  // null mientras el envío carga o si no se pudo obtener; sin envío asociado no hay costo
   getNetAmount(order: Order): number | null {
     if (this.isShipmentLoading) return null;
-    const shippingCost = this.selectedShipment?.listCost ?? 0;
-    return order.total_amount - this.getTotalSaleFee(order) - this.getSatFee(order) - shippingCost;
+    const shippingCost = order.shipping?.id ? this.selectedShipment?.listCost ?? null : 0;
+    return orderNet(order, shippingCost);
   }
 
   private buyerOf(order: Order): string {

@@ -49,7 +49,7 @@ axios.defaults.adapter = async (config: any) => {
                 total_amount: 100, buyer: BUYER, shipping: { id: n },
                 order_items: [{ item: { id: `MLM${uid}00${itemNo}`, title: `Item of ${uid} #${itemNo}` }, quantity: 1, unit_price: 100, sale_fee: 10 }],
             });
-            const results = [mk(1, 0.2, 1), mk(2, 5, 1), mk(3, 0.2, 3), mk(4, 5, 3)];
+            const results = [mk(1, 0, 1), mk(2, 5, 1), mk(3, 0, 3), mk(4, 5, 3)]; // 0 = ahora: siempre cae en "hoy", a cualquier hora
             return ok({ results, paging: { total: results.length, offset: 0, limit: 50 } });
         }
     }

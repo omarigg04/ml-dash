@@ -157,7 +157,8 @@
       </div>
       <div class="detail-row detail-total">
         <span>Ganancia neta</span>
-        <span *ngIf="getNetAmount(order) === null" class="detail-muted">Calculando…</span>
+        <span *ngIf="isShipmentLoading" class="detail-muted">Calculando…</span>
+        <span *ngIf="!isShipmentLoading && getNetAmount(order) === null" class="detail-muted">Sin determinar: falta el costo de envío</span>
         <span *ngIf="getNetAmount(order) !== null" class="num">{{ getNetAmount(order) | currency }}</span>
       </div>
     </section>

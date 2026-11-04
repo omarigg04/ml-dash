@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import { safeError, safeReturnPath, csrfProtection } from '../backend/src/security';
+import { accountLimiters, anonymousLimiters } from '../backend/src/rate-limit';
 import { mlAuth, UserNotAllowedError, TokenStorageError } from '../backend/src/auth/oauth';
 import { createSession, getSession, clearSession, getCookie } from '../backend/src/auth/session';
 import { runWithAccount, localDevUid } from '../backend/src/auth/context';
@@ -47,6 +48,8 @@ if (!isProduction) {
 }
 
 app.disable('x-powered-by');
+// Vercel es el único proxy delante de la función: req.ip sale de su X-Forwarded-For
+if (process.env['VERCEL']) app.set('trust proxy', 1);
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -65,7 +68,8 @@ app.use(cors({
 }));
 // CSRF: antes del parseo del cuerpo, de la autenticación y de todas las rutas
 app.use('/api', csrfProtection(allowedOrigins, !!process.env['VERCEL']));
-app.use(express.json({ limit: '1mb' }));
+// Límites antes de parsear el cuerpo: una petición rechazada no gasta trabajo
+app.use(anonymousLimiters(req => noAuth || getSession(req) !== null));
 
 // Session auth for /api/*. Skipped only with LOCAL_DEV_NO_AUTH=true outside production
 const PUBLIC_PATHS = [
@@ -88,6 +92,8 @@ app.use((req, res, next) => {
   }
   res.status(401).json({ error: 'Unauthorized', code: 'SESSION_REQUIRED', message: 'Please log in with MercadoLibre' });
 });
+app.use(accountLimiters());
+app.use(express.json({ limit: '1mb' }));
 
 // Health check endpoint
 app.get('/api', (req, res) => {
