@@ -3,6 +3,7 @@ import axios from 'axios';
 import { mlAuth } from '../auth/oauth';
 import { currentUid } from '../auth/context';
 import { ITEM_ID_RE, CATEGORY_ID_RE, safeError } from '../security';
+import { filterTitles, titleLockReason } from '../ai/rules';
 
 const router = Router();
 
@@ -925,7 +926,7 @@ router.post('/:id/relist', async (req: Request, res: Response) => {
 // EDITAR (precio, stock, descripción)
 // ============================================
 
-interface EditLocks { price?: string; stock?: string; description?: string; }
+interface EditLocks { price?: string; stock?: string; description?: string; title?: string; }
 
 function authHeaders(token: string) {
     return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -953,7 +954,7 @@ function computeLocks(item: any): { locks: EditLocks; notes: string[] } {
         const why = item.status === 'closed'
             ? 'Finalizada: usa Republicar.'
             : item.status === 'under_review' ? 'En revisión: no se puede editar.' : 'Inactiva: no se puede editar.';
-        return { locks: { price: why, stock: why, description: why }, notes };
+        return { locks: { price: why, stock: why, description: why, title: why }, notes };
     }
     if (item.shipping?.logistic_type === 'fulfillment') {
         locks.stock = 'Stock administrado por Full: se gestiona desde Mercado Libre.';
@@ -961,6 +962,8 @@ function computeLocks(item: any): { locks: EditLocks; notes: string[] } {
     if (Array.isArray(item.deal_ids) && item.deal_ids.length > 0) {
         locks.price = 'La publicación participa en una promoción o campaña; el precio se gestiona allí.';
     }
+    const titleLock = titleLockReason(item);
+    if (titleLock) locks.title = titleLock;
     if (item.catalog_listing) {
         notes.push('Publicación de catálogo: el precio puede estar sujeto a competir por la Buy Box.');
     }
@@ -1020,7 +1023,8 @@ async function putUserProductStock(token: string, item: any, quantity: number): 
 
 /**
  * PUT /api/items/:id
- * Body: { status?: 'paused'|'active', price?, available_quantity?, variations?: [{id, available_quantity?, price?}], description? }
+ * Body: { status?: 'paused'|'active', price?, available_quantity?, variations?: [{id, available_quantity?, price?}], description?, title? }
+ * title: solo si la publicación no tiene ventas (titleLockReason, con el item fresco de ML).
  * Solo envía a ML lo que cambió. Si falla el item no toca la descripción; si falla la
  * descripción responde 207 con el resultado parcial.
  */
@@ -1041,6 +1045,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const hasVars = Array.isArray(body.variations) && body.variations.length > 0;
     const hasDesc = typeof body.description === 'string';
     const hasStatus = body.status !== undefined && body.status !== null;
+    const hasTitle = body.title !== undefined && body.title !== null;
 
     if (hasStatus && body.status !== 'paused' && body.status !== 'active') {
         return void bad("El estado solo puede ser 'paused' o 'active'", 'invalid_status');
@@ -1065,7 +1070,13 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (hasDesc && body.description.length > 50000) {
         return void bad('La descripción es demasiado larga', 'invalid_description');
     }
-    if (!hasPrice && !hasStock && !hasVars && !hasDesc && !hasStatus) {
+    let newTitle = '';
+    if (hasTitle) {
+        const { kept } = filterTitles([{ title: typeof body.title === 'string' ? body.title : '' }]);
+        if (!kept.length) return void bad('El título debe tener de 1 a 60 caracteres, sin datos de contacto ni promesas no permitidas', 'invalid_title');
+        newTitle = kept[0].title;
+    }
+    if (!hasPrice && !hasStock && !hasVars && !hasDesc && !hasStatus && !hasTitle) {
         return void bad('No hay cambios para guardar', 'no_changes');
     }
 
@@ -1073,8 +1084,8 @@ router.put('/:id', async (req: Request, res: Response) => {
         const token = await mlAuth.getToken();
         const current = (await axios.get(`${ML_API}/items/${id}`, { headers: authHeaders(token) })).data;
         const { locks } = computeLocks(current);
-        if ((hasPrice && locks.price) || ((hasStock || hasVars) && locks.stock) || (hasDesc && locks.description)) {
-            const msg = (hasPrice && locks.price) || ((hasStock || hasVars) && locks.stock) || locks.description || 'Campo bloqueado';
+        if ((hasPrice && locks.price) || ((hasStock || hasVars) && locks.stock) || (hasDesc && locks.description) || (hasTitle && locks.title)) {
+            const msg = (hasPrice && locks.price) || ((hasStock || hasVars) && locks.stock) || (hasDesc && locks.description) || locks.title || 'Campo bloqueado';
             return void res.status(409).json({ error: msg, status: 409, causes: [{ code: 'field_locked', message: msg }] });
         }
 
@@ -1099,6 +1110,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         const payload: any = {};
         if (hasStatus && body.status !== current.status) payload.status = body.status;
         if (hasPrice && body.price !== current.price) payload.price = body.price;
+        if (hasTitle && newTitle !== current.title) payload.title = newTitle;
         if (hasStock && body.available_quantity !== current.available_quantity) {
             payload.available_quantity = body.available_quantity;
         }
@@ -1169,6 +1181,7 @@ router.put('/:id', async (req: Request, res: Response) => {
             description: descResult,
             updated: {
                 id: fresh.id,
+                title: fresh.title,
                 price: fresh.price,
                 available_quantity: fresh.available_quantity,
                 status: fresh.status,

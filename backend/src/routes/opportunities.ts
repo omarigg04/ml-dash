@@ -9,7 +9,7 @@ import { AiError, AiUsage, BULK_TITLES_MODEL, aiKeyConfigured, callStructured } 
 import { StoreUnavailableError, storeCount, storeDecr, storeGet, storeIncr, storeSet } from '../ai/kvstore';
 import {
     BulkTitlesOut, BulkTitlesSchema, FLAG_TEXT, IdeasSchema, MAX_BULK_COPIES, MAX_IDEAS, MAX_TITLES, MIN_BULK_COPIES, SuggestSchema,
-    IdeasOut, SuggestOut, descriptionFlags, filterTitles, isCosmeticCopy, numbersNotInSource
+    IdeasOut, SuggestOut, descriptionFlags, filterTitles, isCosmeticCopy, numbersNotInSource, titleLockReason
 } from '../ai/rules';
 import {
     BULK_TITLES_SYSTEM_PROMPT, IdeaSource, PromptContrast, SYSTEM_PROMPT, buildBulkTitlesPrompt, buildIdeasPrompt, buildSuggestPrompt, pickAttributes
@@ -242,7 +242,10 @@ router.post('/suggest', async (req: Request, res: Response) => {
 
         if (!regenerate) {
             const cached = await storeGet<any>(suggestKey(uid, itemId));
-            if (cached) { res.json({ ...cached, cached: true, usage: await usageSnapshot(uid) }); return; }
+            if (cached) {
+                res.json({ ...cached, current: { ...cached.current, title: String(item.title) }, titleLock: titleLockReason(item), cached: true, usage: await usageSnapshot(uid) });
+                return;
+            }
         }
 
         const [description, store] = await Promise.all([readDescription(ctx, itemId), loadStore(ctx, uid)]);
@@ -297,7 +300,7 @@ router.post('/suggest', async (req: Request, res: Response) => {
             warnings,
         };
         await storeSet(suggestKey(uid, itemId), body, CACHE_TTL_S);
-        res.json({ ...body, cached: false, usage: await usageSnapshot(uid) });
+        res.json({ ...body, titleLock: titleLockReason(item), cached: false, usage: await usageSnapshot(uid) });
     } catch (error) {
         sendError(res, error, 'suggest');
     }
