@@ -233,7 +233,7 @@ export class OpportunitiesComponent implements OnInit {
       const err = e as HttpErrorResponse;
       const causes: string[] = (err.error?.causes || []).map((c: any) => c.message || c.code).filter(Boolean);
       const message = causes.join(' ') || err.error?.error || 'No se pudo guardar en Mercado Libre.';
-      if (err.error?.causes?.some((c: any) => c.code === 'field_locked')) s.titleLock = message;
+      if (err.error?.causes?.some((c: any) => c.code === 'field_locked')) { s.titleLock = message; s.titles = []; }
       else this.titleError[title] = message;
       this.titleConfirm = '';
       this.titleApplying = '';

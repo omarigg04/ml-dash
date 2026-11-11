@@ -16,7 +16,7 @@ let lastPut: any = null;
 const itemOver: Record<string, any> = {};   // cambios por publicación para pruebas de título
 const fullItem = (id: string) => ({
     id, seller_id: sellerOf(id), title: `Item of ${sellerOf(id)} #${id.slice(-1)}`, price: 100 * Number(id.slice(-1)),
-    available_quantity: 5, sold_quantity: 3, status: 'active', listing_type_id: 'gold_special', condition: 'new',
+    available_quantity: 5, sold_quantity: 0, status: 'active', listing_type_id: 'gold_special', condition: 'new',
     permalink: `https://ml.test/${id}`, date_created: '2024-01-01T00:00:00Z', shipping: { free_shipping: true },
     attributes: [{ id: 'BRAND', name: 'Marca', value_name: 'Acme' }, { id: 'COLOR', name: 'Color', value_name: 'Negro' }],
     variations: [], buyer_secret: BUYER.email, ...itemOver[id],
@@ -719,6 +719,30 @@ test('título: inválidos, otros campos sin afectar y publicaciones bloqueadas p
     });
 });
 
+test('suggest: con ventas no se devuelven títulos, pero sí la descripción', async () => {
+    const { app } = setup();
+    process.env['ANTHROPIC_API_KEY'] = 'k';
+    await withServer(app, async base => {
+        const id = `MLM${A}002`;
+        itemOver[id] = { sold_quantity: 2 };
+        const r = await post(base, '/api/opportunities/suggest', { itemId: id }, A);
+        assert.equal(r.status, 200);
+        assert.match(r.body.titleLock, /2 ventas/);
+        assert.deepEqual(r.body.titles, []);
+        assert.equal(r.body.droppedTitles, 0);
+        assert.ok(!r.body.warnings.some((w: string) => /título/i.test(w)), r.body.warnings.join('|'));
+        assert.ok(r.body.description.text);
+
+        // Sin ventas la misma respuesta de la IA sí trae títulos y su aviso
+        const other = `MLM${A}003`;
+        itemOver[other] = { sold_quantity: 0 };
+        const free = await post(base, '/api/opportunities/suggest', { itemId: other }, A);
+        assert.equal(free.body.titleLock, null);
+        assert.equal(free.body.titles.length, 3);
+        assert.ok(free.body.warnings.some((w: string) => /título/i.test(w)));
+    });
+});
+
 test('suggest: titleLock sale del item fresco, también con resultado guardado', async () => {
     const { app } = setup();
     process.env['ANTHROPIC_API_KEY'] = 'k';
@@ -731,6 +755,10 @@ test('suggest: titleLock sale del item fresco, también con resultado guardado',
         const again = await post(base, '/api/opportunities/suggest', { itemId: id }, A);
         assert.equal(again.body.cached, true);
         assert.match(again.body.titleLock, /1 venta/);
+        assert.deepEqual(again.body.titles, [], 'el resultado guardado no debe mostrar títulos');
+        assert.equal(again.body.droppedTitles, 0);
+        assert.ok(!again.body.warnings.some((w: string) => /título/i.test(w)), again.body.warnings.join('|'));
+        assert.ok(again.body.description.text, 'la descripción se sigue sugiriendo');
         assert.equal(again.body.current.title, 'Título vigente');
     });
 });

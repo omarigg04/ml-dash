@@ -226,6 +226,13 @@ router.get('/candidates', async (_req: Request, res: Response) => {
     }
 });
 
+/** Con ventas el título no se puede cambiar: no se muestran sugerencias de título, ni las ya guardadas. */
+const applyTitleLock = (body: any, item: any) => {
+    const titleLock = titleLockReason(item);
+    if (!titleLock) return { ...body, titleLock };
+    return { ...body, titleLock, titles: [], droppedTitles: 0, warnings: (body.warnings || []).filter((w: string) => !/título/i.test(w)) };
+};
+
 // ---------------- POST /suggest ----------------
 router.post('/suggest', async (req: Request, res: Response) => {
     try {
@@ -243,7 +250,7 @@ router.post('/suggest', async (req: Request, res: Response) => {
         if (!regenerate) {
             const cached = await storeGet<any>(suggestKey(uid, itemId));
             if (cached) {
-                res.json({ ...cached, current: { ...cached.current, title: String(item.title) }, titleLock: titleLockReason(item), cached: true, usage: await usageSnapshot(uid) });
+                res.json({ ...applyTitleLock(cached, item), current: { ...cached.current, title: String(item.title) }, cached: true, usage: await usageSnapshot(uid) });
                 return;
             }
         }
@@ -300,7 +307,7 @@ router.post('/suggest', async (req: Request, res: Response) => {
             warnings,
         };
         await storeSet(suggestKey(uid, itemId), body, CACHE_TTL_S);
-        res.json({ ...body, titleLock: titleLockReason(item), cached: false, usage: await usageSnapshot(uid) });
+        res.json({ ...applyTitleLock(body, item), cached: false, usage: await usageSnapshot(uid) });
     } catch (error) {
         sendError(res, error, 'suggest');
     }
