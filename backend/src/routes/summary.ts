@@ -4,6 +4,7 @@ import { mlAuth } from '../auth/oauth';
 import { currentUid, NoAccountContextError } from '../auth/context';
 import { safeError } from '../security';
 import { MLOrder, MLShipment, MLShipmentCosts } from '../types';
+import { shippingPhase } from '../shipping-phase';
 
 const router = Router();
 
@@ -29,7 +30,6 @@ const MAX_RETRIES = 3;
 export const DAY_MS = 86_400_000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FINAL_SHIPMENT_STATUS = new Set(['delivered', 'cancelled', 'not_delivered', 'returned']);
-const PENDING_SHIPMENT_STATUS = new Set(['pending', 'handling', 'ready_to_ship']);
 
 // ---------- Utilidades de fecha (zona horaria IANA, sin dependencias) ----------
 export class BadRequest extends Error {}
@@ -117,7 +117,7 @@ export async function mlGet<T>(ctx: Ctx, url: string, params?: Record<string, an
 }
 
 // ---------- Caché de envíos (memoria del proceso) ----------
-interface ShipInfo { cost: number; status: string; }
+interface ShipInfo { cost: number; status: string; substatus: string | null; }
 const shipCache = new Map<string, { v: ShipInfo; exp: number }>();
 const SHIP_CACHE_MAX = 5000;
 
@@ -149,7 +149,7 @@ async function shipmentInfo(ctx: Ctx, id: string): Promise<ShipInfo | null> {
             if (!(status && status >= 400 && status < 500 && status !== 429)) return null;
         }
         const cost = sellerCost ?? shipment.shipping_option?.list_cost ?? shipment.list_cost ?? 0;
-        const info = { cost, status: shipment.status };
+        const info = { cost, status: shipment.status, substatus: shipment.substatus ?? null };
         cacheShip(id, info);
         return info;
     } catch (error) {
@@ -278,7 +278,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 /**
  * GET /api/summary/pending
- * Órdenes (últimos 30 días, no canceladas) cuyo envío aún no sale: pending / handling / ready_to_ship.
+ * Órdenes (últimos 30 días, no canceladas) cuyo envío aún no sale ("Por enviar" en Mercado Libre).
  * Alimenta la insignia de "Órdenes" en la barra lateral.
  */
 const pendingCache = new Map<string, { exp: number; body: any }>(); // por uid
@@ -300,7 +300,7 @@ router.get('/pending', async (_req: Request, res: Response) => {
         await runPool(candidates, SHIP_CONCURRENCY, async o => {
             const info = await shipmentInfo(ctx, String(o.shipping.id));
             if (!info) unknown++;
-            else if (PENDING_SHIPMENT_STATUS.has(info.status)) count++;
+            else if (shippingPhase(info.status, info.substatus) === 'to_ship') count++; // ya dejado en la agencia no cuenta
         }, ctx.deadline);
         const body = { count, partial: unknown > 0, meta: { ms: Date.now() - started, mlCalls: ctx.mlCalls } };
         if (!body.partial) pendingCache.set(uid, { exp: Date.now() + 60_000, body });

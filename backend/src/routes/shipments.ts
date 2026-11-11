@@ -3,6 +3,7 @@ import axios from 'axios';
 import { mlAuth } from '../auth/oauth';
 import { SHIPMENT_ID_RE, safeError } from '../security';
 import { MLShipment, MLShipmentCosts } from '../types';
+import { shippingPhase } from '../shipping-phase';
 
 const router = Router();
 
@@ -69,6 +70,8 @@ router.get('/:id', async (req: Request, res: Response) => {
             listCost,
             orderCost: shipment.order_cost || 0,
             status: shipment.status,
+            substatus: shipment.substatus ?? null,
+            phase: shippingPhase(shipment.status, shipment.substatus),
         });
     } catch (error: any) {
         console.error(`Error fetching shipment ${req.params['id']}:`, error.response?.data || error.message);
