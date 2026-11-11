@@ -206,10 +206,10 @@
 
         <!-- Títulos -->
         <section aria-labelledby="sec-titles">
-          <h3 id="sec-titles">Títulos sugeridos</h3>
+          <h3 id="sec-titles">{{ s.titleLock ? 'Título' : 'Títulos sugeridos' }}</h3>
           <p class="op-note">Título actual: <b>{{ s.current.title }}</b> ({{ s.current.title.length }}/60).</p>
-          <p class="op-lock" *ngIf="s.titleLock" role="status"><mat-icon aria-hidden="true">lock</mat-icon><span>{{ s.titleLock }} Puedes copiar estas ideas para una publicación nueva.</span></p>
-          <div class="empty-mini" *ngIf="s.titles.length === 0">Ninguna opción cumplió las reglas (máx. 60 caracteres, sin contacto ni promesas). Prueba Regenerar.</div>
+          <p class="op-lock" *ngIf="s.titleLock" role="status"><mat-icon aria-hidden="true">lock</mat-icon><span>{{ s.titleLock }} Por eso no se sugieren títulos.</span></p>
+          <div class="empty-mini" *ngIf="s.titles.length === 0 && !s.titleLock">Ninguna opción cumplió las reglas (máx. 60 caracteres, sin contacto ni promesas). Prueba Regenerar.</div>
           <div class="opt" *ngFor="let t of s.titles; trackBy: trackByIndex">
             <p class="opt-title">{{ t.title }} <span class="idea-len">{{ t.length }}/60</span></p>
             <p class="opt-reason">{{ t.reason }}</p>
