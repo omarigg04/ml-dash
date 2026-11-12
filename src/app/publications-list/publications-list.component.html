@@ -149,6 +149,15 @@
           <p class="edit-note" *ngFor="let n of d.notes">{{ n }}</p>
 
           <label class="field">
+            <span>Título</span>
+            <input type="text" name="editTitle" [(ngModel)]="editTitle" [disabled]="!!d.locks.title" autocomplete="off"
+              [attr.aria-invalid]="!!editFieldErrors.title">
+            <small class="field-error" *ngIf="editFieldErrors.title">{{ editFieldErrors.title }}</small>
+            <small class="field-hint" *ngIf="!d.locks.title && !editFieldErrors.title">{{ editTitleLength }} / {{ titleMax }} caracteres</small>
+            <small class="field-lock" *ngIf="d.locks.title && !editAllLocked">{{ d.locks.title }}</small>
+          </label>
+
+          <label class="field">
             <span>Precio (MXN)</span>
             <input type="number" min="0.01" step="0.01" inputmode="decimal" name="editPrice" [(ngModel)]="editPrice"
               [disabled]="!!d.locks.price" [attr.aria-invalid]="!!editFieldErrors.price">

@@ -16,7 +16,7 @@ interface EditableItem {
   available_quantity: number;
   variations: { id: number; label: string; available_quantity: number; price: number }[];
   description: string;
-  locks: { price?: string; stock?: string; description?: string };
+  locks: { price?: string; stock?: string; description?: string; title?: string };
   notes: string[];
 }
 
@@ -73,6 +73,8 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
   editQty: string | number = '';
   editVarQty: Record<string, string | number> = {};
   editDesc = '';
+  editTitle = '';
+  readonly titleMax = 60;
   editStep: 'form' | 'review' = 'form';
   isSaving = false;
   editErrors: string[] = [];
@@ -216,7 +218,7 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
     this.router.navigate(['/publish'], { queryParams: { mode: 'duplicate', from: item.id } });
   }
 
-  // ---- Editar: precio, stock y descripción ----
+  // ---- Editar: título, precio, stock y descripción ----
   openEdit(item: Publication): void {
     this.editTarget = item;
     this.editData = null;
@@ -234,6 +236,7 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
         this.editVarQty = {};
         data.variations.forEach(v => (this.editVarQty[v.id] = String(v.available_quantity ?? 0)));
         this.editDesc = data.description ?? '';
+        this.editTitle = data.title ?? '';
         this.editLoading = false;
       },
       error: err => {
@@ -261,12 +264,22 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
   private parsePrice(): number { return this.num(this.editPrice); }
   private num(v: unknown): number { return v == null || String(v).trim() === '' ? NaN : Number(v); }
   private parseQty(v: unknown): number { return this.num(v); }
+  /** Igual que el backend: espacios repetidos se cuentan como uno */
+  private cleanTitle(): string { return this.editTitle.replace(/\s+/g, ' ').trim(); }
+  private titleChanged(d: EditableItem): boolean { return !d.locks.title && this.cleanTitle() !== d.title; }
+  get editTitleLength(): number { return this.cleanTitle().length; }
 
   /** Errores de validación por campo (solo de campos editables) */
-  get editFieldErrors(): { price?: string; qty?: string; vars: Record<string, string> } {
-    const out: { price?: string; qty?: string; vars: Record<string, string> } = { vars: {} };
+  get editFieldErrors(): { title?: string; price?: string; qty?: string; vars: Record<string, string> } {
+    const out: { title?: string; price?: string; qty?: string; vars: Record<string, string> } = { vars: {} };
     const d = this.editData;
     if (!d) return out;
+    // Solo se valida si cambió: hay títulos viejos de más de 60 que no deben bloquear otros cambios
+    if (this.titleChanged(d)) {
+      const n = this.editTitleLength;
+      if (n === 0) out.title = 'El título no puede quedar vacío.';
+      else if (n > this.titleMax) out.title = `Máximo ${this.titleMax} caracteres (llevas ${n}).`;
+    }
     const p = this.parsePrice();
     if (!d.locks.price && !(Number.isFinite(p) && p >= 0.01 && p <= 99999999)) out.price = 'Ingresa un precio entre $0.01 y $99,999,999.';
     if (!d.locks.stock) {
@@ -285,7 +298,7 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
 
   get editHasFieldErrors(): boolean {
     const e = this.editFieldErrors;
-    return !!e.price || !!e.qty || Object.keys(e.vars).length > 0;
+    return !!e.title || !!e.price || !!e.qty || Object.keys(e.vars).length > 0;
   }
 
   /** Diferencias entre lo cargado y lo editado */
@@ -293,6 +306,7 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
     const d = this.editData;
     if (!d) return [];
     const out: EditChange[] = [];
+    if (this.titleChanged(d)) out.push({ label: 'Título', before: d.title, after: this.cleanTitle() });
     if (!d.locks.price && this.parsePrice() !== d.price) {
       out.push({ label: 'Precio', before: money(d.price), after: money(this.parsePrice()) });
     }
@@ -329,6 +343,7 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
     const item = this.editTarget;
     if (!d || !item || this.isSaving || this.editHasFieldErrors) return;
     const body: any = {};
+    if (this.titleChanged(d)) body.title = this.cleanTitle();
     if (!d.locks.price && this.parsePrice() !== d.price) body.price = this.parsePrice();
     if (!d.locks.stock) {
       if (this.editHasVars) {
@@ -360,7 +375,7 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
         this.editStep = 'form';
         if (err.status === 207 && e) {
           // El item se guardó pero la descripción falló
-          this.editErrors = ['Se guardaron precio/stock, pero la descripción no se pudo guardar.', ...this.errorLines(e.description)];
+          this.editErrors = ['Se guardaron los demás cambios, pero la descripción no se pudo guardar.', ...this.errorLines(e.description)];
           this.refreshEditBase(item);
           return;
         }
@@ -383,14 +398,16 @@ export class PublicationsListComponent implements OnInit, OnDestroy {
         this.editData = data;
         this.editPrice = String(data.price ?? '');
         this.editQty = String(data.available_quantity ?? '');
-        this.applyUpdated(item.id, { price: data.price, available_quantity: data.available_quantity });
+        this.editTitle = data.title ?? '';
+        this.applyUpdated(item.id, { title: data.title, price: data.price, available_quantity: data.available_quantity });
       }
     });
   }
 
-  private applyUpdated(id: string, u?: { price?: number; available_quantity?: number; status?: string; last_updated?: string }): void {
+  private applyUpdated(id: string, u?: { title?: string; price?: number; available_quantity?: number; status?: string; last_updated?: string }): void {
     if (!u) return;
     const patch: Partial<Publication> = {};
+    if (u.title !== undefined) patch.title = u.title;
     if (u.price !== undefined) patch.price = u.price;
     if (u.available_quantity !== undefined) patch.available_quantity = u.available_quantity;
     if (u.status !== undefined) patch.status = u.status;
