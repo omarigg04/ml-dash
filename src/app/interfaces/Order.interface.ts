@@ -23,6 +23,10 @@ export interface Order {
     };
     shipping: {
       id: number;
+      /** Solo en órdenes abiertas: estado del envío consultado por /api/orders */
+      status?: string;
+      substatus?: string | null;
+      phase?: 'to_ship' | 'in_transit' | 'delivered' | 'cancelled' | null;
     };
     date_closed: string;
     id: number;

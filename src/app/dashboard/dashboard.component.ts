@@ -12,6 +12,8 @@ interface ShipmentInfo {
   listCost: number;
   orderCost: number;
   status: string;
+  substatus?: string | null;
+  phase?: string | null;
 }
 
 type Tone = 'success' | 'warning' | 'info' | 'error' | 'off';
@@ -51,6 +53,7 @@ const SHIPMENT_STATUS: Record<string, StatusInfo> = {
 
 const PHASES: Record<string, StatusInfo> = {
   to_ship: { label: 'Por enviar', tone: 'warning' },
+  in_transit: { label: 'En camino', tone: 'info' },
   delivered: { label: 'Entregada', tone: 'success' },
   cancelled: { label: 'Cancelada', tone: 'error' },
 };
@@ -99,7 +102,7 @@ export class DashboardComponent implements OnInit {
   ) {
     const num: ColDef = { cellClass: 'ds-num', headerClass: 'ag-right-aligned-header', type: 'rightAligned' };
     this.columnDefs = [
-      { headerName: 'Orden', field: 'id', flex: 0, width: 150, cellClass: 'ds-mono' },
+      { headerName: 'Venta', field: 'id', flex: 0, width: 160, cellClass: 'ds-mono' },
       {
         headerName: 'Fecha',
         field: 'date_created',
@@ -141,18 +144,16 @@ export class DashboardComponent implements OnInit {
   private loadOrders(): void {
     this.http.get<Order[]>(`${environment.apiUrl}/orders`).subscribe({
       next: (response: Order[]) => {
-        // Regla (datos reales de /orders): `fulfilled` es true en las entregadas, false en las canceladas
-        // y viene vacío en las pagadas aún sin entregar, por eso el filtro anterior (fulfilled === true)
-        // las ocultaba. Ahora se cargan todas y la fase sale de `status` + tags de la orden:
-        //   cancelled -> 'cancelled'; tag 'delivered' -> 'delivered'; el resto -> 'to_ship'.
-        // "Todas" excluye las canceladas (están en su chip). Limitación: la orden no distingue
-        // "por enviar" de "en camino" (eso vive en /shipments, una llamada por orden), así que ambas
-        // caen en el chip "Por enviar / en camino".
+        // Fase: cancelled -> 'cancelled'; tag 'delivered' -> 'delivered'; si no, la fase del envío que
+        // /api/orders consulta para las órdenes abiertas ('to_ship' o 'in_transit', como en Mercado Libre).
+        // Sin estado del envío se queda en 'to_ship'. "Todas" excluye las canceladas (están en su chip).
+        // `id` es el número de venta de Mercado Libre (pack_id); el id interno de la orden va en `orderId`.
         this.allRows = response.map(order => {
           const items = order.order_items;
           const extra = items.length > 1 ? ` (+${items.length - 1} más)` : '';
           return {
-            id: order.id,
+            id: order.pack_id ?? order.id,
+            orderId: order.id,
             date_created: new Date(order.date_created),
             total_amount: order.total_amount,
             // Misma cifra que el panel de detalle (comisión × cantidad de todos los artículos)
@@ -179,7 +180,9 @@ export class DashboardComponent implements OnInit {
 
   private phaseOf(order: Order): string {
     if (order.status === 'cancelled') return 'cancelled';
-    return order.tags?.includes('delivered') ? 'delivered' : 'to_ship';
+    if (order.tags?.includes('delivered')) return 'delivered';
+    const phase = order.shipping?.phase;
+    return phase === 'in_transit' || phase === 'delivered' ? phase : 'to_ship';
   }
 
   reload(): void {
@@ -207,6 +210,7 @@ export class DashboardComponent implements OnInit {
       (this.statusFilter === 'all' ? row.phase !== 'cancelled' : row.phase === this.statusFilter) &&
       (!term ||
         String(row.id).includes(term) ||
+        String(row.orderId).includes(term) ||
         row.item.toLowerCase().includes(term) ||
         (row.buyer ?? '').toLowerCase().includes(term))
     );
@@ -218,7 +222,8 @@ export class DashboardComponent implements OnInit {
     const count = (phase: string) => this.allRows.filter(r => r.phase === phase).length;
     const chips = [
       { key: 'all', label: 'Todas', count: this.allRows.length - count('cancelled') },
-      { key: 'to_ship', label: 'Por enviar / en camino', count: count('to_ship') },
+      { key: 'to_ship', label: 'Por enviar', count: count('to_ship') },
+      { key: 'in_transit', label: 'En camino', count: count('in_transit') },
       { key: 'delivered', label: 'Entregadas', count: count('delivered') },
       { key: 'cancelled', label: 'Canceladas', count: count('cancelled') },
     ];
@@ -233,7 +238,9 @@ export class DashboardComponent implements OnInit {
     return ORDER_STATUS[status ?? ''] ?? { label: status || '—', tone: 'off' };
   }
 
-  shipmentInfo(status: string | undefined): StatusInfo {
+  shipmentInfo(status: string | undefined, phase?: string | null): StatusInfo {
+    // Listo para enviar pero ya en la agencia o con la paquetería: Mercado Libre lo muestra "En camino"
+    if (status === 'ready_to_ship' && phase === 'in_transit') return SHIPMENT_STATUS['shipped'];
     return SHIPMENT_STATUS[status ?? ''] ?? { label: status || '—', tone: 'off' };
   }
 

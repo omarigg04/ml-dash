@@ -78,9 +78,9 @@
 <aside *ngIf="selectedOrder as order" class="detail-panel" role="dialog" aria-modal="true" aria-label="Detalle de la orden">
   <div class="detail-header">
     <div>
-      <p class="detail-label">Orden</p>
-      <h2 class="detail-title">#{{ order.id }}</h2>
-      <p class="detail-date">{{ order.date_created | date:'dd/MM/yyyy, HH:mm' }}</p>
+      <p class="detail-label">Venta</p>
+      <h2 class="detail-title">#{{ order.pack_id ?? order.id }}</h2>
+      <p class="detail-date">{{ order.date_created | date:'dd/MM/yyyy, HH:mm' }}<ng-container *ngIf="order.pack_id && order.pack_id !== order.id"> · Orden {{ order.id }}</ng-container></p>
     </div>
     <button type="button" class="detail-close" (click)="closeOrderDetail()" aria-label="Cerrar detalle">
       <mat-icon>close</mat-icon>
@@ -92,7 +92,7 @@
     <div class="detail-tags">
       <span *ngIf="order.payments[0] as pay" class="ds-badge" [ngClass]="'tone-' + statusInfo(pay.status).tone">Pago: {{ statusInfo(pay.status).label }}</span>
       <span *ngIf="!order.payments[0]" class="ds-badge" [ngClass]="'tone-' + statusInfo(order.status).tone">{{ statusInfo(order.status).label }}</span>
-      <span *ngIf="selectedShipment" class="ds-badge" [ngClass]="'tone-' + shipmentInfo(selectedShipment.status).tone">Envío: {{ shipmentInfo(selectedShipment.status).label }}</span>
+      <span *ngIf="selectedShipment" class="ds-badge" [ngClass]="'tone-' + shipmentInfo(selectedShipment.status, selectedShipment.phase).tone">Envío: {{ shipmentInfo(selectedShipment.status, selectedShipment.phase).label }}</span>
     </div>
 
     <!-- Comprador -->

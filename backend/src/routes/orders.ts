@@ -3,6 +3,7 @@ import axios from 'axios';
 import { mlAuth } from '../auth/oauth';
 import { safeError } from '../security';
 import { MLOrder } from '../types';
+import { shippingPhase } from '../shipping-phase';
 
 const router = Router();
 
@@ -15,6 +16,8 @@ function toClientOrder(o: any): any {
     const buyer = o?.buyer;
     return {
         id: o?.id,
+        // Número de venta que muestra Mercado Libre (el id de la orden es interno)
+        pack_id: o?.pack_id ?? null,
         status: o?.status,
         status_detail: o?.status_detail,
         date_created: o?.date_created,
@@ -46,6 +49,32 @@ function toClientOrder(o: any): any {
     };
 }
 
+
+const SHIPMENT_CONCURRENCY = 5;
+
+/**
+ * Estado del envío de las órdenes que siguen abiertas (no canceladas ni entregadas). La orden sola no
+ * distingue "Por enviar" de "En camino". Si la consulta falla, la orden se queda sin estado y la app usa sus tags.
+ */
+async function addShippingStatus(orders: any[], token: string): Promise<void> {
+    const open = orders.filter(o => o.shipping?.id && o.status !== 'cancelled' && !o.tags?.includes('delivered'));
+    let next = 0;
+    const worker = async () => {
+        while (next < open.length) {
+            const order = open[next++];
+            try {
+                const { data } = await axios.get(
+                    `https://api.mercadolibre.com/shipments/${encodeURIComponent(String(order.shipping.id))}`,
+                    { headers: { Authorization: `Bearer ${token}` }, timeout: 6000 }
+                );
+                order.shipping = { ...order.shipping, status: data.status, substatus: data.substatus ?? null, phase: shippingPhase(data.status, data.substatus) };
+            } catch (error) {
+                console.warn(`orders: envío ${order.shipping.id} sin estado: ${safeError(error)}`);
+            }
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(SHIPMENT_CONCURRENCY, open.length) }, worker));
+}
 
 /**
  * GET /api/orders
@@ -199,6 +228,7 @@ router.get('/', async (req: Request, res: Response) => {
             })
         );
 
+        await addShippingStatus(detailedOrders, token);
         res.json(detailedOrders);
     } catch (error: any) {
         console.error('Error fetching orders:', error.response?.data || error.message);

@@ -71,4 +71,5 @@ export interface MLShipment {
     loyal_discount?: number;
   };
   status: string;
+  substatus?: string | null;
 }
